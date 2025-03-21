@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { useForm } from 'react-hook-form';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
@@ -6,27 +5,47 @@ import { Button } from '@/components/ui/button';
 import { Form, FormField, FormItem, FormLabel, FormControl, FormDescription, FormMessage } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
-import { getUserProfile } from '@/services/api';
+import { getUserProfile, updateUserProfile, updateUserPassword } from '@/services/api';
 import { toast } from 'sonner';
+import { z } from 'zod';
+import { zodResolver } from '@hookform/resolvers/zod';
 
-interface ProfileFormValues {
-  name: string;
-  email: string;
-  website: string;
-  currentPassword: string;
-  newPassword: string;
-  confirmPassword: string;
-}
+const profileSchema = z.object({
+  name: z.string().min(2, { message: 'Name must be at least 2 characters' }),
+  email: z.string().email({ message: 'Please enter a valid email' }),
+  website: z.string().optional(),
+});
+
+const passwordSchema = z.object({
+  currentPassword: z.string().min(6, { message: 'Password must be at least 6 characters' }),
+  newPassword: z.string().min(6, { message: 'Password must be at least 6 characters' }),
+  confirmPassword: z.string().min(6, { message: 'Password must be at least 6 characters' }),
+}).refine((data) => data.newPassword === data.confirmPassword, {
+  message: "Passwords don't match",
+  path: ["confirmPassword"],
+});
+
+type ProfileFormValues = z.infer<typeof profileSchema>;
+type PasswordFormValues = z.infer<typeof passwordSchema>;
 
 const UserProfile = () => {
   const [isLoading, setIsLoading] = useState(true);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isPasswordSubmitting, setIsPasswordSubmitting] = useState(false);
   const [user, setUser] = useState<any>(null);
 
-  const form = useForm<ProfileFormValues>({
+  const profileForm = useForm<ProfileFormValues>({
+    resolver: zodResolver(profileSchema),
     defaultValues: {
       name: '',
       email: '',
       website: '',
+    }
+  });
+
+  const passwordForm = useForm<PasswordFormValues>({
+    resolver: zodResolver(passwordSchema),
+    defaultValues: {
       currentPassword: '',
       newPassword: '',
       confirmPassword: ''
@@ -39,13 +58,10 @@ const UserProfile = () => {
         const userData = await getUserProfile();
         setUser(userData);
         
-        form.reset({
+        profileForm.reset({
           name: userData.name,
           email: userData.email,
-          website: userData.website,
-          currentPassword: '',
-          newPassword: '',
-          confirmPassword: ''
+          website: userData.website || '',
         });
       } catch (error) {
         console.error('Error fetching profile:', error);
@@ -56,11 +72,57 @@ const UserProfile = () => {
     };
 
     fetchProfile();
-  }, [form]);
+  }, [profileForm]);
 
-  const onSubmit = async (data: ProfileFormValues) => {
-    toast.info('Profile update functionality will be implemented soon');
-    console.log('Profile data to update:', data);
+  const onSubmitProfile = async (data: ProfileFormValues) => {
+    setIsSubmitting(true);
+    try {
+      const result = await updateUserProfile({
+        name: data.name,
+        website: data.website || '',
+      });
+      
+      setUser({
+        ...user,
+        name: data.name,
+        website: data.website
+      });
+      
+      toast.success('Profile updated successfully');
+    } catch (error: any) {
+      console.error('Profile update error:', error);
+      toast.error(error.message || 'Failed to update profile');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const onSubmitPassword = async (data: PasswordFormValues) => {
+    setIsPasswordSubmitting(true);
+    try {
+      if (data.newPassword !== data.confirmPassword) {
+        toast.error('New passwords do not match');
+        return;
+      }
+      
+      await updateUserPassword({
+        currentPassword: data.currentPassword,
+        newPassword: data.newPassword,
+      });
+      
+      passwordForm.reset({
+        currentPassword: '',
+        newPassword: '',
+        confirmPassword: ''
+      });
+      
+      toast.success('Password updated successfully');
+    } catch (error: any) {
+      console.error('Password update error:', error);
+      toast.error(error.message || 'Failed to update password');
+    } finally {
+      setIsPasswordSubmitting(false);
+    }
   };
 
   const getInitials = (name: string) => {
@@ -107,10 +169,10 @@ const UserProfile = () => {
               </div>
             </div>
 
-            <Form {...form}>
-              <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
+            <Form {...profileForm}>
+              <form onSubmit={profileForm.handleSubmit(onSubmitProfile)} className="space-y-6">
                 <FormField
-                  control={form.control}
+                  control={profileForm.control}
                   name="name"
                   render={({ field }) => (
                     <FormItem>
@@ -124,7 +186,7 @@ const UserProfile = () => {
                 />
 
                 <FormField
-                  control={form.control}
+                  control={profileForm.control}
                   name="email"
                   render={({ field }) => (
                     <FormItem>
@@ -141,7 +203,7 @@ const UserProfile = () => {
                 />
 
                 <FormField
-                  control={form.control}
+                  control={profileForm.control}
                   name="website"
                   render={({ field }) => (
                     <FormItem>
@@ -157,7 +219,9 @@ const UserProfile = () => {
                   )}
                 />
 
-                <Button type="submit">Update Profile</Button>
+                <Button type="submit" disabled={isSubmitting}>
+                  {isSubmitting ? 'Updating...' : 'Update Profile'}
+                </Button>
               </form>
             </Form>
           </CardContent>
@@ -169,10 +233,10 @@ const UserProfile = () => {
             <CardDescription>Update your password</CardDescription>
           </CardHeader>
           <CardContent>
-            <Form {...form}>
-              <form className="space-y-6">
+            <Form {...passwordForm}>
+              <form onSubmit={passwordForm.handleSubmit(onSubmitPassword)} className="space-y-6">
                 <FormField
-                  control={form.control}
+                  control={passwordForm.control}
                   name="currentPassword"
                   render={({ field }) => (
                     <FormItem>
@@ -186,7 +250,7 @@ const UserProfile = () => {
                 />
 
                 <FormField
-                  control={form.control}
+                  control={passwordForm.control}
                   name="newPassword"
                   render={({ field }) => (
                     <FormItem>
@@ -200,7 +264,7 @@ const UserProfile = () => {
                 />
 
                 <FormField
-                  control={form.control}
+                  control={passwordForm.control}
                   name="confirmPassword"
                   render={({ field }) => (
                     <FormItem>
@@ -213,8 +277,8 @@ const UserProfile = () => {
                   )}
                 />
 
-                <Button type="button" onClick={() => toast.info('Password change functionality will be implemented soon')}>
-                  Change Password
+                <Button type="submit" disabled={isPasswordSubmitting}>
+                  {isPasswordSubmitting ? 'Updating...' : 'Change Password'}
                 </Button>
               </form>
             </Form>

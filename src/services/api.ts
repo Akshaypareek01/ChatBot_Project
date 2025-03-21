@@ -97,6 +97,24 @@ export const deleteUser = async (id: string) => {
   }
 };
 
+export const updateUserProfile = async (userData: { name: string; website: string }) => {
+  try {
+    const response = await api.put('/users/profile', userData);
+    return response.data;
+  } catch (error) {
+    throw error.response?.data || { message: 'An error occurred while updating profile' };
+  }
+};
+
+export const updateUserPassword = async (passwordData: { currentPassword: string; newPassword: string }) => {
+  try {
+    const response = await api.put('/users/password', passwordData);
+    return response.data;
+  } catch (error) {
+    throw error.response?.data || { message: 'An error occurred while updating password' };
+  }
+};
+
 // QA services
 export const getUserQAs = async (userId: string) => {
   try {

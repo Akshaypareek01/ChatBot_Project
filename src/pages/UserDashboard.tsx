@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { useLocation, Routes, Route, Navigate, useNavigate } from 'react-router-dom';
 import { ChatProvider } from '@/context/ChatContext';
@@ -8,8 +7,10 @@ import UserQAManager from '@/components/user/UserQAManager';
 import UserProfile from '@/components/user/UserProfile';
 import UserPlans from '@/components/user/UserPlans';
 import ChatbotWidget from '@/components/chatbot/ChatbotWidget';
-import { getUserProfile } from '@/services/api';
+import { getUserProfile, getUserSubscription } from '@/services/api';
 import { toast } from 'sonner';
+import { Alert, AlertTitle, AlertDescription } from '@/components/ui/alert';
+import { AlertCircle } from 'lucide-react';
 
 const UserDashboard = () => {
   const location = useLocation();
@@ -17,6 +18,8 @@ const UserDashboard = () => {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [user, setUser] = useState(null);
+  const [subscription, setSubscription] = useState(null);
+  const [isSubscriptionExpired, setIsSubscriptionExpired] = useState(false);
   
   useEffect(() => {
     // Check authentication
@@ -28,9 +31,12 @@ const UserDashboard = () => {
       return;
     }
     
-    const fetchUserProfile = async () => {
+    const fetchUserData = async () => {
       try {
-        const userData = await getUserProfile();
+        const [userData, subscriptionData] = await Promise.all([
+          getUserProfile(),
+          getUserSubscription()
+        ]);
         
         if (!userData.isActive) {
           toast.error('Your account is pending approval by the administrator');
@@ -40,9 +46,22 @@ const UserDashboard = () => {
         }
         
         setUser(userData);
+        setSubscription(subscriptionData);
+        
+        // Check if subscription has expired
+        if (subscriptionData) {
+          const endDate = new Date(subscriptionData.endDate);
+          const now = new Date();
+          
+          // If endDate is in the past and not on the free plan
+          if (now > endDate && subscriptionData.plan.name !== 'Free') {
+            setIsSubscriptionExpired(true);
+          }
+        }
+        
         setIsAuthenticated(true);
       } catch (error) {
-        console.error('Error fetching user profile:', error);
+        console.error('Error fetching user data:', error);
         toast.error('Session expired. Please log in again');
         localStorage.removeItem('token');
         navigate('/login');
@@ -51,7 +70,7 @@ const UserDashboard = () => {
       }
     };
     
-    fetchUserProfile();
+    fetchUserData();
   }, [navigate]);
   
   const handleLogout = () => {
@@ -75,8 +94,26 @@ const UserDashboard = () => {
   return (
     <ChatProvider userId={user?._id}>
       <UserLayout user={user} onLogout={handleLogout}>
+        {isSubscriptionExpired && (
+          <Alert variant="destructive" className="mb-6">
+            <AlertCircle className="h-4 w-4" />
+            <AlertTitle>Subscription Expired</AlertTitle>
+            <AlertDescription>
+              Your subscription has expired. Please upgrade your plan to continue using all features.
+              <div className="mt-2">
+                <button 
+                  onClick={() => navigate('/user/plans')} 
+                  className="text-primary underline font-medium"
+                >
+                  Upgrade Now
+                </button>
+              </div>
+            </AlertDescription>
+          </Alert>
+        )}
+        
         <Routes>
-          <Route path="/" element={<UserDashboardHome />} />
+          <Route path="/" element={<UserDashboardHome subscription={subscription} />} />
           <Route path="/qa" element={<UserQAManager />} />
           <Route path="/profile" element={<UserProfile />} />
           <Route path="/plans" element={<UserPlans />} />
