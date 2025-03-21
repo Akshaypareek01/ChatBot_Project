@@ -38,7 +38,7 @@ const Admin = () => {
     
     if (!token || !isAdmin) {
       toast.error('Please log in to access the admin panel');
-      navigate('/login');
+      navigate('/admin/login');
     } else {
       setIsAuthenticated(true);
     }
@@ -74,7 +74,7 @@ const Admin = () => {
           <Route path="/users" element={<UserManager />} />
           <Route path="/plans" element={<PlanManager />} />
           <Route path="/settings" element={<Settings />} />
-          <Route path="*" element={<Navigate to="/admin" replace />} />
+          <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </AdminLayout>
       <ChatbotWidget userId={adminUserId} />

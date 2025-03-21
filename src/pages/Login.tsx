@@ -18,11 +18,6 @@ const Login = () => {
   // Check if already logged in
   useEffect(() => {
     const token = localStorage.getItem('token');
-    const isAdmin = localStorage.getItem('isAdmin');
-    
-    if (token && isAdmin === 'true') {
-      navigate('/admin');
-    }
   }, [navigate]);
 
   const handleSubmit = async (e: React.FormEvent) => {

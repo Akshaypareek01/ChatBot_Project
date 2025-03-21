@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, Navigate, useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { ChatProvider } from '@/context/ChatContext';
 import ChatbotWidget from '@/components/chatbot/ChatbotWidget';
@@ -22,6 +22,7 @@ interface Plan {
 }
 
 const Index = () => {
+    const navigate = useNavigate();
   const featureRefs = useRef<(HTMLDivElement | null)[]>([]);
   const [visibleFeatures, setVisibleFeatures] = useState<boolean[]>([]);
   const [plans, setPlans] = useState<Plan[]>([]);
@@ -70,6 +71,10 @@ const Index = () => {
 
     fetchPlans();
   }, []);
+
+  const handelPlanGetStart = ()=>{
+    navigate("/user");
+  }
 
   const features = [
     {
@@ -149,7 +154,7 @@ const Index = () => {
             </p>
             
             <div className="flex flex-col sm:flex-row gap-4 w-full justify-center animate-fade-in">
-              <Link to="/admin">
+              <Link to="/user">
                 <Button size="lg" className="w-full sm:w-auto">
                   Try Demo
                   <ArrowRight className="ml-2 h-4 w-4" />
@@ -311,7 +316,7 @@ const Index = () => {
                     </CardContent>
                     
                     <CardFooter>
-                      <Button className="w-full" variant={plan.isPopular ? "default" : "outline"}>
+                      <Button onClick={handelPlanGetStart} className="w-full" variant={plan.isPopular ? "default" : "outline"}>
                         Get Started
                       </Button>
                     </CardFooter>
@@ -370,14 +375,14 @@ const Index = () => {
               </p>
               
               <div className="flex flex-col sm:flex-row justify-center gap-4">
-                <Link to="/admin">
+                <Link to="/user">
                   <Button size="lg" className="w-full sm:w-auto">
                     Get Started Free
                   </Button>
                 </Link>
-                <Button size="lg" variant="outline" className="w-full sm:w-auto">
+                {/* <Button size="lg" variant="outline" className="w-full sm:w-auto">
                   Schedule Demo
-                </Button>
+                </Button> */}
               </div>
               
               <div className="mt-8 flex items-center justify-center text-sm text-muted-foreground">
