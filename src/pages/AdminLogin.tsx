@@ -9,7 +9,7 @@ import { MessageSquareText, LogIn } from 'lucide-react';
 import { toast } from 'sonner';
 import { adminLogin, login } from '@/services/api';
 
-const Login = () => {
+const AdminLogin = () => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -43,11 +43,11 @@ const Login = () => {
       if (email && password) {
         // Try to authenticate with backend
         try {
-          const data = await login(email, password);
+          const data = await adminLogin(email, password);
           localStorage.setItem('token', data.token);
           localStorage.setItem('isAdmin', 'true');
           toast.success('Login successful');
-          navigate('/user/admin');
+          navigate('r/admin');
         } catch (error) {
           // Fallback for demo if backend is not available
           console.error('Backend login failed, using fallback:', error);
@@ -73,7 +73,7 @@ const Login = () => {
           <div className="flex items-center justify-center">
             <MessageSquareText className="h-8 w-8 text-primary mb-2" />
           </div>
-          <h1 className="text-2xl font-bold">Sign in to your custom Admin Panel</h1>
+          <h1 className="text-2xl font-bold">Sign in to Admin Panel</h1>
           <p className="text-muted-foreground mt-2">
             Enter your credentials to access the admin dashboard
           </p>
@@ -82,9 +82,9 @@ const Login = () => {
         <Card className="shadow-premium">
           <CardHeader>
             <CardTitle>Sign In</CardTitle>
-            {/* <CardDescription>
+            <CardDescription>
               Use email: admin@gmail.com and password: admin1234 for demo access
-            </CardDescription> */}
+            </CardDescription>
           </CardHeader>
           <CardContent>
             <form onSubmit={handleSubmit} className="space-y-4">
@@ -93,7 +93,7 @@ const Login = () => {
                 <Input
                   id="email"
                   type="email"
-                  placeholder="example@gmail.com"
+                  placeholder="admin@gmail.com"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   autoComplete="email"
@@ -110,7 +110,7 @@ const Login = () => {
                 <Input
                   id="password"
                   type="password"
-                  placeholder="example1234"
+                  placeholder="admin1234"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   autoComplete="current-password"
@@ -136,8 +136,8 @@ const Login = () => {
           <CardFooter className="flex flex-col space-y-4">
             <div className="text-center text-sm text-muted-foreground">
               Don't have an account?{' '}
-              <Link to="/register" className="text-primary hover:underline">
-                Register now
+              <Link to="#" className="text-primary hover:underline">
+                Contact administrator
               </Link>
             </div>
           </CardFooter>
@@ -153,4 +153,4 @@ const Login = () => {
   );
 };
 
-export default Login;
+export default AdminLogin;

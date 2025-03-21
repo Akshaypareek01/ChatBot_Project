@@ -78,8 +78,78 @@ const qaSchema = new mongoose.Schema({
   }
 });
 
+const planSchema = new mongoose.Schema({
+  name: {
+    type: String,
+    required: true,
+    trim: true
+  },
+  description: {
+    type: String,
+    required: true,
+    trim: true
+  },
+  price: {
+    type: Number,
+    required: true
+  },
+  discountPrice: {
+    type: Number
+  },
+  tokens: {
+    type: Number,
+    required: true
+  },
+  features: [{
+    type: String,
+    required: true
+  }],
+  isPopular: {
+    type: Boolean,
+    default: false
+  },
+  createdAt: {
+    type: Date,
+    default: Date.now
+  },
+  updatedAt: {
+    type: Date,
+    default: Date.now
+  }
+});
+
+const subscriptionSchema = new mongoose.Schema({
+  userId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'User',
+    required: true
+  },
+  planId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Plan',
+    required: true
+  },
+  startDate: {
+    type: Date,
+    default: Date.now
+  },
+  endDate: {
+    type: Date,
+    default: () => new Date(+new Date() + 30*24*60*60*1000) // 30 days from now
+  },
+  isActive: {
+    type: Boolean,
+    default: true
+  },
+  tokensUsed: {
+    type: Number,
+    default: 0
+  }
+});
+
 // Models
 const User = mongoose.model('User', userSchema);
 const QA = mongoose.model('QA', qaSchema);
-
-module.exports = { User, QA };
+const Plan = mongoose.model('Plan', planSchema);
+const Subscription = mongoose.model('Subscription', subscriptionSchema);
+module.exports = { User, QA, Plan, Subscription  };

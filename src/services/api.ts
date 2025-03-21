@@ -42,6 +42,15 @@ export const adminLogin = async (email: string, password: string) => {
   }
 };
 
+export const registerUser = async (userData: { name: string; email: string; password: string; website: string }) => {
+  try {
+    const response = await api.post('/users/register', userData);
+    return response.data;
+  } catch (error) {
+    throw error.response?.data || { message: 'An error occurred during registration' };
+  }
+};
+
 // User services
 export const getUsers = async () => {
   try {
@@ -49,6 +58,15 @@ export const getUsers = async () => {
     return response.data;
   } catch (error) {
     throw error.response?.data || { message: 'An error occurred while fetching users' };
+  }
+};
+
+export const getUserProfile = async () => {
+  try {
+    const response = await api.get('/users/profile');
+    return response.data;
+  } catch (error) {
+    throw error.response?.data || { message: 'An error occurred while fetching user profile' };
   }
 };
 
@@ -89,9 +107,27 @@ export const getUserQAs = async (userId: string) => {
   }
 };
 
+export const getCurrentUserQAs = async () => {
+  try {
+    const response = await api.get('/users/qa');
+    return response.data;
+  } catch (error) {
+    throw error.response?.data || { message: 'An error occurred while fetching your QAs' };
+  }
+};
+
 export const createQA = async (qaData: { userId: string; question: string; answer: string; category: string }) => {
   try {
     const response = await api.post('/admin/qa', qaData);
+    return response.data;
+  } catch (error) {
+    throw error.response?.data || { message: 'An error occurred while creating QA' };
+  }
+};
+
+export const createUserQA = async (qaData: { question: string; answer: string; category: string }) => {
+  try {
+    const response = await api.post('/users/qa', qaData);
     return response.data;
   } catch (error) {
     throw error.response?.data || { message: 'An error occurred while creating QA' };
@@ -107,6 +143,15 @@ export const updateQA = async (id: string, qaData: { question: string; answer: s
   }
 };
 
+export const updateUserQA = async (id: string, qaData: { question: string; answer: string; category: string }) => {
+  try {
+    const response = await api.put(`/users/qa/${id}`, qaData);
+    return response.data;
+  } catch (error) {
+    throw error.response?.data || { message: 'An error occurred while updating QA' };
+  }
+};
+
 export const deleteQA = async (id: string) => {
   try {
     const response = await api.delete(`/admin/qa/${id}`);
@@ -116,10 +161,103 @@ export const deleteQA = async (id: string) => {
   }
 };
 
+export const deleteUserQA = async (id: string) => {
+  try {
+    const response = await api.delete(`/users/qa/${id}`);
+    return response.data;
+  } catch (error) {
+    throw error.response?.data || { message: 'An error occurred while deleting QA' };
+  }
+};
+
+
+// Plans services
+export const getPlans = async () => {
+  try {
+    const response = await api.get('/plans');
+    return response.data;
+  } catch (error) {
+    throw error.response?.data || { message: 'An error occurred while fetching plans' };
+  }
+};
+
+export const getUserSubscription = async () => {
+  try {
+    const response = await api.get('/users/subscription');
+    return response.data;
+  } catch (error) {
+    throw error.response?.data || { message: 'An error occurred while fetching subscription' };
+  }
+};
+
+export const subscribeToPlan = async (planId: string) => {
+  try {
+    const response = await api.post('/users/subscribe', { planId });
+    return response.data;
+  } catch (error) {
+    throw error.response?.data || { message: 'An error occurred while subscribing to plan' };
+  }
+};
+
+export const createPlan = async (planData: { 
+  name: string; 
+  description: string; 
+  price: number; 
+  discountPrice?: number; 
+  tokens: number; 
+  features: string[]; 
+  isPopular: boolean 
+}) => {
+  try {
+    const response = await api.post('/admin/plans', planData);
+    return response.data;
+  } catch (error) {
+    throw error.response?.data || { message: 'An error occurred while creating plan' };
+  }
+};
+
+export const updatePlan = async (id: string, planData: { 
+  name: string; 
+  description: string; 
+  price: number; 
+  discountPrice?: number; 
+  tokens: number; 
+  features: string[]; 
+  isPopular: boolean 
+}) => {
+  try {
+    const response = await api.put(`/admin/plans/${id}`, planData);
+    return response.data;
+  } catch (error) {
+    throw error.response?.data || { message: 'An error occurred while updating plan' };
+  }
+};
+
+export const deletePlan = async (id: string) => {
+  try {
+    const response = await api.delete(`/admin/plans/${id}`);
+    return response.data;
+  } catch (error) {
+    throw error.response?.data || { message: 'An error occurred while deleting plan' };
+  }
+};
+
+
+// Chatbot services
+
 // Chatbot services
 export const getChatbotData = async (userId: string) => {
   try {
     const response = await api.get(`/chatbot/${userId}`);
+    return response.data;
+  } catch (error) {
+    throw error.response?.data || { message: 'An error occurred while fetching chatbot data' };
+  }
+};
+
+export const getUserChatbotData = async () => {
+  try {
+    const response = await api.get('/users/chatbot');
     return response.data;
   } catch (error) {
     throw error.response?.data || { message: 'An error occurred while fetching chatbot data' };

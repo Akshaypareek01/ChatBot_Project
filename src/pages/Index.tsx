@@ -1,16 +1,31 @@
-
 import React, { useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { ChatProvider } from '@/context/ChatContext';
 import ChatbotWidget from '@/components/chatbot/ChatbotWidget';
-import { Card, CardContent } from '@/components/ui/card';
-import { ArrowRight, CheckCircle, MessageSquareText, BarChart2, Code, Lock } from 'lucide-react';
+import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from '@/components/ui/card';
+import { ArrowRight, CheckCircle, MessageSquareText, BarChart2, Code, Lock, Check, Star } from 'lucide-react';
 import { cn } from '@/lib/utils';
+
+import { Skeleton } from '@/components/ui/skeleton';
+import { getPlans } from '@/services/api';
+
+interface Plan {
+  _id: string;
+  name: string;
+  description: string;
+  price: number;
+  discountPrice?: number;
+  tokens: number;
+  features: string[];
+  isPopular: boolean;
+}
 
 const Index = () => {
   const featureRefs = useRef<(HTMLDivElement | null)[]>([]);
   const [visibleFeatures, setVisibleFeatures] = useState<boolean[]>([]);
+  const [plans, setPlans] = useState<Plan[]>([]);
+  const [loadingPlans, setLoadingPlans] = useState<boolean>(true);
 
   useEffect(() => {
     const observer = new IntersectionObserver(
@@ -38,6 +53,22 @@ const Index = () => {
         if (ref) observer.unobserve(ref);
       });
     };
+  }, []);
+
+  useEffect(() => {
+    const fetchPlans = async () => {
+      try {
+        setLoadingPlans(true);
+        const data = await getPlans();
+        setPlans(data);
+      } catch (error) {
+        console.error('Failed to fetch plans:', error);
+      } finally {
+        setLoadingPlans(false);
+      }
+    };
+
+    fetchPlans();
   }, []);
 
   const features = [
@@ -74,7 +105,6 @@ const Index = () => {
   return (
     <ChatProvider>
       <div className="min-h-screen flex flex-col">
-        {/* Navigation */}
         <header className="border-b bg-background/80 backdrop-blur-sm sticky top-0 z-10">
           <div className="container flex h-16 items-center justify-between py-4">
             <div className="flex items-center gap-2">
@@ -102,7 +132,6 @@ const Index = () => {
           </div>
         </header>
         
-        {/* Hero */}
         <section className="py-20 md:py-32 relative overflow-hidden">
           <div className="absolute inset-0 bg-gradient-to-b from-blue-50/50 to-transparent" />
           
@@ -137,7 +166,6 @@ const Index = () => {
               <Card className="shadow-premium overflow-hidden">
                 <CardContent className="p-0">
                   <div className="relative aspect-video w-full">
-                    {/* This would be a demo image/video */}
                     <div className="absolute inset-0 bg-gradient-to-br from-blue-50 to-purple-50 flex items-center justify-center">
                       <div className="text-center p-8">
                         <MessageSquareText className="h-16 w-16 text-primary/30 mb-4 mx-auto" />
@@ -160,7 +188,6 @@ const Index = () => {
           </div>
         </section>
         
-        {/* Features */}
         <section id="features" className="py-20 bg-muted/20">
           <div className="container">
             <div className="text-center mb-16">
@@ -193,7 +220,108 @@ const Index = () => {
           </div>
         </section>
         
-        {/* How It Works */}
+        <section id="pricing" className="py-20">
+          <div className="container">
+            <div className="text-center mb-16">
+              <h2 className="text-3xl md:text-4xl font-bold mb-4">Pricing Plans</h2>
+              <p className="text-xl text-muted-foreground max-w-2xl mx-auto">
+                Choose the perfect plan for your needs with transparent pricing and no hidden fees.
+              </p>
+            </div>
+            
+            {loadingPlans ? (
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+                {[1, 2, 3].map((_, index) => (
+                  <Card key={index} className="relative flex flex-col h-full">
+                    <CardHeader className="flex flex-col space-y-2">
+                      <Skeleton className="h-8 w-24 mb-2" />
+                      <Skeleton className="h-6 w-full" />
+                    </CardHeader>
+                    <CardContent className="flex-1">
+                      <Skeleton className="h-12 w-32 mb-6" />
+                      <div className="space-y-4">
+                        {[1, 2, 3, 4].map((_, i) => (
+                          <Skeleton key={i} className="h-5 w-full" />
+                        ))}
+                      </div>
+                    </CardContent>
+                    <CardFooter>
+                      <Skeleton className="h-10 w-full" />
+                    </CardFooter>
+                  </Card>
+                ))}
+              </div>
+            ) : plans.length === 0 ? (
+              <div className="text-center py-12">
+                <p className="text-muted-foreground mb-4">
+                  No pricing plans available at the moment. Please check back later.
+                </p>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+                {plans.map((plan) => (
+                  <Card 
+                    key={plan._id} 
+                    className={cn(
+                      "relative flex flex-col h-full",
+                      plan.isPopular ? "border-primary shadow-lg" : ""
+                    )}
+                  >
+                    {plan.isPopular && (
+                      <div className="absolute top-0 right-0 transform translate-x-2 -translate-y-2">
+                        <div className="bg-primary text-primary-foreground text-xs font-medium px-3 py-1 rounded-full flex items-center">
+                          <Star className="h-3 w-3 mr-1" />
+                          Popular
+                        </div>
+                      </div>
+                    )}
+                    
+                    <CardHeader>
+                      <CardTitle>{plan.name}</CardTitle>
+                      <CardDescription>{plan.description}</CardDescription>
+                    </CardHeader>
+                    
+                    <CardContent className="flex-1">
+                      <div className="mb-6">
+                        {plan.discountPrice ? (
+                          <div className="flex items-baseline gap-2">
+                            <span className="text-3xl font-bold">${plan.discountPrice}</span>
+                            <span className="text-xl text-muted-foreground line-through">${plan.price}</span>
+                            <span className="text-sm text-muted-foreground">/month</span>
+                          </div>
+                        ) : (
+                          <div className="flex items-baseline">
+                            <span className="text-3xl font-bold">${plan.price}</span>
+                            <span className="text-sm text-muted-foreground ml-2">/month</span>
+                          </div>
+                        )}
+                        <p className="text-sm text-muted-foreground mt-1">
+                          Includes {plan.tokens.toLocaleString()} tokens
+                        </p>
+                      </div>
+                      
+                      <ul className="space-y-2">
+                        {plan.features.map((feature, index) => (
+                          <li key={index} className="flex items-start">
+                            <Check className="h-5 w-5 text-green-500 mr-2 shrink-0" />
+                            <span>{feature}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    </CardContent>
+                    
+                    <CardFooter>
+                      <Button className="w-full" variant={plan.isPopular ? "default" : "outline"}>
+                        Get Started
+                      </Button>
+                    </CardFooter>
+                  </Card>
+                ))}
+              </div>
+            )}
+          </div>
+        </section>
+        
         <section id="how-it-works" className="py-20">
           <div className="container">
             <div className="text-center mb-16">
@@ -233,7 +361,6 @@ const Index = () => {
           </div>
         </section>
         
-        {/* CTA */}
         <section className="py-20 bg-primary/5">
           <div className="container">
             <div className="glass-panel p-8 md:p-12 text-center max-w-3xl mx-auto">
@@ -261,7 +388,6 @@ const Index = () => {
           </div>
         </section>
         
-        {/* Footer */}
         <footer className="py-12 border-t">
           <div className="container">
             <div className="flex flex-col md:flex-row justify-between items-center gap-6">
@@ -283,7 +409,6 @@ const Index = () => {
           </div>
         </footer>
         
-        {/* Chatbot Widget */}
         <ChatbotWidget />
       </div>
     </ChatProvider>

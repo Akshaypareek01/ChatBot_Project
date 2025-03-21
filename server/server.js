@@ -7,7 +7,7 @@ const jwt = require('jsonwebtoken');
 const bcrypt = require('bcrypt');
 const cheerio = require('cheerio');
 const OpenAI = require('openai');
-const { User, QA } = require('./models/models');
+const { User, QA,Plan,Subscription  } = require('./models/models');
 const { default: axios } = require('axios');
 
 // Configure environment variables
@@ -57,30 +57,6 @@ app.get('/', (req, res) => {
   res.sendFile(__dirname + '/public/index.html');  // Serve your main HTML
 });
 
-
-// Admin Routes
-app.post('/api/admin/login', async (req, res) => {
-  try {
-    const { email, password } = req.body;
-    
-    // Check hardcoded admin credentials
-    if (email === 'admin@gmail.com' && password === 'admin1234') {
-      const token = jwt.sign(
-        { isAdmin: true },
-        process.env.JWT_SECRET,
-        { expiresIn: '7d' }
-      );
-      
-      return res.status(200).json({ token });
-    }
-    
-    return res.status(401).json({ message: 'Invalid admin credentials' });
-  } catch (error) {
-    return res.status(500).json({ message: 'Server error', error: error.message });
-  }
-});
-
-// User Authentication Routes
 const getWebsiteData = async (url) => {
   try {
       const response = await axios.get(url);
@@ -160,40 +136,74 @@ const getAIResponse = async (req, res) => {
   }
 };
 
+// Admin Routes
+app.post('/api/admin/login', async (req, res) => {
+  try {
+    const { email, password } = req.body;
+    
+    // Check hardcoded admin credentials
+    if (email === 'admin@gmail.com' && password === 'admin1234') {
+      const token = jwt.sign(
+        { isAdmin: true },
+        process.env.JWT_SECRET,
+        { expiresIn: '7d' }
+      );
+      
+      return res.status(200).json({ token });
+    }
+    
+    return res.status(401).json({ message: 'Invalid admin credentials' });
+  } catch (error) {
+    return res.status(500).json({ message: 'Server error', error: error.message });
+  }
+});
+
+// User routes
+
+
 app.post('/api/users/register', async (req, res) => {
   try {
     const { name, email, password, website } = req.body;
     
-    // Check if user exists
     const existingUser = await User.findOne({ email });
     if (existingUser) {
       return res.status(400).json({ message: 'User already exists' });
     }
-    const websiteData = await getWebsiteData(website);
-    // Hash password
+    
     const salt = await bcrypt.genSalt(10);
     const hashedPassword = await bcrypt.hash(password, salt);
     
-    // Create new user
     const newUser = new User({
       name,
       email,
       password: hashedPassword,
       website,
-      websiteData: websiteData || "Website content could not be fetched",
-      isActive: true
+      isActive: true // Users need admin approval
     });
     
-    await newUser.save();
+    const userdata =await newUser.save();
+    // console.log("New user data: ",userdata);
+    let subscription = await Subscription.findOne({ 
+      userId: userdata._id,
+      isActive: true
+    }).populate('planId');
     
-    // Generate JWT
-    const token = jwt.sign(
-      { userId: newUser._id },
-      process.env.JWT_SECRET,
-      { expiresIn: '7d' }
-    );
-    
-    return res.status(201).json({ token, user: { id: newUser._id, name, email, website } });
+    if (!subscription) {
+      // Create a free tier subscription
+      const freePlan = await Plan.findOne({ name: 'Basic Plan' });
+      
+      if (freePlan) {
+        subscription = new Subscription({
+          userId: userdata._id,
+          planId: freePlan._id,
+          tokensUsed: 0
+        });
+        
+        await subscription.save();
+        subscription = await Subscription.findById(subscription._id).populate('planId');
+      }
+    }
+    return res.status(201).json({ message: 'Registration successful. An admin will review and approve your account.' });
   } catch (error) {
     return res.status(500).json({ message: 'Server error', error: error.message });
   }
@@ -203,19 +213,24 @@ app.post('/api/users/login', async (req, res) => {
   try {
     const { email, password } = req.body;
     
-    // Check if user exists
     const user = await User.findOne({ email });
     if (!user) {
       return res.status(400).json({ message: 'Invalid credentials' });
     }
     
-    // Check password
     const isMatch = await bcrypt.compare(password, user.password);
     if (!isMatch) {
       return res.status(400).json({ message: 'Invalid credentials' });
     }
     
-    // Generate JWT
+    if (!user.isActive) {
+      return res.status(403).json({ message: 'Your account is pending approval by the administrator' });
+    }
+    
+    // Update last active timestamp
+    user.lastActive = Date.now();
+    await user.save();
+    
     const token = jwt.sign(
       { userId: user._id },
       process.env.JWT_SECRET,
@@ -237,7 +252,189 @@ app.post('/api/users/login', async (req, res) => {
   }
 });
 
-// User Management (Admin)
+app.get('/api/users/profile', authMiddleware, async (req, res) => {
+  try {
+    const user = await User.findById(req.userId).select('-password');
+    
+    if (!user) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+    
+    return res.status(200).json(user);
+  } catch (error) {
+    return res.status(500).json({ message: 'Server error', error: error.message });
+  }
+});
+
+app.get('/api/users/qa', authMiddleware, async (req, res) => {
+  try {
+    const qas = await QA.find({ userId: req.userId });
+    
+    return res.status(200).json(qas);
+  } catch (error) {
+    return res.status(500).json({ message: 'Server error', error: error.message });
+  }
+});
+
+app.post('/api/users/qa', authMiddleware, async (req, res) => {
+  try {
+    const { question, answer, category } = req.body;
+    
+    const newQA = new QA({
+      userId: req.userId,
+      question,
+      answer,
+      category: category || 'General',
+      frequency: 0,
+    });
+    
+    await newQA.save();
+    
+    return res.status(201).json(newQA);
+  } catch (error) {
+    return res.status(500).json({ message: 'Server error', error: error.message });
+  }
+});
+
+app.put('/api/users/qa/:id', authMiddleware, async (req, res) => {
+  try {
+    const { question, answer, category } = req.body;
+    
+    const qa = await QA.findById(req.params.id);
+    
+    if (!qa) {
+      return res.status(404).json({ message: 'QA not found' });
+    }
+    
+    if (qa.userId.toString() !== req.userId) {
+      return res.status(403).json({ message: 'Not authorized to update this QA' });
+    }
+    
+    qa.question = question;
+    qa.answer = answer;
+    qa.category = category || 'General';
+    qa.updatedAt = Date.now();
+    
+    await qa.save();
+    
+    return res.status(200).json(qa);
+  } catch (error) {
+    return res.status(500).json({ message: 'Server error', error: error.message });
+  }
+});
+
+app.delete('/api/users/qa/:id', authMiddleware, async (req, res) => {
+  try {
+    const qa = await QA.findById(req.params.id);
+    
+    if (!qa) {
+      return res.status(404).json({ message: 'QA not found' });
+    }
+    
+    if (qa.userId.toString() !== req.userId) {
+      return res.status(403).json({ message: 'Not authorized to delete this QA' });
+    }
+    
+    await QA.deleteOne({ _id: req.params.id });
+    
+    return res.status(200).json({ message: 'QA deleted successfully' });
+  } catch (error) {
+    return res.status(500).json({ message: 'Server error', error: error.message });
+  }
+});
+
+app.get('/api/users/subscription', authMiddleware, async (req, res) => {
+  try {
+    let subscription = await Subscription.findOne({ 
+      userId: req.userId,
+      isActive: true
+    }).populate('planId');
+    
+    if (!subscription) {
+      // Create a free tier subscription
+      const freePlan = await Plan.findOne({ name: 'Basic Plan' });
+      
+      if (freePlan) {
+        subscription = new Subscription({
+          userId: req.userId,
+          planId: freePlan._id,
+          tokensUsed: 0
+        });
+        
+        await subscription.save();
+        subscription = await Subscription.findById(subscription._id).populate('planId');
+      }
+    }
+    
+    return res.status(200).json({
+      _id: subscription?._id,
+      userId: subscription?.userId,
+      planId: subscription?.planId?._id,
+      plan: subscription?.planId,
+      startDate: subscription?.startDate,
+      endDate: subscription?.endDate,
+      isActive: subscription?.isActive,
+      tokensUsed: subscription?.tokensUsed
+    });
+  } catch (error) {
+    return res.status(500).json({ message: 'Server error', error: error.message });
+  }
+});
+
+app.post('/api/users/subscribe', authMiddleware, async (req, res) => {
+  try {
+    const { planId } = req.body;
+    
+    const plan = await Plan.findById(planId);
+    if (!plan) {
+      return res.status(404).json({ message: 'Plan not found' });
+    }
+    
+    // Deactivate any existing subscriptions
+    await Subscription.updateMany(
+      { userId: req.userId, isActive: true },
+      { isActive: false }
+    );
+    
+    // Create new subscription
+    const newSubscription = new Subscription({
+      userId: req.userId,
+      planId: plan._id,
+      tokensUsed: 0
+    });
+    
+    await newSubscription.save();
+    
+    return res.status(200).json({
+      message: 'Subscription updated successfully',
+      subscription: newSubscription
+    });
+  } catch (error) {
+    return res.status(500).json({ message: 'Server error', error: error.message });
+  }
+});
+
+app.get('/api/users/chatbot', authMiddleware, async (req, res) => {
+  try {
+    const user = await User.findById(req.userId);
+    
+    if (!user || !user.isActive) {
+      return res.status(404).json({ message: 'Chatbot not available' });
+    }
+    
+    const qas = await QA.find({ userId: req.userId });
+    
+    return res.status(200).json({
+      userId: req.userId,
+      name: user.name,
+      qas
+    });
+  } catch (error) {
+    return res.status(500).json({ message: 'Server error', error: error.message });
+  }
+});
+
+// Admin User Management (Admin)
 app.get('/api/admin/users', authMiddleware, async (req, res) => {
   try {
     if (!req.isAdmin) {
@@ -491,6 +688,93 @@ app.post('/api/chatbot/frequency', async (req, res) => {
     }
     
     return res.status(200).json({ message: 'Frequency updated successfully' });
+  } catch (error) {
+    return res.status(500).json({ message: 'Server error', error: error.message });
+  }
+});
+
+// Plans
+app.get('/api/plans', async (req, res) => {
+  try {
+    const plans = await Plan.find().sort('price');
+    return res.status(200).json(plans);
+  } catch (error) {
+    return res.status(500).json({ message: 'Server error', error: error.message });
+  }
+});
+
+app.post('/api/admin/plans', authMiddleware, async (req, res) => {
+  try {
+    if (!req.isAdmin) {
+      return res.status(403).json({ message: 'Admin access required' });
+    }
+    
+    const { name, description, price, discountPrice, tokens, features, isPopular } = req.body;
+    
+    const newPlan = new Plan({
+      name,
+      description,
+      price,
+      discountPrice,
+      tokens,
+      features,
+      isPopular
+    });
+    
+    await newPlan.save();
+    
+    return res.status(201).json(newPlan);
+  } catch (error) {
+    return res.status(500).json({ message: 'Server error', error: error.message });
+  }
+});
+
+app.put('/api/admin/plans/:id', authMiddleware, async (req, res) => {
+  try {
+    if (!req.isAdmin) {
+      return res.status(403).json({ message: 'Admin access required' });
+    }
+    
+    const { name, description, price, discountPrice, tokens, features, isPopular } = req.body;
+    
+    const updatedPlan = await Plan.findByIdAndUpdate(
+      req.params.id,
+      { 
+        name, 
+        description, 
+        price, 
+        discountPrice, 
+        tokens, 
+        features, 
+        isPopular,
+        updatedAt: Date.now()
+      },
+      { new: true }
+    );
+    
+    if (!updatedPlan) {
+      return res.status(404).json({ message: 'Plan not found' });
+    }
+    
+    return res.status(200).json(updatedPlan);
+  } catch (error) {
+    return res.status(500).json({ message: 'Server error', error: error.message });
+  }
+});
+
+app.delete('/api/admin/plans/:id', authMiddleware, async (req, res) => {
+  try {
+    if (!req.isAdmin) {
+      return res.status(403).json({ message: 'Admin access required' });
+    }
+    
+    const deletedPlan = await Plan.findByIdAndDelete(req.params.id);
+    
+    if (!deletedPlan) {
+      return res.status(404).json({ message: 'Plan not found' });
+    }
+    
+    return res.status(200).json({ message: 'Plan deleted successfully' });
   } catch (error) {
     return res.status(500).json({ message: 'Server error', error: error.message });
   }

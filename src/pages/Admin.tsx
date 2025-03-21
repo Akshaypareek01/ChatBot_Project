@@ -6,6 +6,7 @@ import AdminLayout from '@/components/admin/AdminLayout';
 import Dashboard from '@/components/admin/Dashboard';
 import QAManager from '@/components/admin/QAManager';
 import UserManager from '@/components/admin/UserManager';
+import PlanManager from '@/components/admin/PlanManager';
 import ChatbotWidget from '@/components/chatbot/ChatbotWidget';
 import { toast } from 'sonner';
 
@@ -71,6 +72,7 @@ const Admin = () => {
           <Route path="/" element={<Dashboard />} />
           <Route path="/qa" element={<QAManager />} />
           <Route path="/users" element={<UserManager />} />
+          <Route path="/plans" element={<PlanManager />} />
           <Route path="/settings" element={<Settings />} />
           <Route path="*" element={<Navigate to="/admin" replace />} />
         </Routes>

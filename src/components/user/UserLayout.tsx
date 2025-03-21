@@ -1,25 +1,26 @@
 
 import React from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import { LayoutDashboard, MessageSquareText, Users, LogOut, Settings, CreditCard } from 'lucide-react';
+import { LayoutDashboard, MessageSquareText, User, LogOut, CreditCard } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
 import { cn } from '@/lib/utils';
+import ScriptGenerator from '../chatbot/ScriptGenerator';
 
-interface AdminLayoutProps {
+interface UserLayoutProps {
   children: React.ReactNode;
   onLogout: () => void;
+  user: any;
 }
 
-const AdminLayout: React.FC<AdminLayoutProps> = ({ children, onLogout }) => {
+const UserLayout: React.FC<UserLayoutProps> = ({ children, onLogout, user }) => {
   const location = useLocation();
   
   const navItems = [
-    { icon: LayoutDashboard, label: 'Dashboard', path: '/admin' },
-    { icon: MessageSquareText, label: 'Q&A Management', path: '/admin/qa' },
-    { icon: Users, label: 'User Management', path: '/admin/users' },
-    { icon: CreditCard, label: 'Plans', path: '/admin/plans' },
-    { icon: Settings, label: 'Settings', path: '/admin/settings' },
+    { icon: LayoutDashboard, label: 'Dashboard', path: '/user' },
+    { icon: MessageSquareText, label: 'Q&A Management', path: '/user/qa' },
+    { icon: User, label: 'Profile', path: '/user/profile' },
+    { icon: CreditCard, label: 'Plans', path: '/user/plans' },
   ];
 
   return (
@@ -30,7 +31,7 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({ children, onLogout }) => {
           <div className="p-6">
             <div className="flex items-center space-x-2">
               <MessageSquareText className="h-6 w-6 text-primary" />
-              <h1 className="font-semibold text-xl">ChatBot Admin</h1>
+              <h1 className="font-semibold text-xl">ChatBot Dashboard</h1>
             </div>
           </div>
           
@@ -59,6 +60,8 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({ children, onLogout }) => {
             </ul>
           </nav>
           
+         
+          
           <div className="p-4 mt-auto">
             <Button 
               onClick={onLogout}
@@ -77,7 +80,7 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({ children, onLogout }) => {
         <div className="flex justify-between items-center">
           <div className="flex items-center space-x-2">
             <MessageSquareText className="h-5 w-5 text-primary" />
-            <h1 className="font-semibold">ChatBot Admin</h1>
+            <h1 className="font-semibold">ChatBot Dashboard</h1>
           </div>
           
           {/* Mobile menu - simplified for this version */}
@@ -107,4 +110,4 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({ children, onLogout }) => {
   );
 };
 
-export default AdminLayout;
+export default UserLayout;
