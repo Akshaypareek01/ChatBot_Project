@@ -8,7 +8,7 @@ import { ArrowRight, CheckCircle, MessageSquareText, BarChart2, Code, Lock, Chec
 import { cn } from '@/lib/utils';
 
 import { Skeleton } from '@/components/ui/skeleton';
-import { getPlans } from '@/services/api';
+import { getPlans, getUserProfile } from '@/services/api';
 
 interface Plan {
   _id: string;
@@ -27,7 +27,8 @@ const Index = () => {
   const [visibleFeatures, setVisibleFeatures] = useState<boolean[]>([]);
   const [plans, setPlans] = useState<Plan[]>([]);
   const [loadingPlans, setLoadingPlans] = useState<boolean>(true);
-
+  const [userData, setUserData] = useState<any>(null);
+    const [isLoading, setIsLoading] = useState(true);
   useEffect(() => {
     const observer = new IntersectionObserver(
       (entries) => {
@@ -107,6 +108,25 @@ const Index = () => {
     }
   ];
 
+    useEffect(() => {
+      const fetchData = async () => {
+        try {
+          const [userProfileData] = await Promise.all([
+            getUserProfile(),
+          ]);
+  
+          setUserData(userProfileData);
+          
+        } catch (error) {
+          console.error('Error fetching dashboard data:', error);
+        } finally {
+          setIsLoading(false);
+        }
+      };
+  
+      fetchData();
+    }, []);
+
   return (
     <ChatProvider>
       <div className="min-h-screen flex flex-col">
@@ -127,12 +147,26 @@ const Index = () => {
             </nav>
             
             <div className="flex items-center gap-4">
-              <Link to="/login">
-                <Button variant="outline">Sign In</Button>
+              {
+                userData ?  
+              
+                <Button variant="outline">
+                Welcome, {userData?.name} !
+                </Button>
+              
+                :
+                <Link to="/login">
+                <Button variant="outline">
+                  Sign In
+                  </Button>
               </Link>
-              <Link to="/admin">
-                <Button>Dashboard</Button>
-              </Link>
+              }
+             {
+              userData && <Link to="/user">
+              <Button>Dashboard</Button>
+            </Link>
+             }
+              
             </div>
           </div>
         </header>
