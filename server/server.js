@@ -7,7 +7,7 @@ const jwt = require('jsonwebtoken');
 const bcrypt = require('bcrypt');
 const cheerio = require('cheerio');
 const OpenAI = require('openai');
-const { User, QA,Plan,Subscription  } = require('./models/models');
+const { User, QA,Plan,Subscription,Transaction  } = require('./models/models');
 const { default: axios } = require('axios');
 
 // Configure environment variables
@@ -136,6 +136,34 @@ const getAIResponse = async (req, res) => {
   }
 };
 
+const checkSubscriptionExpiration = async () => {
+  try {
+    const now = new Date();
+    
+    // Find active subscriptions that have ended
+    const expiredSubscriptions = await Subscription.find({
+      endDate: { $lt: now },
+      isActive: true,
+      isExpired: false
+    });
+    
+    if (expiredSubscriptions.length > 0) {
+      console.log(`Updating ${expiredSubscriptions.length} expired subscriptions`);
+      
+      // Update all expired subscriptions
+      await Promise.all(expiredSubscriptions.map(async (subscription) => {
+        subscription.isExpired = true;
+        return subscription.save();
+      }));
+    }
+  } catch (error) {
+    console.error('Error checking subscription expiration:', error);
+  }
+};
+
+// Run the check initially and then every hour
+checkSubscriptionExpiration();
+setInterval(checkSubscriptionExpiration, 60 * 60 * 1000);
 // Admin Routes
 app.post('/api/admin/login', async (req, res) => {
   try {
@@ -409,6 +437,9 @@ app.get('/api/users/subscription', authMiddleware, async (req, res) => {
       isActive: true
     }).populate('planId');
     
+    // Get user to check if they've ever had the basic plan
+    const user = await User.findById(req.userId);
+    
     if (!subscription) {
       // Create a free tier subscription
       const freePlan = await Plan.findOne({ name: 'Basic Plan' });
@@ -423,6 +454,13 @@ app.get('/api/users/subscription', authMiddleware, async (req, res) => {
         await subscription.save();
         subscription = await Subscription.findById(subscription._id).populate('planId');
       }
+    } else {
+      // Check if subscription has expired but not marked as expired
+      const now = new Date();
+      if (now > new Date(subscription.endDate) && !subscription.isExpired && subscription.planId.name !== 'Free') {
+        subscription.isExpired = true;
+        await subscription.save();
+      }
     }
     
     return res.status(200).json({
@@ -433,12 +471,15 @@ app.get('/api/users/subscription', authMiddleware, async (req, res) => {
       startDate: subscription?.startDate,
       endDate: subscription?.endDate,
       isActive: subscription?.isActive,
-      tokensUsed: subscription?.tokensUsed
+      isExpired: subscription?.isExpired,
+      tokensUsed: subscription?.tokensUsed,
+      hadBasicPlan: user.hadBasicPlan || false
     });
   } catch (error) {
     return res.status(500).json({ message: 'Server error', error: error.message });
   }
 });
+
 
 app.post('/api/users/subscribe', authMiddleware, async (req, res) => {
   try {
@@ -447,6 +488,20 @@ app.post('/api/users/subscribe', authMiddleware, async (req, res) => {
     const plan = await Plan.findById(planId);
     if (!plan) {
       return res.status(404).json({ message: 'Plan not found' });
+    }
+    
+    // Check if trying to subscribe to the Basic plan
+    if (plan.name === 'Basic Plan') {
+      const user = await User.findById(req.userId);
+      if (user.hadBasicPlan) {
+        return res.status(403).json({ 
+          message: 'You can only subscribe to the Basic plan once. Please choose another plan.'
+        });
+      }
+      
+      // Mark user as having had the Basic plan
+      user.hadBasicPlan = true;
+      await user.save();
     }
     
     // Deactivate any existing subscriptions
@@ -459,6 +514,7 @@ app.post('/api/users/subscribe', authMiddleware, async (req, res) => {
     const newSubscription = new Subscription({
       userId: req.userId,
       planId: plan._id,
+      isExpired: false,
       tokensUsed: 0
     });
     
@@ -472,6 +528,8 @@ app.post('/api/users/subscribe', authMiddleware, async (req, res) => {
     return res.status(500).json({ message: 'Server error', error: error.message });
   }
 });
+
+
 
 app.get('/api/users/chatbot', authMiddleware, async (req, res) => {
   try {
@@ -602,6 +660,38 @@ app.delete('/api/admin/users/:id', authMiddleware, async (req, res) => {
     await QA.deleteMany({ userId: req.params.id });
     
     return res.status(200).json({ message: 'User deleted successfully' });
+  } catch (error) {
+    return res.status(500).json({ message: 'Server error', error: error.message });
+  }
+});
+
+app.put('/api/admin/users/:id/subscription', authMiddleware, async (req, res) => {
+  try {
+    if (!req.isAdmin) {
+      return res.status(403).json({ message: 'Admin access required' });
+    }
+    
+    const { endDate, isActive, isExpired } = req.body;
+    
+    const subscription = await Subscription.findOne({ 
+      userId: req.params.id,
+      isActive: true
+    });
+    
+    if (!subscription) {
+      return res.status(404).json({ message: 'Active subscription not found for this user' });
+    }
+    
+    subscription.endDate = endDate || subscription.endDate;
+    subscription.isActive = isActive !== undefined ? isActive : subscription.isActive;
+    subscription.isExpired = isExpired !== undefined ? isExpired : subscription.isExpired;
+    
+    await subscription.save();
+    
+    return res.status(200).json({
+      message: 'Subscription updated successfully',
+      subscription
+    });
   } catch (error) {
     return res.status(500).json({ message: 'Server error', error: error.message });
   }
@@ -838,6 +928,325 @@ app.delete('/api/admin/plans/:id', authMiddleware, async (req, res) => {
     return res.status(500).json({ message: 'Server error', error: error.message });
   }
 });
+
+//Cashfree payment methods
+
+app.post('/api/payments/create-order', authMiddleware, async (req, res) => {
+  try {
+    const { planId } = req.body;
+    
+    // Get the user and plan details
+    const [user, plan] = await Promise.all([
+      User.findById(req.userId),
+      Plan.findById(planId)
+    ]);
+    
+    if (!user || !plan) {
+      return res.status(404).json({ message: 'User or plan not found' });
+    }
+    
+    // Check if trying to subscribe to the Basic plan
+    if (plan.name === 'Basic plan') {
+      const user = await User.findById(req.userId);
+      if (user.hadBasicPlan) {
+        return res.status(403).json({ 
+          message: 'You can only subscribe to the Basic plan once. Please choose another plan.'
+        });
+      }
+    }
+    
+    // Generate a unique order ID
+    const orderId = 'order_' + Date.now() + '_' + Math.random().toString(36).substring(2, 15);
+    const amount = plan.discountPrice || plan.price;
+    
+    // Create a transaction record
+    const transaction = new Transaction({
+      userId: user._id,
+      planId: plan._id,
+      orderId,
+      amount,
+      status: 'initiated'
+    });
+    
+    await transaction.save();
+    
+    // In a production environment, this would be a call to Cashfree API
+    // For now, we're just returning the order details
+    
+    const cashfreePayload = {
+      orderId,
+      orderAmount: amount,
+      orderCurrency: 'INR',
+      orderNote: `Subscription to ${plan.name}`,
+      customerName: user.name,
+      customerEmail: user.email,
+      returnUrl: `${process.env.BASE_URL}/payment/callback?orderId=${orderId}`
+    };
+    
+    // In a real implementation, this would call the Cashfree API
+    // const cashfreeResponse = await axios.post('https://test.cashfree.com/api/v2/cftoken/order', cashfreePayload, {
+    //   headers: {
+    //     'x-client-id': process.env.CASHFREE_APP_ID,
+    //     'x-client-secret': process.env.CASHFREE_SECRET_KEY
+    //   }
+    // });
+    
+    // For now, we'll simulate the response
+    const mockCashfreeResponse = {
+      orderId,
+      orderAmount: amount,
+      orderCurrency: 'INR',
+      orderNote: `Subscription to ${plan.name}`,
+      orderStatus: 'ACTIVE',
+      paymentLink: `${process.env.BASE_URL}/payment/simulate?orderId=${orderId}`
+    };
+    
+    return res.status(200).json({
+      success: true,
+      order: mockCashfreeResponse,
+      transaction: {
+        id: transaction._id,
+        orderId: transaction.orderId,
+        amount: transaction.amount
+      }
+    });
+  } catch (error) {
+    console.error('Payment order creation error:', error);
+    return res.status(500).json({ message: 'Error creating payment order', error: error.message });
+  }
+});
+
+app.post('/api/payments/callback', async (req, res) => {
+  try {
+    const { orderId, transactionId, orderAmount, paymentMode, referenceId, txStatus, txTime, signature } = req.body;
+    
+    // In a production environment, verify the signature using the Cashfree secret key
+    // Here we'll just update the transaction
+    
+    const transaction = await Transaction.findOne({ orderId });
+    
+    if (!transaction) {
+      return res.status(404).json({ message: 'Transaction not found' });
+    }
+    
+    // Update transaction status based on payment status
+    transaction.transactionId = transactionId || referenceId;
+    transaction.status = txStatus === 'SUCCESS' ? 'success' : 'failed';
+    transaction.paymentMethod = paymentMode;
+    transaction.paymentDetails = req.body;
+    transaction.updatedAt = Date.now();
+    
+    await transaction.save();
+    
+    if (transaction.status === 'success') {
+      // Create or update subscription
+      await Subscription.updateMany(
+        { userId: transaction.userId, isActive: true },
+        { isActive: false }
+      );
+      
+      const plan = await Plan.findById(transaction.planId);
+      
+      // Create new subscription
+      const newSubscription = new Subscription({
+        userId: transaction.userId,
+        planId: transaction.planId,
+        isExpired: false,
+        tokensUsed: 0
+      });
+      
+      await newSubscription.save();
+      
+      // Update the transaction with subscription ID
+      transaction.subscriptionId = newSubscription._id;
+      await transaction.save();
+      
+      // If the plan is Basic, mark the user as having had the Basic plan
+      if (plan.name === 'Basic') {
+        await User.findByIdAndUpdate(transaction.userId, { hadBasicPlan: true });
+      }
+      
+      return res.redirect(`${process.env.BASE_URL}/payment/success?orderId=${orderId}`);
+    } else {
+      return res.redirect(`${process.env.BASE_URL}/payment/failed?orderId=${orderId}`);
+    }
+  } catch (error) {
+    console.error('Payment callback error:', error);
+    return res.status(500).json({ message: 'Error processing payment callback', error: error.message });
+  }
+});
+
+// For simulation purposes
+app.get('/api/payments/simulate/:orderId', async (req, res) => {
+  try {
+    const { orderId } = req.params;
+    const { status } = req.query;
+    
+    const transaction = await Transaction.findOne({ orderId });
+    
+    if (!transaction) {
+      return res.status(404).json({ message: 'Transaction not found' });
+    }
+    
+    // Update transaction status based on simulated payment status
+    transaction.transactionId = 'sim_tx_' + Date.now();
+    transaction.status = status === 'failed' ? 'failed' : 'success';
+    transaction.paymentMethod = 'SIMULATION';
+    transaction.paymentDetails = { orderId, simulatedStatus: status };
+    transaction.updatedAt = Date.now();
+    
+    await transaction.save();
+    
+    if (transaction.status === 'success') {
+      // Create or update subscription
+      await Subscription.updateMany(
+        { userId: transaction.userId, isActive: true },
+        { isActive: false }
+      );
+      
+      const plan = await Plan.findById(transaction.planId);
+      
+      // Create new subscription
+      const newSubscription = new Subscription({
+        userId: transaction.userId,
+        planId: transaction.planId,
+        isExpired: false,
+        tokensUsed: 0
+      });
+      
+      await newSubscription.save();
+      
+      // Update the transaction with subscription ID
+      transaction.subscriptionId = newSubscription._id;
+      await transaction.save();
+      
+      // If the plan is Basic, mark the user as having had the Basic plan
+      if (plan.name === 'Basic') {
+        await User.findByIdAndUpdate(transaction.userId, { hadBasicPlan: true });
+      }
+      
+      return res.json({ success: true, message: 'Payment simulation successful', transaction });
+    } else {
+      return res.json({ success: false, message: 'Payment simulation failed', transaction });
+    }
+  } catch (error) {
+    console.error('Payment simulation error:', error);
+    return res.status(500).json({ message: 'Error simulating payment', error: error.message });
+  }
+});
+
+// Get transactions for current user
+app.get('/api/users/transactions', authMiddleware, async (req, res) => {
+  try {
+    const transactions = await Transaction.find({ userId: req.userId })
+      .populate('planId')
+      .sort({ createdAt: -1 });
+    
+    return res.status(200).json(transactions);
+  } catch (error) {
+    console.error('Error fetching user transactions:', error);
+    return res.status(500).json({ message: 'Error fetching transactions', error: error.message });
+  }
+});
+
+// Admin endpoints for transactions
+app.get('/api/admin/transactions', authMiddleware, async (req, res) => {
+  try {
+    if (!req.isAdmin) {
+      return res.status(403).json({ message: 'Admin access required' });
+    }
+    
+    const transactions = await Transaction.find()
+      .populate('userId', 'name email')
+      .populate('planId', 'name price discountPrice')
+      .sort({ createdAt: -1 });
+    
+    return res.status(200).json(transactions);
+  } catch (error) {
+    console.error('Error fetching transactions:', error);
+    return res.status(500).json({ message: 'Error fetching transactions', error: error.message });
+  }
+});
+
+// Generate invoice for a transaction
+app.post('/api/admin/transactions/:id/generate-invoice', authMiddleware, async (req, res) => {
+  try {
+    if (!req.isAdmin) {
+      return res.status(403).json({ message: 'Admin access required' });
+    }
+    
+    const transaction = await Transaction.findById(req.params.id)
+      .populate('userId', 'name email website')
+      .populate('planId', 'name price discountPrice');
+    
+    if (!transaction) {
+      return res.status(404).json({ message: 'Transaction not found' });
+    }
+    
+    if (transaction.status !== 'success') {
+      return res.status(400).json({ message: 'Cannot generate invoice for unsuccessful transaction' });
+    }
+    
+    // Generate invoice number
+    const invoiceNumber = 'INV-' + Date.now() + '-' + Math.random().toString(36).substring(2, 7).toUpperCase();
+    
+    transaction.invoiceNumber = invoiceNumber;
+    transaction.invoiceGenerated = true;
+    
+    await transaction.save();
+    
+    return res.status(200).json({
+      message: 'Invoice generated successfully',
+      transaction
+    });
+  } catch (error) {
+    console.error('Error generating invoice:', error);
+    return res.status(500).json({ message: 'Error generating invoice', error: error.message });
+  }
+});
+
+app.get('/api/admin/transactions/:id/invoice', authMiddleware, async (req, res) => {
+  try {
+    if (!req.isAdmin) {
+      return res.status(403).json({ message: 'Admin access required' });
+    }
+    
+    const transaction = await Transaction.findById(req.params.id)
+      .populate('userId', 'name email website')
+      .populate('planId', 'name price discountPrice');
+    
+    if (!transaction) {
+      return res.status(404).json({ message: 'Transaction not found' });
+    }
+    
+    if (!transaction.invoiceGenerated) {
+      return res.status(400).json({ message: 'Invoice not yet generated for this transaction' });
+    }
+    
+    // In a real application, you would generate a PDF here
+    // For now, we just return the invoice data
+    
+    const invoiceData = {
+      invoiceNumber: transaction.invoiceNumber,
+      date: transaction.createdAt,
+      customerName: transaction.userId.name,
+      customerEmail: transaction.userId.email,
+      customerWebsite: transaction.userId.website,
+      planName: transaction.planId.name,
+      amount: transaction.amount,
+      currency: transaction.currency,
+      transactionId: transaction.transactionId,
+      orderId: transaction.orderId,
+      status: transaction.status
+    };
+    
+    return res.status(200).json(invoiceData);
+  } catch (error) {
+    console.error('Error fetching invoice:', error);
+    return res.status(500).json({ message: 'Error fetching invoice', error: error.message });
+  }
+});
+
 
 // Start server
 app.listen(PORT, () => {

@@ -39,6 +39,10 @@ const userSchema = new mongoose.Schema({
   totalChats: {
     type: Number,
     default: 0
+  },
+  hadBasicPlan: {
+    type: Boolean,
+    default: false
   }
 });
 
@@ -141,15 +145,82 @@ const subscriptionSchema = new mongoose.Schema({
     type: Boolean,
     default: true
   },
+  isExpired: {
+    type: Boolean,
+    default: false
+  },
   tokensUsed: {
     type: Number,
     default: 0
   }
 });
 
+const transactionSchema = new mongoose.Schema({
+  userId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'User',
+    required: true
+  },
+  planId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Plan',
+    required: true
+  },
+  subscriptionId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Subscription'
+  },
+  orderId: {
+    type: String,
+    required: true,
+    unique: true
+  },
+  transactionId: {
+    type: String,
+    unique: true,
+    sparse: true
+  },
+  amount: {
+    type: Number,
+    required: true
+  },
+  currency: {
+    type: String,
+    default: 'INR'
+  },
+  status: {
+    type: String,
+    enum: ['initiated', 'processing', 'success', 'failed', 'refunded'],
+    default: 'initiated'
+  },
+  paymentMethod: {
+    type: String
+  },
+  paymentDetails: {
+    type: Object
+  },
+  invoiceNumber: {
+    type: String
+  },
+  invoiceGenerated: {
+    type: Boolean,
+    default: false
+  },
+  createdAt: {
+    type: Date,
+    default: Date.now
+  },
+  updatedAt: {
+    type: Date,
+    default: Date.now
+  }
+});
+
+
 // Models
 const User = mongoose.model('User', userSchema);
 const QA = mongoose.model('QA', qaSchema);
 const Plan = mongoose.model('Plan', planSchema);
 const Subscription = mongoose.model('Subscription', subscriptionSchema);
-module.exports = { User, QA, Plan, Subscription  };
+const Transaction = mongoose.model('Transaction', transactionSchema);
+module.exports = { User, QA, Plan, Subscription, Transaction  };

@@ -49,17 +49,12 @@ const UserDashboard = () => {
         setSubscription(subscriptionData);
         
         // Check if subscription has expired
-        if (subscriptionData) {
-          const endDate = new Date(subscriptionData.endDate);
-          const now = new Date();
-          
-          // If endDate is in the past and not on the free plan
-          if (now > endDate && subscriptionData.plan.name !== 'Free') {
-            setIsSubscriptionExpired(true);
-          }
-        }
-        
-        setIsAuthenticated(true);
+        if (subscriptionData && (subscriptionData.isExpired || 
+          (new Date() > new Date(subscriptionData.endDate) && subscriptionData.plan.name !== 'Free'))) {
+        setIsSubscriptionExpired(true);
+      }
+      
+      setIsAuthenticated(true);
       } catch (error) {
         console.error('Error fetching user data:', error);
         toast.error('Session expired. Please log in again');

@@ -1,7 +1,7 @@
 
 import React from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import { LayoutDashboard, MessageSquareText, Users, LogOut, Settings, CreditCard } from 'lucide-react';
+import { LayoutDashboard, MessageSquareText, Users, LogOut, Settings, CreditCard, DollarSign  } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
 import { cn } from '@/lib/utils';
@@ -19,6 +19,7 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({ children, onLogout }) => {
     { icon: MessageSquareText, label: 'Q&A Management', path: '/admin/qa' },
     { icon: Users, label: 'User Management', path: '/admin/users' },
     { icon: CreditCard, label: 'Plans', path: '/admin/plans' },
+    { icon: DollarSign, label: 'Transaction Management', path: '/admin/transactions' },
     { icon: Settings, label: 'Settings', path: '/admin/settings' },
   ];
 

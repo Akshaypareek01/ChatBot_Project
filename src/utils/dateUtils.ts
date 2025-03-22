@@ -51,3 +51,10 @@ export const calculateTimeRemaining = (endDate: string): {
       return `${minutes} minute${minutes !== 1 ? 's' : ''}`;
     }
   };
+
+
+  export const isDateExpired = (dateString: string): boolean => {
+    const now = new Date();
+    const date = new Date(dateString);
+    return now > date;
+  };

@@ -199,14 +199,14 @@ export const getPlans = async () => {
   }
 };
 
-export const getUserSubscription = async () => {
-  try {
-    const response = await api.get('/users/subscription');
-    return response.data;
-  } catch (error) {
-    throw error.response?.data || { message: 'An error occurred while fetching subscription' };
-  }
-};
+// export const getUserSubscription = async () => {
+//   try {
+//     const response = await api.get('/users/subscription');
+//     return response.data;
+//   } catch (error) {
+//     throw error.response?.data || { message: 'An error occurred while fetching subscription' };
+//   }
+// };
 
 export const subscribeToPlan = async (planId: string) => {
   try {
@@ -260,6 +260,31 @@ export const deletePlan = async (id: string) => {
   }
 };
 
+export const updateUserSubscription = async (userId: string, subscriptionData: { 
+  endDate?: string; 
+  isActive?: boolean;
+  isExpired?: boolean;
+}) => {
+  try {
+    const response = await api.put(`/admin/users/${userId}/subscription`, subscriptionData);
+    return response.data;
+  } catch (error) {
+    throw error.response?.data || { message: 'An error occurred while updating user subscription' };
+  }
+};
+
+// ... keep existing code (profile update, QA services, plans services)
+
+// Updated getUserSubscription to handle isExpired field
+export const getUserSubscription = async () => {
+  try {
+    const response = await api.get('/users/subscription');
+    return response.data;
+  } catch (error) {
+    throw error.response?.data || { message: 'An error occurred while fetching subscription' };
+  }
+};
+
 
 // Chatbot services
 
@@ -290,5 +315,60 @@ export const logUnansweredQuestion = async (userId: string, question: string) =>
     throw error.response?.data || { message: 'An error occurred while logging question' };
   }
 };
+
+export const createPaymentOrder = async (planId: string) => {
+  try {
+    const response = await api.post('/payments/create-order', { planId });
+    return response.data;
+  } catch (error) {
+    throw error.response?.data || { message: 'An error occurred while creating payment order' };
+  }
+};
+
+export const simulatePayment = async (orderId: string, status: 'success' | 'failed' = 'success') => {
+  try {
+    const response = await api.get(`/payments/simulate/${orderId}?status=${status}`);
+    return response.data;
+  } catch (error) {
+    throw error.response?.data || { message: 'An error occurred while simulating payment' };
+  }
+};
+
+export const getUserTransactions = async () => {
+  try {
+    const response = await api.get('/users/transactions');
+    return response.data;
+  } catch (error) {
+    throw error.response?.data || { message: 'An error occurred while fetching transactions' };
+  }
+};
+
+export const getAdminTransactions = async () => {
+  try {
+    const response = await api.get('/admin/transactions');
+    return response.data;
+  } catch (error) {
+    throw error.response?.data || { message: 'An error occurred while fetching transactions' };
+  }
+};
+
+export const generateInvoice = async (transactionId: string) => {
+  try {
+    const response = await api.post(`/admin/transactions/${transactionId}/generate-invoice`);
+    return response.data;
+  } catch (error) {
+    throw error.response?.data || { message: 'An error occurred while generating invoice' };
+  }
+};
+
+export const getInvoice = async (transactionId: string) => {
+  try {
+    const response = await api.get(`/admin/transactions/${transactionId}/invoice`);
+    return response.data;
+  } catch (error) {
+    throw error.response?.data || { message: 'An error occurred while fetching invoice' };
+  }
+};
+
 
 export default api;

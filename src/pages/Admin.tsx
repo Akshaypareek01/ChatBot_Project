@@ -9,6 +9,7 @@ import UserManager from '@/components/admin/UserManager';
 import PlanManager from '@/components/admin/PlanManager';
 import ChatbotWidget from '@/components/chatbot/ChatbotWidget';
 import { toast } from 'sonner';
+import TransactionManager from '@/components/admin/TransactionManager';
 
 const Settings = () => (
   <div className="space-y-8">
@@ -49,7 +50,7 @@ const Admin = () => {
   const handleLogout = () => {
     localStorage.removeItem('token');
     localStorage.removeItem('isAdmin');
-    navigate('/login');
+    navigate('/admin/login');
     toast.success('Logged out successfully');
   };
   
@@ -73,6 +74,7 @@ const Admin = () => {
           <Route path="/qa" element={<QAManager />} />
           <Route path="/users" element={<UserManager />} />
           <Route path="/plans" element={<PlanManager />} />
+          <Route path="/transactions" element={<TransactionManager />} />
           <Route path="/settings" element={<Settings />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
