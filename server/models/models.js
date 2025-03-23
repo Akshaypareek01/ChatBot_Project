@@ -175,10 +175,19 @@ const transactionSchema = new mongoose.Schema({
     required: true,
     unique: true
   },
-  transactionId: {
+  cfPaymentId: { // Cashfree Payment ID
     type: String,
     unique: true,
     sparse: true
+  },
+  transactionId: { // Gateway Transaction ID
+    type: String,
+    unique: true,
+    sparse: true
+  },
+  bankReference: { // Bank Reference ID
+    type: String,
+    default: null
   },
   amount: {
     type: Number,
@@ -188,16 +197,35 @@ const transactionSchema = new mongoose.Schema({
     type: String,
     default: 'INR'
   },
-  status: {
+  status: { // Updated status values
     type: String,
-    enum: ['initiated', 'processing', 'success', 'failed', 'refunded'],
+    enum: ['initiated', 'processing', 'success', 'failed', 'pending', 'refunded'],
     default: 'initiated'
   },
-  paymentMethod: {
-    type: String
+  isCaptured: { // Whether payment was captured
+    type: Boolean,
+    default: false
   },
+  paymentMethod: { type: Object},
   paymentDetails: {
     type: Object
+  },
+  paymentSignature: {
+    type: String
+  },
+  paymentGateway: {
+    type: String,
+    default: 'cashfree'
+  },
+  gatewayOrderId: { // Gateway's Order ID
+    type: String,
+    default: null
+  },
+  paymentTime: { // Payment initiated time
+    type: Date
+  },
+  paymentCompletionTime: { // Payment completion timestamp
+    type: Date
   },
   invoiceNumber: {
     type: String
@@ -206,15 +234,21 @@ const transactionSchema = new mongoose.Schema({
     type: Boolean,
     default: false
   },
-  createdAt: {
-    type: Date,
-    default: Date.now
+  cfToken: { // Cashfree Session Token
+    type: String
   },
-  updatedAt: {
-    type: Date,
-    default: Date.now
+  paymentSession: {
+    type: Object
+  },
+  customerDetails: {
+    name: String,
+    email: String,
+    phone: String
+  },
+  receiptUrl: {
+    type: String
   }
-});
+}, { timestamps: true });
 
 
 // Models

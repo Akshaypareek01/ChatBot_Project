@@ -9,7 +9,12 @@ const cheerio = require('cheerio');
 const OpenAI = require('openai');
 const { User, QA,Plan,Subscription,Transaction  } = require('./models/models');
 const { default: axios } = require('axios');
+const { Cashfree } = require("cashfree-pg"); // Import Cashfree module
 
+// Set API credentials and environment
+Cashfree.XClientId = "TEST105251470bc8511b567e6c3fb7c174152501";
+Cashfree.XClientSecret = "cfsk_ma_test_6b8005ab482ad695ebb7fb462f15f992_cc7f650f";
+Cashfree.XEnvironment = Cashfree.Environment.SANDBOX;
 // Configure environment variables
 dotenv.config();
 
@@ -933,6 +938,7 @@ app.delete('/api/admin/plans/:id', authMiddleware, async (req, res) => {
 
 app.post('/api/payments/create-order', authMiddleware, async (req, res) => {
   try {
+    console.log("crete order call ==================================>")
     const { planId } = req.body;
     
     // Get the user and plan details
@@ -982,14 +988,24 @@ app.post('/api/payments/create-order', authMiddleware, async (req, res) => {
       customerEmail: user.email,
       returnUrl: `${process.env.BASE_URL}/payment/callback?orderId=${orderId}`
     };
-    
-    // In a real implementation, this would call the Cashfree API
-    // const cashfreeResponse = await axios.post('https://test.cashfree.com/api/v2/cftoken/order', cashfreePayload, {
-    //   headers: {
-    //     'x-client-id': process.env.CASHFREE_APP_ID,
-    //     'x-client-secret': process.env.CASHFREE_SECRET_KEY
-    //   }
-    // });
+    const request = {
+      "order_amount": amount,
+      "order_currency": "INR",
+      "order_id": orderId,
+      "customer_details": {
+        "customer_name": user.name,
+          "customer_id": user._id,
+          "customer_email": user.email,
+          "customer_phone": "8290918154"
+      },
+      "order_meta": {
+          "return_url": `${process.env.BASE_URL}/api/payments/callback?orderId=${orderId}`
+      }
+  };
+
+    const cashfreeResponse = await Cashfree.PGCreateOrder("2025-01-01", request);
+
+    console.log("Response from Cashfree:", cashfreeResponse.data);
     
     // For now, we'll simulate the response
     const mockCashfreeResponse = {
@@ -998,12 +1014,12 @@ app.post('/api/payments/create-order', authMiddleware, async (req, res) => {
       orderCurrency: 'INR',
       orderNote: `Subscription to ${plan.name}`,
       orderStatus: 'ACTIVE',
-      paymentLink: `${process.env.BASE_URL}/payment/simulate?orderId=${orderId}`
+      paymentLink: `${process.env.BASE_URL}/api/payment/simulate?orderId=${orderId}`
     };
-    
+   
     return res.status(200).json({
       success: true,
-      order: mockCashfreeResponse,
+      order: cashfreeResponse.data,
       transaction: {
         id: transaction._id,
         orderId: transaction.orderId,
@@ -1016,12 +1032,61 @@ app.post('/api/payments/create-order', authMiddleware, async (req, res) => {
   }
 });
 
-app.post('/api/payments/callback', async (req, res) => {
+const saveTransaction = async (paymentData) => {
   try {
-    const { orderId, transactionId, orderAmount, paymentMode, referenceId, txStatus, txTime, signature } = req.body;
+    for (const payment of paymentData) {
+      const {
+        order_id,
+        cf_payment_id,
+        bank_reference,
+        payment_amount,
+        order_currency,
+        payment_status,
+        payment_time,
+        payment_completion_time,
+        is_captured,
+        payment_gateway_details,
+        payment_method
+      } = payment;
+
+      const cardInfo = payment_method?.card || null;
+
+      // Find existing transaction by orderId
+      let transaction = await Transaction.findOne({ orderId: order_id });
+
+        // Update existing transaction status
+        transaction.status = payment_status.toLowerCase();
+        transaction.isCaptured = is_captured || transaction.isCaptured;
+        transaction.paymentTime = payment_time ? new Date(payment_time) : transaction.paymentTime;
+        transaction.paymentCompletionTime = payment_completion_time ? new Date(payment_completion_time) : transaction.paymentCompletionTime;
+        transaction.updatedAt = Date.now();
+        transaction.cfPaymentId = cf_payment_id;
+        transaction.paymentMethod = payment_method;
+      
+
+      await transaction.save();
+      console.log(`Transaction saved/updated: ${transaction.orderId} - ${transaction.cfPaymentId}`);
+      return true;
+    }
+  } catch (error) {
+    console.error('Error saving transaction:', error);
+    return false;
+  }
+};
+
+app.get('/api/payments/callback', async (req, res) => {
+  try {
+    const { orderId } = req.query;
     
     // In a production environment, verify the signature using the Cashfree secret key
     // Here we'll just update the transaction
+    console.log('orders:', orderId)
+    const txData = await Cashfree.PGOrderFetchPayments("2025-01-01", orderId)
+    if(orderId && txData && txData.data){
+
+     
+    
+    // console.log('Order fetched successfully',txData.data);
     
     const transaction = await Transaction.findOne({ orderId });
     
@@ -1029,25 +1094,19 @@ app.post('/api/payments/callback', async (req, res) => {
       return res.status(404).json({ message: 'Transaction not found' });
     }
     
-    // Update transaction status based on payment status
-    transaction.transactionId = transactionId || referenceId;
-    transaction.status = txStatus === 'SUCCESS' ? 'success' : 'failed';
-    transaction.paymentMethod = paymentMode;
-    transaction.paymentDetails = req.body;
-    transaction.updatedAt = Date.now();
+ 
     
-    await transaction.save();
-    
-    if (transaction.status === 'success') {
+    const resData = await saveTransaction(txData.data)
+     console.log('Transaction saved successfully',resData)
+    if (resData === true) {
       // Create or update subscription
+       console.log("txdata pay,ent status",txData.data[0].payment_status)
+      if(txData.data[0].payment_status === "SUCCESS") { 
       await Subscription.updateMany(
         { userId: transaction.userId, isActive: true },
         { isActive: false }
       );
-      
       const plan = await Plan.findById(transaction.planId);
-      
-      // Create new subscription
       const newSubscription = new Subscription({
         userId: transaction.userId,
         planId: transaction.planId,
@@ -1061,14 +1120,19 @@ app.post('/api/payments/callback', async (req, res) => {
       transaction.subscriptionId = newSubscription._id;
       await transaction.save();
       
-      // If the plan is Basic, mark the user as having had the Basic plan
-      if (plan.name === 'Basic') {
-        await User.findByIdAndUpdate(transaction.userId, { hadBasicPlan: true });
-      }
+    }
+
+    if(txData.data[0].payment_status === "FAILED"){
+return res.redirect(`${process.env.Web_url}/payment/failed?orderId=${orderId}`);
+    }
+    return res.redirect(`${process.env.Web_url}/payment/success?orderId=${orderId}`);
+    
+     
       
-      return res.redirect(`${process.env.BASE_URL}/payment/success?orderId=${orderId}`);
+    }
+      
     } else {
-      return res.redirect(`${process.env.BASE_URL}/payment/failed?orderId=${orderId}`);
+      return res.redirect(`${process.env.Web_url}/payment/failed?orderId=${orderId}`);
     }
   } catch (error) {
     console.error('Payment callback error:', error);
@@ -1121,7 +1185,7 @@ app.get('/api/payments/simulate/:orderId', async (req, res) => {
       await transaction.save();
       
       // If the plan is Basic, mark the user as having had the Basic plan
-      if (plan.name === 'Basic') {
+      if (plan.name === 'Basic Plan') {
         await User.findByIdAndUpdate(transaction.userId, { hadBasicPlan: true });
       }
       
@@ -1136,6 +1200,11 @@ app.get('/api/payments/simulate/:orderId', async (req, res) => {
 });
 
 // Get transactions for current user
+app.get("/api/transactions/:orderId", async (req, res) => {
+  const transaction = await Transaction.findOne({ orderId: req.params.orderId });
+  res.json(transaction);
+});
+
 app.get('/api/users/transactions', authMiddleware, async (req, res) => {
   try {
     const transactions = await Transaction.find({ userId: req.userId })
