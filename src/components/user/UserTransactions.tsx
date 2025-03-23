@@ -120,9 +120,9 @@ const UserTransactions = () => {
                         {new Date(transaction.createdAt).toLocaleDateString()}
                       </TableCell>
                       <TableCell>{transaction.planId.name}</TableCell>
-                      <TableCell>${transaction.amount}</TableCell>
+                      <TableCell>INR {transaction.amount}</TableCell>
                       <TableCell className="font-mono text-xs">
-                        {transaction.orderId.substring(0, 12)}...
+                        {transaction.orderId}
                       </TableCell>
                       <TableCell className="text-center">
                         <Badge variant={getStatusBadgeVariant(transaction.status) as any} className="capitalize">

@@ -11,6 +11,7 @@ import { getUserProfile, getUserSubscription } from '@/services/api';
 import { toast } from 'sonner';
 import { Alert, AlertTitle, AlertDescription } from '@/components/ui/alert';
 import { AlertCircle } from 'lucide-react';
+import UserTransactions from '@/components/user/UserTransactions';
 
 const UserDashboard = () => {
   const location = useLocation();
@@ -112,6 +113,7 @@ const UserDashboard = () => {
           <Route path="/qa" element={<UserQAManager />} />
           <Route path="/profile" element={<UserProfile />} />
           <Route path="/plans" element={<UserPlans />} />
+          <Route path="/transactions" element={<UserTransactions />} />
           <Route path="*" element={<Navigate to="/user" replace />} />
         </Routes>
       </UserLayout>

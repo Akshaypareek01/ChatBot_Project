@@ -11,6 +11,8 @@ import Login from "./pages/Login";
 import Register from "./pages/Register";
 import NotFound from "./pages/NotFound";
 import AdminLogin from "./pages/AdminLogin";
+import PaymentSuccessPage from "./pages/PaymentSuccess";
+import PaymentFailPage from "./pages/PaymentFail";
 
 const queryClient = new QueryClient();
 
@@ -22,6 +24,8 @@ const App = () => (
       <BrowserRouter>
         <Routes>
           <Route path="/" element={<Index />} />
+          <Route path="/payment/success" element={<PaymentSuccessPage />} />
+          <Route path="/payment/failed" element={<PaymentFailPage />} />
           <Route path="/admin/*" element={<Admin />} />
           <Route path="/user/*" element={<UserDashboard />} />
           <Route path="/login" element={<Login />} />

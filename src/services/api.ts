@@ -370,5 +370,13 @@ export const getInvoice = async (transactionId: string) => {
   }
 };
 
+export const getTransactionDetails = async (orderId: string) => {
+  try {
+    const response = await api.get(`/transactions/${orderId}`);
+    return response.data;
+  } catch (error) {
+    throw error.response?.data || { message: "Failed to fetch transaction details" };
+  }
+};
 
 export default api;

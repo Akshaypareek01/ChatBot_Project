@@ -264,7 +264,7 @@ const TransactionManager = () => {
                             <div className="text-xs text-muted-foreground">{transaction.userId.email}</div>
                           </TableCell>
                           <TableCell>{transaction.planId.name}</TableCell>
-                          <TableCell>${transaction.amount}</TableCell>
+                          <TableCell>INR {transaction.amount}</TableCell>
                           <TableCell className="text-center">
                             {getStatusBadge(transaction.status)}
                           </TableCell>
@@ -369,8 +369,8 @@ const TransactionManager = () => {
                 <div className="grid grid-cols-12 mb-4">
                   <div className="col-span-6">{invoiceData.planName} Subscription</div>
                   <div className="col-span-2">1</div>
-                  <div className="col-span-2 text-right">${invoiceData.amount}</div>
-                  <div className="col-span-2 text-right">${invoiceData.amount}</div>
+                  <div className="col-span-2 text-right">INR {invoiceData.amount}</div>
+                  <div className="col-span-2 text-right">INR {invoiceData.amount}</div>
                 </div>
                 
                 <div className="border-t pt-4">
@@ -378,15 +378,15 @@ const TransactionManager = () => {
                     <div className="w-60">
                       <div className="flex justify-between mb-1">
                         <span>Subtotal:</span>
-                        <span>${invoiceData.amount}</span>
+                        <span>INR {invoiceData.amount}</span>
                       </div>
                       <div className="flex justify-between mb-1">
                         <span>Tax:</span>
-                        <span>$0.00</span>
+                        <span>INR 0.00</span>
                       </div>
                       <div className="flex justify-between font-bold text-lg mt-2">
                         <span>Total:</span>
-                        <span>${invoiceData.amount}</span>
+                        <span>INR {invoiceData.amount}</span>
                       </div>
                     </div>
                   </div>

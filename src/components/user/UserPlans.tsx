@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -8,6 +7,7 @@ import { getPlans, getUserSubscription, subscribeToPlan, createPaymentOrder, sim
 import { toast } from 'sonner';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { useNavigate } from 'react-router-dom';
+import { load } from "@cashfreepayments/cashfree-js";
 import { 
   Dialog, 
   DialogContent, 
@@ -56,10 +56,17 @@ interface PaymentOrder {
   orderAmount: number;
   orderCurrency: string;
   orderStatus: string;
-  paymentLink: string;
+  cftoken: string;
 }
 
 const UserPlans = () => {
+  let cashfree:any;
+  var initializeSDK = async function () {          
+      cashfree = await load({
+          mode: "sandbox"
+      });
+  }
+  initializeSDK();
   const navigate = useNavigate();
   const [plans, setPlans] = useState<Plan[]>([]);
   const [subscription, setSubscription] = useState<Subscription | null>(null);
@@ -68,9 +75,9 @@ const UserPlans = () => {
   const [hadPreviousPaidPlan, setHadPreviousPaidPlan] = useState(false);
   const [selectedPlan, setSelectedPlan] = useState<Plan | null>(null);
   const [paymentOrder, setPaymentOrder] = useState<PaymentOrder | null>(null);
-  const [showPaymentDialog, setShowPaymentDialog] = useState(false);
-  const [showPaymentSimulator, setShowPaymentSimulator] = useState(false);
+  const [showSuccessDialog, setShowSuccessDialog] = useState(false);
   const [processingPayment, setProcessingPayment] = useState(false);
+  const [completedTransaction, setCompletedTransaction] = useState<any>(null);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -95,7 +102,47 @@ const UserPlans = () => {
     };
 
     fetchData();
+    
+    const urlParams = new URLSearchParams(window.location.search);
+    const orderId = urlParams.get('orderId');
+    const txStatus = urlParams.get('txStatus');
+    
+    if (orderId && txStatus) {
+      if (txStatus === 'SUCCESS') {
+        handlePaymentSuccess(orderId);
+      } else {
+        toast.error('Payment was not successful. Please try again.');
+      }
+      
+      window.history.replaceState({}, document.title, window.location.pathname);
+    }
   }, [navigate]);
+
+  const handlePaymentSuccess = async (orderId: string) => {
+    try {
+      setProcessingPayment(true);
+      
+      const updatedSubscription = await getUserSubscription();
+      setSubscription(updatedSubscription);
+      setIsSubscriptionExpired(false);
+      
+      setCompletedTransaction({
+        orderId,
+        date: new Date().toLocaleDateString(),
+        status: 'SUCCESS',
+        plan: selectedPlan?.name || updatedSubscription.plan.name,
+        amount: selectedPlan?.discountPrice || selectedPlan?.price || updatedSubscription.plan.price
+      });
+      
+      setShowSuccessDialog(true);
+    } catch (error) {
+      console.error('Error processing successful payment:', error);
+    } finally {
+      setProcessingPayment(false);
+      setPaymentOrder(null);
+      setSelectedPlan(null);
+    }
+  };
 
   const initiatePlanPurchase = async (plan: Plan) => {
     try {
@@ -106,47 +153,55 @@ const UserPlans = () => {
       
       if (data.success) {
         setPaymentOrder(data.order);
-        setShowPaymentDialog(true);
+        
+        try {
+         
+          
+          const payment_session_id  = data.order.payment_session_id;
+       
+         console.log('Payment session', payment_session_id);
+    
+          
+          
+          console.log("Initializing Cashfree with order data:", {
+            paymentSessionId: data.order.cftoken,
+            orderId: data.order.orderId,
+            orderAmount: data.order.orderAmount,
+          });
+         
+          // Step 3: Open Checkout Page
+          await cashfree.checkout({
+            paymentSessionId: data.order.payment_session_id,
+            redirectTarget: "_self", // Can be "_blank", "_modal" or DOM element
+          })
+          .then((result: any) => {
+            console.log("Payment completion result:", result);
+            if (result.order && result.order.status === "PAID") {
+              handlePaymentSuccess(data.order.orderId);
+            }
+          })
+          .catch((error: any) => {
+            console.error("Payment failed:", error);
+            toast.error("Payment failed. Please try again.");
+            setProcessingPayment(false);
+          });
+        } catch (error) {
+          console.error('Error initializing Cashfree:', error);
+          toast.error('Failed to initialize payment gateway');
+          setProcessingPayment(false);
+        }
       } else {
         toast.error('Failed to create payment order');
+        setProcessingPayment(false);
       }
     } catch (error) {
       console.error('Error initiating payment:', error);
       toast.error(error.message || 'Failed to initiate payment');
-    } finally {
       setProcessingPayment(false);
     }
   };
 
-  const handleSimulatePayment = async (status: 'success' | 'failed') => {
-    if (!paymentOrder) return;
-    
-    try {
-      setProcessingPayment(true);
-      const data = await simulatePayment(paymentOrder.orderId, status);
-      
-      setShowPaymentDialog(false);
-      setShowPaymentSimulator(false);
-      
-      if (data.success) {
-        toast.success('Payment successful! Your plan has been activated.');
-        
-        // Fetch updated subscription
-        const updatedSubscription = await getUserSubscription();
-        setSubscription(updatedSubscription);
-        setIsSubscriptionExpired(false);
-      } else {
-        toast.error('Payment failed. Please try again.');
-      }
-    } catch (error) {
-      console.error('Error simulating payment:', error);
-      toast.error('Payment simulation failed');
-    } finally {
-      setProcessingPayment(false);
-      setPaymentOrder(null);
-      setSelectedPlan(null);
-    }
-  };
+
 
   const handleSubscribe = async (planId: string) => {
     try {
@@ -154,9 +209,7 @@ const UserPlans = () => {
       const updatedSubscription = await getUserSubscription();
       setSubscription(updatedSubscription);
       toast.success('Plan subscription updated successfully');
-      // Reset subscription expired state since they've now subscribed
       setIsSubscriptionExpired(false);
-      // Reset the had previous paid plan flag since they've now subscribed
       setHadPreviousPaidPlan(false);
     } catch (error) {
       console.error('Error subscribing to plan:', error);
@@ -211,7 +264,7 @@ const UserPlans = () => {
               </div>
               <div className="mt-4 md:mt-0 text-right">
                 <div className="text-lg font-semibold">
-                  ${subscription.plan.discountPrice || subscription.plan.price}
+                  INR {subscription.plan.discountPrice || subscription.plan.price}
                   <span className="text-sm text-muted-foreground">/month</span>
                 </div>
                 <div className="text-sm text-muted-foreground mt-1">
@@ -242,11 +295,11 @@ const UserPlans = () => {
               <CardContent className="flex-1">
                 <div className="mb-4">
                   <span className="text-3xl font-bold">
-                    ${plan.discountPrice || plan.price}
+                    INR {plan.discountPrice || plan.price}
                   </span>
                   {plan.discountPrice && (
                     <span className="text-muted-foreground line-through ml-2">
-                      ${plan.price}
+                      INR {plan.price}
                     </span>
                   )}
                   <span className="text-muted-foreground">/month</span>
@@ -269,7 +322,16 @@ const UserPlans = () => {
                     variant={isCurrentPlan && !isSubscriptionExpired ? "outline" : "default"}
                     onClick={() => initiatePlanPurchase(plan)}
                   >
-                    {isCurrentPlan && !isSubscriptionExpired ? "Current Plan" : "Subscribe"}
+                    {processingPayment ? (
+                      <>Processing...</>
+                    ) : isCurrentPlan && !isSubscriptionExpired ? (
+                      "Current Plan"
+                    ) : (
+                      <>
+                        <CreditCard className="w-4 h-4 mr-2" />
+                        Subscribe
+                      </>
+                    )}
                   </Button>
                 }
               </CardFooter>
@@ -278,66 +340,52 @@ const UserPlans = () => {
         })}
       </div>
 
-      {/* Payment Dialog */}
-      <Dialog open={showPaymentDialog} onOpenChange={setShowPaymentDialog}>
+      <div id="payment-form-container" className="my-8"></div>
+
+      <Dialog open={showSuccessDialog} onOpenChange={setShowSuccessDialog}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Complete Your Purchase</DialogTitle>
-            <DialogDescription>
-              {selectedPlan && `You are subscribing to the ${selectedPlan.name} plan.`}
-            </DialogDescription>
+            <DialogTitle className="text-center text-green-600 flex items-center justify-center">
+              <svg className="w-6 h-6 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+              </svg>
+              Payment Successful
+            </DialogTitle>
           </DialogHeader>
           
-          <div className="space-y-4">
-            {paymentOrder && (
-              <div className="border rounded-md p-4 bg-muted/30">
-                <div className="grid grid-cols-2 gap-2 text-sm">
+          {completedTransaction && (
+            <div className="space-y-4">
+              <div className="bg-green-50 border border-green-100 rounded-lg p-6">
+                <h3 className="font-medium text-lg mb-4">Order Details</h3>
+                <div className="grid grid-cols-2 gap-3 text-sm">
+                  <span className="text-muted-foreground">Plan:</span>
+                  <span>{completedTransaction.plan}</span>
+                  
                   <span className="text-muted-foreground">Order ID:</span>
-                  <span className="font-medium">{paymentOrder.orderId}</span>
+                  <span className="font-mono">{completedTransaction.orderId}</span>
+                  
+                  <span className="text-muted-foreground">Date:</span>
+                  <span>{completedTransaction.date}</span>
                   
                   <span className="text-muted-foreground">Amount:</span>
-                  <span className="font-medium">{paymentOrder.orderAmount} {paymentOrder.orderCurrency}</span>
+                  <span className="font-medium">INR {completedTransaction.amount}</span>
+                  
+                  <span className="text-muted-foreground">Status:</span>
+                  <span className="text-green-600 font-medium">Successful</span>
                 </div>
               </div>
-            )}
-            
-            <p className="text-sm text-muted-foreground">
-              In a production environment, you would be redirected to the Cashfree payment gateway.
-              For demonstration purposes, you can simulate a payment outcome below.
-            </p>
-          </div>
-          
-          <DialogFooter className="flex flex-col sm:flex-row gap-2 sm:justify-between sm:gap-0">
-            <Button 
-              variant="outline"
-              onClick={() => setShowPaymentDialog(false)}
-              disabled={processingPayment}
-            >
-              Cancel
-            </Button>
-            <div className="flex gap-2">
-              <Button 
-                variant="destructive"
-                onClick={() => handleSimulatePayment('failed')}
-                disabled={processingPayment}
-              >
-                Simulate Failed Payment
-              </Button>
-              <Button 
-                variant="default"
-                onClick={() => handleSimulatePayment('success')}
-                disabled={processingPayment}
-              >
-                {processingPayment ? (
-                  <>
-                    <span className="loading-spinner-sm mr-2"></span>
-                    Processing...
-                  </>
-                ) : (
-                  'Simulate Successful Payment'
-                )}
-              </Button>
+              
+              <div className="text-center text-sm text-muted-foreground">
+                <p>Your subscription has been activated successfully.</p>
+                <p>A confirmation email will be sent to your registered email address.</p>
+              </div>
             </div>
+          )}
+          
+          <DialogFooter>
+            <Button onClick={() => setShowSuccessDialog(false)} className="w-full">
+              Continue
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

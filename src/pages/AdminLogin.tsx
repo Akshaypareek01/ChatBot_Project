@@ -47,7 +47,7 @@ const AdminLogin = () => {
           localStorage.setItem('token', data.token);
           localStorage.setItem('isAdmin', 'true');
           toast.success('Login successful');
-          navigate('r/admin');
+          navigate('/admin');
         } catch (error) {
           // Fallback for demo if backend is not available
           console.error('Backend login failed, using fallback:', error);

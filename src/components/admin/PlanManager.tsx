@@ -273,11 +273,11 @@ const PlanManager = () => {
                     <TableCell>
                       {plan.discountPrice ? (
                         <div>
-                          <span className="text-muted-foreground line-through">${plan.price}</span>
-                          <span className="ml-2 text-green-500 font-medium">${plan.discountPrice}</span>
+                          <span className="text-muted-foreground line-through">INR {plan.price}</span>
+                          <span className="ml-2 text-green-500 font-medium">INR {plan.discountPrice}</span>
                         </div>
                       ) : (
-                        <span>${plan.price}</span>
+                        <span>INR {plan.price}</span>
                       )}
                     </TableCell>
                     <TableCell>{plan.tokens.toLocaleString()}</TableCell>
@@ -389,7 +389,7 @@ const PlanManager = () => {
                   name="price"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Price ($)</FormLabel>
+                      <FormLabel>Price (INR)</FormLabel>
                       <FormControl>
                         <Input 
                           type="number" 
@@ -407,7 +407,7 @@ const PlanManager = () => {
                   name="discountPrice"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Discount Price ($)</FormLabel>
+                      <FormLabel>Discount Price (INR)</FormLabel>
                       <FormControl>
                         <Input 
                           type="number" 

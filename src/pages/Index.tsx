@@ -324,13 +324,13 @@ const Index = () => {
                       <div className="mb-6">
                         {plan.discountPrice ? (
                           <div className="flex items-baseline gap-2">
-                            <span className="text-3xl font-bold">${plan.discountPrice}</span>
-                            <span className="text-xl text-muted-foreground line-through">${plan.price}</span>
+                            <span className="text-3xl font-bold">INR {plan.discountPrice}</span>
+                            <span className="text-xl text-muted-foreground line-through">{plan.price}</span>
                             <span className="text-sm text-muted-foreground">/month</span>
                           </div>
                         ) : (
                           <div className="flex items-baseline">
-                            <span className="text-3xl font-bold">${plan.price}</span>
+                            <span className="text-3xl font-bold">INR {plan.price}</span>
                             <span className="text-sm text-muted-foreground ml-2">/month</span>
                           </div>
                         )}
