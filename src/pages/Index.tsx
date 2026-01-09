@@ -2,7 +2,6 @@ import React, { useEffect, useRef, useState } from 'react';
 import { Link, Navigate, useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { ChatProvider } from '@/context/ChatContext';
-import ChatbotWidget from '@/components/chatbot/ChatbotWidget';
 import { Card, CardContent } from '@/components/ui/card';
 import { ArrowRight, CheckCircle, MessageSquareText, BarChart2, Code, Lock, Wallet, Zap, FileText } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -151,7 +150,7 @@ const Index = () => {
             <div className="flex flex-col sm:flex-row gap-4 w-full justify-center animate-fade-in">
               <Link to="/user">
                 <Button size="lg" className="w-full sm:w-auto">
-                  Try Demo
+                  Try Now
                   <ArrowRight className="ml-2 h-4 w-4" />
                 </Button>
               </Link>
@@ -358,8 +357,6 @@ const Index = () => {
             </div>
           </div>
         </footer>
-
-        <ChatbotWidget />
       </div>
     </ChatProvider>
   );

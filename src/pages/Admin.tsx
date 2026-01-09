@@ -6,7 +6,6 @@ import Dashboard from '@/components/admin/Dashboard';
 import AdminKnowledgeBase from '@/components/admin/AdminKnowledgeBase';
 import UserManager from '@/components/admin/UserManager';
 // import PlanManager from '@/components/admin/PlanManager'; // Removed
-import ChatbotWidget from '@/components/chatbot/ChatbotWidget';
 import { toast } from 'sonner';
 import TransactionManager from '@/components/admin/TransactionManager';
 
@@ -77,7 +76,6 @@ const Admin = () => {
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </AdminLayout>
-      <ChatbotWidget userId={adminUserId} />
     </ChatProvider>
   );
 };

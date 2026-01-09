@@ -7,7 +7,7 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Plus, Search, Edit, Trash2, Save, X, MessageSquare, Filter, FileUp, Globe, Loader2, Database, File, ExternalLink } from 'lucide-react';
+import { Plus, Search, Edit, Trash2, Save, X, MessageSquare, Filter, FileUp, Globe, Loader2, Database, File, ExternalLink, Wallet } from 'lucide-react';
 import { toast } from 'sonner';
 import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
@@ -260,6 +260,47 @@ const UserKnowledgeBase = () => {
         <h1 className="text-2xl font-semibold mb-2">Knowledge Base</h1>
         <p className="text-muted-foreground">Manage your chatbot's knowledge sources.</p>
       </div>
+
+      {/* Token Pricing Information Card */}
+      <Card className="border-primary/20 bg-primary/5">
+        <CardHeader>
+          <CardTitle className="text-lg flex items-center gap-2">
+            <Wallet className="h-5 w-5 text-primary" />
+            Token Pricing
+          </CardTitle>
+          <CardDescription>
+            Understand the token costs for each action
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="flex items-start gap-3 p-3 rounded-lg bg-background/50">
+              <MessageSquare className="h-5 w-5 text-blue-500 mt-0.5" />
+              <div>
+                <p className="font-medium text-sm">Chat Message</p>
+                <p className="text-2xl font-bold text-primary">~1 Token</p>
+                <p className="text-xs text-muted-foreground">per word</p>
+              </div>
+            </div>
+            <div className="flex items-start gap-3 p-3 rounded-lg bg-background/50">
+              <FileUp className="h-5 w-5 text-purple-500 mt-0.5" />
+              <div>
+                <p className="font-medium text-sm">File Upload</p>
+                <p className="text-2xl font-bold text-primary">10,000</p>
+                <p className="text-xs text-muted-foreground">Tokens per file</p>
+              </div>
+            </div>
+            <div className="flex items-start gap-3 p-3 rounded-lg bg-background/50">
+              <Globe className="h-5 w-5 text-green-500 mt-0.5" />
+              <div>
+                <p className="font-medium text-sm">Web Scrape</p>
+                <p className="text-2xl font-bold text-primary">5,000</p>
+                <p className="text-xs text-muted-foreground">Tokens per URL</p>
+              </div>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
 
       <Tabs value={activeTab} onValueChange={setActiveTab}>
         <TabsList>

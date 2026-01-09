@@ -5,7 +5,6 @@ import UserLayout from '@/components/user/UserLayout';
 import UserDashboardHome from '@/components/user/UserDashboardHome';
 import UserKnowledgeBase from '@/components/user/UserKnowledgeBase';
 import UserProfile from '@/components/user/UserProfile';
-import ChatbotWidget from '@/components/chatbot/ChatbotWidget';
 import { getUserProfile } from '@/services/api';
 import { toast } from 'sonner';
 import UserTransactions from '@/components/user/UserTransactions';
@@ -82,7 +81,6 @@ const UserDashboard = () => {
           <Route path="*" element={<Navigate to="/user" replace />} />
         </Routes>
       </UserLayout>
-      <ChatbotWidget userId={user?._id} />
     </ChatProvider>
   );
 };
