@@ -22,40 +22,43 @@ const Login = () => {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
+
     if (!email || !password) {
       toast.error('Please enter both email and password');
       return;
     }
-    
+
     setIsLoading(true);
-    
+
     try {
-      // For demo, use hardcoded credentials
-      const hardcodedEmail = 'admin@gmail.com';
-      const hardcodedPassword = 'admin1234';
-      
-      if (email && password) {
-        // Try to authenticate with backend
-        try {
-          const data = await login(email, password);
-          localStorage.setItem('token', data.token);
-          localStorage.setItem('isAdmin', 'true');
-          toast.success('Login successful');
-          navigate('/user/admin');
-        } catch (error) {
-          // Fallback for demo if backend is not available
-          console.error('Backend login failed, using fallback:', error);
-          // localStorage.setItem('token', 'demo-token');
-          // localStorage.setItem('isAdmin', 'true');
-          // toast.success('Login successful (demo mode)');
-          // navigate('/admin');
-        }
+      const data = await login(email, password);
+      localStorage.setItem('token', data.token);
+      localStorage.setItem('isAdmin', data.isAdmin ? 'true' : 'false');
+      toast.success('Login successful');
+
+      // Navigate based on user role
+      if (data.isAdmin) {
+        navigate('/admin');
       } else {
-        toast.error('Invalid credentials');
+        navigate('/user');
       }
-    } catch (error) {
-      toast.error(error.message || 'Login failed');
+    } catch (error: any) {
+      console.error('Login error:', error);
+
+      // Handle different error types
+      if (error.response?.status === 429) {
+        toast.error('Too many login attempts. Please try again in a few minutes.', {
+          duration: 5000,
+        });
+      } else if (error.response?.status === 401) {
+        toast.error('Invalid email or password');
+      } else if (error.response?.status === 404) {
+        toast.error('Account not found. Please register first.');
+      } else if (error.message) {
+        toast.error(error.message);
+      } else {
+        toast.error('Login failed. Please try again.');
+      }
     } finally {
       setIsLoading(false);
     }
@@ -73,7 +76,7 @@ const Login = () => {
             Enter your credentials to access the admin dashboard
           </p>
         </div>
-        
+
         <Card className="shadow-premium">
           <CardHeader>
             <CardTitle>Sign In</CardTitle>
@@ -94,7 +97,7 @@ const Login = () => {
                   autoComplete="email"
                 />
               </div>
-              
+
               <div className="space-y-2">
                 <div className="flex items-center justify-between">
                   <Label htmlFor="password">Password</Label>
@@ -111,7 +114,7 @@ const Login = () => {
                   autoComplete="current-password"
                 />
               </div>
-              
+
               <Button type="submit" className="w-full" disabled={isLoading}>
                 {isLoading ? (
                   <div className="flex items-center space-x-2">
@@ -137,7 +140,7 @@ const Login = () => {
             </div>
           </CardFooter>
         </Card>
-        
+
         <div className="mt-8 text-center text-sm text-muted-foreground">
           <Link to="/" className="text-primary hover:underline">
             Go back to home page

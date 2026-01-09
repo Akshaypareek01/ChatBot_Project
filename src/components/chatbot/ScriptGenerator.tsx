@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Code, ClipboardCopy, Check } from 'lucide-react';
 import { toast } from 'sonner';
+import { API_URL } from '@/services/api';
 
 interface ScriptGeneratorProps {
   userId: string;
@@ -11,20 +12,27 @@ interface ScriptGeneratorProps {
   websiteDomain?: string;
 }
 
-const ScriptGenerator: React.FC<ScriptGeneratorProps> = ({ 
-  userId, 
-  scriptUrl = 'http://localhost:5000/chatbot.js',
+// Derive the chatbot script URL from API_URL
+// API_URL is like 'http://localhost:5001/api', we need 'http://localhost:5001/chatbot.js'
+const getDefaultScriptUrl = () => {
+  const baseUrl = API_URL.replace('/api', '');
+  return `${baseUrl}/chatbot.js`;
+};
+
+const ScriptGenerator: React.FC<ScriptGeneratorProps> = ({
+  userId,
+  scriptUrl = getDefaultScriptUrl(),
   websiteDomain
 }) => {
   const [copied, setCopied] = useState(false);
-  
+
   const scriptCode = `<script src="${scriptUrl}" data-user-id="${userId}" defer></script>`;
 
   const handleCopy = () => {
     navigator.clipboard.writeText(scriptCode);
     setCopied(true);
     toast.success('Script code copied to clipboard');
-    
+
     setTimeout(() => {
       setCopied(false);
     }, 2000);

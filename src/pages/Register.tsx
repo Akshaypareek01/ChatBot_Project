@@ -49,11 +49,25 @@ const Register = () => {
         brandName: data.brandName
       });
 
-      toast.success('Registration successful! Please wait for admin approval before logging in.');
+      toast.success('Registration successful! Please login to continue.');
       navigate('/login');
     } catch (error: any) {
       console.error('Registration error:', error);
-      toast.error(error.message || 'Registration failed. Please try again.');
+
+      // Handle different error types
+      if (error.response?.status === 429) {
+        toast.error('Too many registration attempts. Please try again in a few minutes.', {
+          duration: 5000,
+        });
+      } else if (error.response?.status === 409 || error.message?.includes('already exists')) {
+        toast.error('An account with this email already exists. Please login instead.');
+      } else if (error.response?.status === 400) {
+        toast.error(error.message || 'Invalid registration data. Please check your inputs.');
+      } else if (error.message) {
+        toast.error(error.message);
+      } else {
+        toast.error('Registration failed. Please try again.');
+      }
     } finally {
       setIsLoading(false);
     }

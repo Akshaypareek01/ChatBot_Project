@@ -2,7 +2,7 @@
 import axios from 'axios';
 
 // Determine API URL based on environment or default to localhost
-const API_URL = 'http://localhost:5001/api';
+export const API_URL = 'http://localhost:5001/api';
 
 // Create axios instance
 const api = axios.create({
@@ -31,7 +31,9 @@ export const login = async (email: string, password: string) => {
     const response = await api.post('/users/login', { email, password });
     return response.data;
   } catch (error: any) {
-    throw error.response?.data || { message: 'An error occurred during login' };
+    const errorData = error.response?.data || { message: 'An error occurred during login' };
+    const errorWithStatus = { ...errorData, response: { status: error.response?.status } };
+    throw errorWithStatus;
   }
 };
 
@@ -40,7 +42,9 @@ export const adminLogin = async (email: string, password: string) => {
     const response = await api.post('/admin/login', { email, password });
     return response.data;
   } catch (error: any) {
-    throw error.response?.data || { message: 'An error occurred during admin login' };
+    const errorData = error.response?.data || { message: 'An error occurred during admin login' };
+    const errorWithStatus = { ...errorData, response: { status: error.response?.status } };
+    throw errorWithStatus;
   }
 };
 
@@ -49,7 +53,9 @@ export const registerUser = async (userData: { name: string; email: string; pass
     const response = await api.post('/users/register', userData);
     return response.data;
   } catch (error: any) {
-    throw error.response?.data || { message: 'An error occurred during registration' };
+    const errorData = error.response?.data || { message: 'An error occurred during registration' };
+    const errorWithStatus = { ...errorData, response: { status: error.response?.status } };
+    throw errorWithStatus;
   }
 };
 
