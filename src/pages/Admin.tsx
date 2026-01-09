@@ -1,10 +1,9 @@
-
 import React, { useState, useEffect } from 'react';
 import { useLocation, Routes, Route, Navigate, useNavigate } from 'react-router-dom';
 import { ChatProvider } from '@/context/ChatContext';
 import AdminLayout from '@/components/admin/AdminLayout';
 import Dashboard from '@/components/admin/Dashboard';
-import QAManager from '@/components/admin/QAManager';
+import AdminKnowledgeBase from '@/components/admin/AdminKnowledgeBase';
 import UserManager from '@/components/admin/UserManager';
 // import PlanManager from '@/components/admin/PlanManager'; // Removed
 import ChatbotWidget from '@/components/chatbot/ChatbotWidget';
@@ -71,7 +70,7 @@ const Admin = () => {
       <AdminLayout onLogout={handleLogout}>
         <Routes>
           <Route path="/" element={<Dashboard />} />
-          <Route path="/qa" element={<QAManager />} />
+          <Route path="/qa" element={<AdminKnowledgeBase />} />
           <Route path="/users" element={<UserManager />} />
           <Route path="/transactions" element={<TransactionManager />} />
           <Route path="/settings" element={<Settings />} />

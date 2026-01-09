@@ -67,19 +67,30 @@ const TransactionManager = () => {
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState('all');
+  const [page, setPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  const [total, setTotal] = useState(0);
 
   useEffect(() => {
     fetchTransactions();
-  }, []);
+  }, [page, activeTab]);
 
   const fetchTransactions = async () => {
     try {
       setLoading(true);
-      const data = await getAdminTransactions();
-      setTransactions(data);
+      const data = await getAdminTransactions({ page, limit: 10 });
+      // Handle paginated response
+      if (data.transactions) {
+        setTransactions(data.transactions);
+        setTotalPages(data.pagination?.totalPages || 1);
+        setTotal(data.pagination?.total || 0);
+      } else {
+        setTransactions(Array.isArray(data) ? data : []);
+      }
     } catch (error) {
-      console.error('Error fetching transactions:', error);
-      toast.error('Failed to fetch transactions');
+      console.error('Failed to fetch transactions:', error);
+      toast.error('Failed to load transactions');
+      setTransactions([]);
     } finally {
       setLoading(false);
     }
@@ -197,6 +208,34 @@ const TransactionManager = () => {
                 </div>
               )}
             </CardContent>
+            {totalPages > 1 && (
+              <div className="flex items-center justify-between px-6 py-4 border-t">
+                <div className="text-sm text-muted-foreground">
+                  Showing {transactions.length} of {total} transactions
+                </div>
+                <div className="flex items-center gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setPage(p => Math.max(1, p - 1))}
+                    disabled={page === 1}
+                  >
+                    Previous
+                  </Button>
+                  <div className="text-sm">
+                    Page {page} of {totalPages}
+                  </div>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setPage(p => Math.min(totalPages, p + 1))}
+                    disabled={page === totalPages}
+                  >
+                    Next
+                  </Button>
+                </div>
+              </div>
+            )}
           </Card>
         </TabsContent>
       </Tabs>

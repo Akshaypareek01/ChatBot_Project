@@ -84,9 +84,16 @@ export const updateUserPassword = async (passwordData: { currentPassword: string
 
 // --- Admin Services ---
 
-export const getUsers = async () => {
+export const getUsers = async (params?: { page?: number; limit?: number; search?: string; isActive?: boolean; lowTokens?: boolean }) => {
   try {
-    const response = await api.get('/admin/users');
+    const queryParams = new URLSearchParams();
+    if (params?.page) queryParams.append('page', params.page.toString());
+    if (params?.limit) queryParams.append('limit', params.limit.toString());
+    if (params?.search) queryParams.append('search', params.search);
+    if (params?.isActive !== undefined) queryParams.append('isActive', params.isActive.toString());
+    if (params?.lowTokens) queryParams.append('lowTokens', 'true');
+
+    const response = await api.get(`/admin/users?${queryParams.toString()}`);
     return response.data;
   } catch (error: any) {
     throw error.response?.data || { message: 'An error occurred while fetching users' };
@@ -224,9 +231,15 @@ export const getUserTransactions = async () => {
   }
 };
 
-export const getAdminTransactions = async () => {
+export const getAdminTransactions = async (params?: { page?: number; limit?: number; status?: string; search?: string }) => {
   try {
-    const response = await api.get('/admin/transactions');
+    const queryParams = new URLSearchParams();
+    if (params?.page) queryParams.append('page', params.page.toString());
+    if (params?.limit) queryParams.append('limit', params.limit.toString());
+    if (params?.status) queryParams.append('status', params.status);
+    if (params?.search) queryParams.append('search', params.search);
+
+    const response = await api.get(`/admin/transactions?${queryParams.toString()}`);
     return response.data;
   } catch (error: any) {
     throw error.response?.data || { message: 'Error fetching transactions' };
@@ -271,10 +284,13 @@ export const logUnansweredQuestion = async (userId: string, question: string) =>
   }
 };
 
-export const uploadFile = async (file: File) => {
+export const uploadFile = async (file: File, userId?: string) => {
   try {
     const formData = new FormData();
     formData.append('file', file);
+    if (userId) {
+      formData.append('userId', userId);
+    }
     const response = await api.post('/upload', formData, {
       headers: {
         'Content-Type': 'multipart/form-data',
@@ -286,12 +302,25 @@ export const uploadFile = async (file: File) => {
   }
 };
 
-export const scrapeWebsite = async (url: string) => {
+export const scrapeWebsite = async (url: string, userId?: string) => {
   try {
-    const response = await api.post('/scrape', { url });
+    const payload: any = { url };
+    if (userId) {
+      payload.userId = userId;
+    }
+    const response = await api.post('/scrape', payload);
     return response.data;
   } catch (error: any) {
     throw error.response?.data || { message: 'Error scraping website' };
+  }
+};
+
+export const getUserSources = async () => {
+  try {
+    const response = await api.get('/sources');
+    return response.data;
+  } catch (error: any) {
+    throw error.response?.data || { message: 'Error fetching sources' };
   }
 };
 

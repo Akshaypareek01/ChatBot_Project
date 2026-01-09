@@ -42,10 +42,6 @@ const register = async (req, res) => {
     try {
         const { name, email, password, website, brandName } = req.body;
 
-        if (!brandName) {
-            return res.status(400).json({ message: 'Brand name is required' });
-        }
-
         const existingUser = await User.findOne({ email });
         if (existingUser) {
             return res.status(400).json({ message: 'User already exists' });
@@ -59,7 +55,7 @@ const register = async (req, res) => {
             email,
             password: hashedPassword,
             website,
-            brandName, // Save required brandName
+            brandName: brandName || "ChatBot", // Default to "ChatBot" if not provided
             isActive: true
             // tokenBalance default is set in Model
         });

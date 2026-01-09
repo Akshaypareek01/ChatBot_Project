@@ -7,12 +7,12 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Plus, Search, Edit, Trash2, Save, X, MessageSquare, Filter, FileUp, Globe, Loader2 } from 'lucide-react';
+import { Plus, Search, Edit, Trash2, Save, X, MessageSquare, Filter, FileUp, Globe, Loader2, Database, File, ExternalLink } from 'lucide-react';
 import { toast } from 'sonner';
 import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { getCurrentUserQAs, createUserQA, updateUserQA, deleteUserQA, uploadFile, scrapeWebsite } from '@/services/api';
+import { getCurrentUserQAs, createUserQA, updateUserQA, deleteUserQA, uploadFile, scrapeWebsite, getUserSources } from '@/services/api';
 
 interface QA {
   _id: string;
@@ -20,6 +20,17 @@ interface QA {
   answer: string;
   category: string;
   frequency: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+interface Source {
+  _id: string;
+  type: 'file' | 'website';
+  fileName?: string;
+  fileSize?: number;
+  url?: string;
+  status: string;
   createdAt: string;
   updatedAt: string;
 }
@@ -45,11 +56,23 @@ const UserKnowledgeBase = () => {
   const [scrapeUrl, setScrapeUrl] = useState('');
   const [isScraping, setIsScraping] = useState(false);
 
+  // Sources State
+  const [sources, setSources] = useState<Source[]>([]);
+  const [isLoadingSources, setIsLoadingSources] = useState(false);
+  const [activeTab, setActiveTab] = useState('qa');
+
   const categories = ['General', 'Orders', 'Returns', 'Shipping', 'Support', 'Pricing', 'Technical'];
 
   useEffect(() => {
     fetchQAs();
   }, []);
+
+  // Fetch sources when Data Sources tab is selected
+  useEffect(() => {
+    if (activeTab === 'sources') {
+      fetchSources();
+    }
+  }, [activeTab]);
 
   const fetchQAs = async () => {
     setIsLoading(true);
@@ -61,6 +84,19 @@ const UserKnowledgeBase = () => {
       toast.error('Failed to load your Q&A entries');
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const fetchSources = async () => {
+    setIsLoadingSources(true);
+    try {
+      const data = await getUserSources();
+      setSources(data.sources || []);
+    } catch (error) {
+      console.error('Error fetching sources:', error);
+      toast.error('Failed to load sources');
+    } finally {
+      setIsLoadingSources(false);
     }
   };
 
@@ -187,6 +223,8 @@ const UserKnowledgeBase = () => {
       // Reset file input
       const fileInput = document.getElementById('file-upload') as HTMLInputElement;
       if (fileInput) fileInput.value = '';
+      // Refresh sources list
+      fetchSources();
     } catch (error: any) {
       console.error('Error uploading file:', error);
       toast.error(error.message || 'Failed to upload file');
@@ -206,6 +244,8 @@ const UserKnowledgeBase = () => {
       await scrapeWebsite(scrapeUrl);
       toast.success('Website scraped and processed successfully');
       setScrapeUrl('');
+      // Refresh sources list
+      fetchSources();
     } catch (error: any) {
       console.error('Error scraping website:', error);
       toast.error(error.message || 'Failed to scrape website');
@@ -221,7 +261,7 @@ const UserKnowledgeBase = () => {
         <p className="text-muted-foreground">Manage your chatbot's knowledge sources.</p>
       </div>
 
-      <Tabs defaultValue="qa">
+      <Tabs value={activeTab} onValueChange={setActiveTab}>
         <TabsList>
           <TabsTrigger value="qa">
             <MessageSquare className="h-4 w-4 mr-2" />
@@ -234,6 +274,10 @@ const UserKnowledgeBase = () => {
           <TabsTrigger value="scrape">
             <Globe className="h-4 w-4 mr-2" />
             Website Scraping
+          </TabsTrigger>
+          <TabsTrigger value="sources">
+            <Database className="h-4 w-4 mr-2" />
+            Data Sources
           </TabsTrigger>
         </TabsList>
 
@@ -517,6 +561,85 @@ const UserKnowledgeBase = () => {
                   </>
                 )}
               </Button>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="sources" className="mt-6">
+          <Card>
+            <CardHeader>
+              <CardTitle>Your Data Sources</CardTitle>
+              <CardDescription>
+                View all files and websites you've added to train your chatbot.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              {isLoadingSources ? (
+                <div className="flex items-center justify-center py-12">
+                  <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+                </div>
+              ) : sources.length === 0 ? (
+                <div className="text-center py-12 text-muted-foreground">
+                  <Database className="h-12 w-12 mx-auto mb-4 opacity-50" />
+                  <p className="text-lg font-medium">No data sources yet</p>
+                  <p className="text-sm">Upload files or scrape websites to get started</p>
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  {sources.map((source) => (
+                    <div
+                      key={source._id}
+                      className="border rounded-lg p-4 hover:bg-muted/50 transition-colors"
+                    >
+                      <div className="flex items-start justify-between">
+                        <div className="flex items-start gap-3 flex-1">
+                          <div className="mt-1">
+                            {source.type === 'file' ? (
+                              <File className="h-5 w-5 text-blue-500" />
+                            ) : (
+                              <Globe className="h-5 w-5 text-green-500" />
+                            )}
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2 mb-1">
+                              <h4 className="font-medium truncate">
+                                {source.type === 'file' ? source.fileName : source.url}
+                              </h4>
+                              <Badge variant={
+                                source.status === 'indexed' || source.status === 'processed_and_deleted'
+                                  ? 'default'
+                                  : source.status === 'failed'
+                                    ? 'destructive'
+                                    : 'secondary'
+                              }>
+                                {source.status}
+                              </Badge>
+                            </div>
+                            <div className="flex items-center gap-4 text-sm text-muted-foreground">
+                              <span className="capitalize">{source.type}</span>
+                              {source.fileSize && (
+                                <span>{(source.fileSize / 1024).toFixed(2)} KB</span>
+                              )}
+                              <span>{new Date(source.createdAt).toLocaleDateString()}</span>
+                            </div>
+                            {source.type === 'website' && source.url && (
+                              <a
+                                href={source.url}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="text-sm text-primary hover:underline flex items-center gap-1 mt-2"
+                              >
+                                Visit website
+                                <ExternalLink className="h-3 w-3" />
+                              </a>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
             </CardContent>
           </Card>
         </TabsContent>

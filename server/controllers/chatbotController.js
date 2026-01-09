@@ -5,6 +5,8 @@ const chatService = require('../services/chat.service');
 const scraperService = require('../services/scraperService');
 const fileParserService = require('../services/fileParser.service');
 
+const Source = require('../models/Source');
+
 // Legacy Handlers
 const getAnswer = async (req, res) => {
     try {
@@ -146,6 +148,26 @@ const scrapeWebsite = async (req, res) => {
 };
 
 /**
+ * Fetch all sources (files/websites) for a user
+ */
+const getUserSources = async (req, res) => {
+    try {
+        // Support both authenticated user and admin querying for specific user
+        const userId = req.query.userId || req.userId;
+
+        if (!userId) {
+            return res.status(400).json({ message: "User ID is required" });
+        }
+
+        const sources = await Source.find({ userId }).sort({ createdAt: -1 });
+        return res.json({ sources });
+    } catch (error) {
+        console.error("Fetch sources error:", error);
+        return res.status(500).json({ message: "Failed to fetch sources" });
+    }
+};
+
+/**
  * Chat with RAG
  */
 const chatWithBot = async (req, res) => {
@@ -177,5 +199,6 @@ module.exports = {
     updateFrequency,
     uploadFile,
     scrapeWebsite,
+    getUserSources,
     chatWithBot
 };

@@ -44,6 +44,9 @@ const UserManager = () => {
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
+  const [page, setPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  const [total, setTotal] = useState(0);
   const navigate = useNavigate();
 
   const addUserForm = useForm<UserFormData>({
@@ -66,27 +69,42 @@ const UserManager = () => {
   });
 
   useEffect(() => {
+    // Debounce search
+    const timer = setTimeout(() => {
+      setPage(1); // Reset to page 1 when searching
+      fetchUsers();
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [searchTerm]);
+
+  useEffect(() => {
     fetchUsers();
-  }, []);
+  }, [page]);
 
   const fetchUsers = async () => {
     setIsLoading(true);
     try {
-      const data = await getUsers();
-      setUsers(data);
+      const data = await getUsers({
+        page,
+        limit: 10,
+        search: searchTerm || undefined
+      });
+      // Handle paginated response
+      if (data.users) {
+        setUsers(data.users);
+        setTotalPages(data.pagination?.totalPages || 1);
+        setTotal(data.pagination?.total || 0);
+      } else {
+        setUsers(Array.isArray(data) ? data : []);
+      }
     } catch (error) {
       console.error('Error fetching users:', error);
       toast.error('Failed to load users');
+      setUsers([]);
     } finally {
       setIsLoading(false);
     }
   };
-
-  const filteredUsers = users.filter(user =>
-    user.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    user.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    user.website.toLowerCase().includes(searchTerm.toLowerCase())
-  );
 
   const handleAddUser = async (data: UserFormData) => {
     try {
@@ -289,18 +307,18 @@ const UserManager = () => {
             <TableBody>
               {isLoading ? (
                 <TableRow>
-                  <TableCell colSpan={5} className="text-center py-8">
+                  <TableCell colSpan={7} className="text-center py-8">
                     <Loader2 className="h-8 w-8 animate-spin mx-auto text-muted-foreground" />
                   </TableCell>
                 </TableRow>
-              ) : filteredUsers.length === 0 ? (
+              ) : users.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={5} className="text-center py-8 text-muted-foreground">
+                  <TableCell colSpan={7} className="text-center py-8 text-muted-foreground">
                     No users found
                   </TableCell>
                 </TableRow>
               ) : (
-                filteredUsers.map((user) => (
+                users.map((user) => (
                   <TableRow key={user._id}>
                     <TableCell>
                       <div className="flex items-center gap-3">
@@ -339,6 +357,32 @@ const UserManager = () => {
             </TableBody>
           </Table>
         </CardContent>
+        <div className="flex items-center justify-between px-6 py-4 border-t">
+          <div className="text-sm text-muted-foreground">
+            Showing {users.length} of {total} users
+          </div>
+          <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setPage(p => Math.max(1, p - 1))}
+              disabled={page === 1 || isLoading}
+            >
+              Previous
+            </Button>
+            <div className="text-sm">
+              Page {page} of {totalPages || 1}
+            </div>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setPage(p => Math.min(totalPages, p + 1))}
+              disabled={page >= totalPages || isLoading}
+            >
+              Next
+            </Button>
+          </div>
+        </div>
       </Card>
 
       {/* Edit User Dialog */}

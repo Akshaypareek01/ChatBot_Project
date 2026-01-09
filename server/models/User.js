@@ -24,7 +24,7 @@ const userSchema = new mongoose.Schema({
     brandName: {
         type: String,
         trim: true,
-        required: true
+        default: "ChatBot"
     },
     websiteData: { type: String, default: "" },
     isActive: {

@@ -33,4 +33,7 @@ router.post('/upload', authMiddleware, upload.single('file'), chatbotController.
 // Scrape Website
 router.post('/scrape', authMiddleware, chatbotController.scrapeWebsite);
 
+// Get User Sources (Files & Websites)
+router.get('/sources', authMiddleware, chatbotController.getUserSources);
+
 module.exports = router;

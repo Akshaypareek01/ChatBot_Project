@@ -18,7 +18,7 @@ router.delete('/admin/users/:id', adminController.deleteUser);
 // router.post('/admin/plans', planController.createPlan); ...
 
 // Transactions
-router.get('/admin/transactions', paymentController.adminGetTransactions);
+router.get('/admin/transactions', adminController.getTransactions);
 
 // QA
 router.post('/admin/qa', qaController.adminCreateQA);
