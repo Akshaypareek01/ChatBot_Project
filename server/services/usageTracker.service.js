@@ -46,8 +46,18 @@ const rechargeTokens = async (userId, amountInINR) => {
     return user.tokenBalance;
 };
 
+const trackFileUpload = async (userId) => {
+    return await deductTokens(userId, 10000);
+};
+
+const trackWebsiteScrape = async (userId) => {
+    return await deductTokens(userId, 5000);
+};
+
 module.exports = {
     deductTokens,
     rechargeTokens,
+    trackFileUpload,
+    trackWebsiteScrape,
     TOKENS_PER_INR
 };

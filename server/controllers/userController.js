@@ -17,7 +17,7 @@ const getProfile = async (req, res) => {
 
 const updateProfile = async (req, res) => {
     try {
-        const { name, website } = req.body;
+        const { name, website, brandName } = req.body;
 
         const user = await User.findById(req.userId);
 
@@ -27,6 +27,7 @@ const updateProfile = async (req, res) => {
 
         user.name = name;
         user.website = website;
+        user.brandName = brandName;
 
         await user.save();
 
@@ -36,7 +37,8 @@ const updateProfile = async (req, res) => {
                 id: user._id,
                 name: user.name,
                 email: user.email,
-                website: user.website
+                website: user.website,
+                brandName: user.brandName
             }
         });
     } catch (error) {

@@ -28,9 +28,9 @@ router.post('/chatbot/ai-response', chatbotController.getAIResponseController);
 router.post('/chat', chatbotController.chatWithBot);
 
 // Upload File (PDF/DOC)
-router.post('/upload', upload.single('file'), chatbotController.uploadFile);
+router.post('/upload', authMiddleware, upload.single('file'), chatbotController.uploadFile);
 
 // Scrape Website
-router.post('/scrape', chatbotController.scrapeWebsite);
+router.post('/scrape', authMiddleware, chatbotController.scrapeWebsite);
 
 module.exports = router;

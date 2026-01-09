@@ -40,7 +40,11 @@ const adminLogin = async (req, res) => {
 
 const register = async (req, res) => {
     try {
-        const { name, email, password, website } = req.body;
+        const { name, email, password, website, brandName } = req.body;
+
+        if (!brandName) {
+            return res.status(400).json({ message: 'Brand name is required' });
+        }
 
         const existingUser = await User.findOne({ email });
         if (existingUser) {
@@ -55,6 +59,7 @@ const register = async (req, res) => {
             email,
             password: hashedPassword,
             website,
+            brandName, // Save required brandName
             isActive: true
             // tokenBalance default is set in Model
         });

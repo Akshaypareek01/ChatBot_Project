@@ -4,6 +4,7 @@ const paymentController = require('../controllers/paymentController');
 const authMiddleware = require('../middleware/authMiddleware');
 
 router.post('/payments/create-order', authMiddleware, paymentController.createOrder);
+router.get('/payments/transactions', authMiddleware, paymentController.getUserTransactions);
 router.get('/payments/callback', paymentController.callback);
 router.get('/payments/simulate/:orderId', paymentController.simulatePayment);
 router.get("/transactions/:orderId", paymentController.getTransactionByOrderId);

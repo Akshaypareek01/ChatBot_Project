@@ -50,7 +50,6 @@ const processWebsite = async (userId, url) => {
     // Assuming 'url' is a new source. If updating, logic differs. 
     // For MVP, treat as new source.
     await planGuard.canAddWebsite(userId);
-    await planGuard.canScrapePages(userId, 1);
 
     const sourceId = uuidv4(); // or use UUID for R2 key part
     // R2 Key
@@ -100,7 +99,7 @@ const processWebsite = async (userId, url) => {
         });
 
         // 8. Track Usage
-        await usageTracker.trackWebsiteAdd(userId);
+        await usageTracker.trackWebsiteScrape(userId);
         // await usageTracker.trackPagesScraped(userId, pageCount); // If we added that tracker
 
         return source;

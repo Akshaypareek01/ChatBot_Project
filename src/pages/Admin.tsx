@@ -6,7 +6,7 @@ import AdminLayout from '@/components/admin/AdminLayout';
 import Dashboard from '@/components/admin/Dashboard';
 import QAManager from '@/components/admin/QAManager';
 import UserManager from '@/components/admin/UserManager';
-import PlanManager from '@/components/admin/PlanManager';
+// import PlanManager from '@/components/admin/PlanManager'; // Removed
 import ChatbotWidget from '@/components/chatbot/ChatbotWidget';
 import { toast } from 'sonner';
 import TransactionManager from '@/components/admin/TransactionManager';
@@ -28,32 +28,32 @@ const Admin = () => {
   const navigate = useNavigate();
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
-  
+
   // Demo admin user ID for testing the chatbot as an admin
   const adminUserId = "admin_user";
-  
+
   useEffect(() => {
     // Check authentication
     const token = localStorage.getItem('token');
     const isAdmin = localStorage.getItem('isAdmin') === 'true';
-    
+
     if (!token || !isAdmin) {
       toast.error('Please log in to access the admin panel');
       navigate('/admin/login');
     } else {
       setIsAuthenticated(true);
     }
-    
+
     setIsLoading(false);
   }, [navigate]);
-  
+
   const handleLogout = () => {
     localStorage.removeItem('token');
     localStorage.removeItem('isAdmin');
     navigate('/admin/login');
     toast.success('Logged out successfully');
   };
-  
+
   if (isLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
@@ -61,11 +61,11 @@ const Admin = () => {
       </div>
     );
   }
-  
+
   if (!isAuthenticated) {
     return <Navigate to="/login" />;
   }
-  
+
   return (
     <ChatProvider userId={adminUserId}>
       <AdminLayout onLogout={handleLogout}>
@@ -73,7 +73,6 @@ const Admin = () => {
           <Route path="/" element={<Dashboard />} />
           <Route path="/qa" element={<QAManager />} />
           <Route path="/users" element={<UserManager />} />
-          <Route path="/plans" element={<PlanManager />} />
           <Route path="/transactions" element={<TransactionManager />} />
           <Route path="/settings" element={<Settings />} />
           <Route path="*" element={<Navigate to="/" replace />} />

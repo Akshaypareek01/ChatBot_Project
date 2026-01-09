@@ -2,6 +2,26 @@ const mongoose = require('mongoose');
 const Vector = require('../models/Vector');
 
 /**
+ * Calculate Cosine Similarity between two vectors
+ * @param {number[]} vecA 
+ * @param {number[]} vecB 
+ * @returns {number}
+ */
+const cosineSimilarity = (vecA, vecB) => {
+    let dot = 0;
+    let normA = 0;
+    let normB = 0;
+    if (vecA.length !== vecB.length) return 0;
+    for (let i = 0; i < vecA.length; i++) {
+        dot += vecA[i] * vecB[i];
+        normA += vecA[i] * vecA[i];
+        normB += vecB[i] * vecB[i];
+    }
+    if (normA === 0 || normB === 0) return 0;
+    return dot / (Math.sqrt(normA) * Math.sqrt(normB));
+};
+
+/**
  * Store embeddings in the database
  * @param {Object} params
  * @param {string} params.userId
@@ -38,11 +58,11 @@ const storeVectors = async ({ userId, sourceId, sourceType, r2TextKey, chunks, e
  * @returns {Promise<Object[]>}
  */
 const searchVectors = async (userId, queryEmbedding, limit = 5) => {
-    // Option 1: MongoDB Atlas Vector Search (Best for Production)
-    // Now active since Index is created.
+    let results = [];
 
+    // Option 1: MongoDB Atlas Vector Search
     try {
-        const results = await Vector.aggregate([
+        const atlasResults = await Vector.aggregate([
             {
                 $vectorSearch: {
                     index: "vector_index",
@@ -50,12 +70,6 @@ const searchVectors = async (userId, queryEmbedding, limit = 5) => {
                     queryVector: queryEmbedding,
                     numCandidates: 100,
                     limit: limit,
-                    // Filter syntax for vectorSearch can depend on version, 
-                    // but generally supports specific filter structure.
-                    // Note: Atlas Vector Search filter requires the field to be indexed as 'filter' type 
-                    // in addition to vector if we want efficient filtering.
-                    // Since specific filter index wasn't asked, we might do post-filter or assumes standard pre-filter works if configured.
-                    // Ideally: "filter": { "userId": { "$eq": new mongoose.Types.ObjectId(userId) } }
                     filter: { userId: { $eq: new mongoose.Types.ObjectId(userId) } }
                 }
             },
@@ -69,31 +83,53 @@ const searchVectors = async (userId, queryEmbedding, limit = 5) => {
             }
         ]);
 
-        return results.map(r => ({
-            content: r.chunkContent,
-            sourceId: r.sourceId,
-            sourceType: r.sourceType,
-            score: r.score
-        }));
-
+        if (atlasResults && atlasResults.length > 0) {
+            results = atlasResults.map(r => ({
+                content: r.chunkContent,
+                sourceId: r.sourceId,
+                sourceType: r.sourceType,
+                score: r.score
+            }));
+            console.log(`Atlas Vector Search found ${results.length} results.`);
+            return results;
+        }
     } catch (error) {
-        console.error("Vector Search Error:", error);
-        // Fallback to empty if index issues
-        return [];
+        console.warn("Atlas Vector Search failed or not configured, falling back to in-memory search.", error.message);
     }
 
-    // Option 2: Naive JS implementation (REMOVED for Production)
-};
+    // Option 2: Naive In-Memory Cosine Similarity (Fallback)
+    console.log("Using In-Memory Vector Search Fallback...");
+    try {
+        // Fetch ALL vectors for this user
+        // Note: For production with millions of vectors, this is bad. 
+        // For MVP with <1000 chunks, this is perfectly fine and fast.
+        const userVectors = await Vector.find({ userId }).select('embedding chunkContent sourceId sourceType');
 
-// ... unused helper
-const cosineSimilarity = (vecA, vecB) => {
-    // ... kept for reference if needed, but unused
-    return 0;
-};
+        if (!userVectors || userVectors.length === 0) {
+            console.log("No vectors found for user.");
+            return [];
+        }
 
-module.exports = {
-    storeVectors,
-    searchVectors
+        const scoredVectors = userVectors.map(vec => ({
+            content: vec.chunkContent,
+            sourceId: vec.sourceId,
+            sourceType: vec.sourceType,
+            score: cosineSimilarity(queryEmbedding, vec.embedding)
+        }));
+
+        // Sort by score descending
+        scoredVectors.sort((a, b) => b.score - a.score);
+
+        // Take top K
+        results = scoredVectors.slice(0, limit);
+
+        console.log(`In-Memory Search found ${results.length} results. Top score: ${results[0]?.score}`);
+        return results;
+
+    } catch (error) {
+        console.error("In-Memory Search Error:", error);
+        return [];
+    }
 };
 
 module.exports = {

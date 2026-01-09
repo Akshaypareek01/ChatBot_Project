@@ -1,49 +1,39 @@
 
 import React, { useState, useEffect } from 'react';
-import { getAdminTransactions, generateInvoice, getInvoice } from '@/services/api';
+import { getAdminTransactions } from '@/services/api';
 import { toast } from 'sonner';
-import { 
-  Card, 
-  CardContent, 
-  CardHeader, 
-  CardTitle 
+import {
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle
 } from '@/components/ui/card';
-import { 
-  Table, 
-  TableBody, 
-  TableCell, 
-  TableHead, 
-  TableHeader, 
-  TableRow 
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow
 } from '@/components/ui/table';
-import { 
-  Dialog, 
-  DialogContent, 
-  DialogDescription, 
-  DialogHeader, 
-  DialogTitle 
-} from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
-import { 
-  DropdownMenu, 
-  DropdownMenuContent, 
-  DropdownMenuItem, 
-  DropdownMenuTrigger 
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger
 } from '@/components/ui/dropdown-menu';
-import { 
+import {
   Badge
 } from '@/components/ui/badge';
-import { 
-  Tabs, 
-  TabsContent, 
-  TabsList, 
-  TabsTrigger 
+import {
+  Tabs,
+  TabsContent,
+  TabsList,
+  TabsTrigger
 } from '@/components/ui/tabs';
-import { 
-  Download,
-  FileText, 
-  MoreVertical, 
-  Receipt, 
+import {
+  MoreVertical,
   RefreshCw,
   Search
 } from 'lucide-react';
@@ -58,46 +48,24 @@ interface Plan {
   _id: string;
   name: string;
   price: number;
-  discountPrice?: number;
 }
 
 interface Transaction {
   _id: string;
   userId: User;
-  planId: Plan;
+  planId?: Plan; // Make plan optional or handle wallet recharge
+  description?: string; // Add description for wallet recharge
   orderId: string;
-  transactionId?: string;
   amount: number;
   currency: string;
   status: 'initiated' | 'processing' | 'success' | 'failed' | 'refunded';
-  paymentMethod?: string;
-  invoiceNumber?: string;
-  invoiceGenerated: boolean;
   createdAt: string;
   updatedAt: string;
-}
-
-interface Invoice {
-  invoiceNumber: string;
-  date: string;
-  customerName: string;
-  customerEmail: string;
-  customerWebsite?: string;
-  planName: string;
-  amount: number;
-  currency: string;
-  transactionId: string;
-  orderId: string;
-  status: string;
 }
 
 const TransactionManager = () => {
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [loading, setLoading] = useState(true);
-  const [selectedTransaction, setSelectedTransaction] = useState<Transaction | null>(null);
-  const [invoiceData, setInvoiceData] = useState<Invoice | null>(null);
-  const [showInvoiceDialog, setShowInvoiceDialog] = useState(false);
-  const [processingInvoice, setProcessingInvoice] = useState(false);
   const [activeTab, setActiveTab] = useState('all');
 
   useEffect(() => {
@@ -114,52 +82,6 @@ const TransactionManager = () => {
       toast.error('Failed to fetch transactions');
     } finally {
       setLoading(false);
-    }
-  };
-
-  const handleGenerateInvoice = async (transaction: Transaction) => {
-    try {
-      setSelectedTransaction(transaction);
-      setProcessingInvoice(true);
-      
-      const result = await generateInvoice(transaction._id);
-      
-      if (result.transaction) {
-        // Update the transaction in the list
-        setTransactions(transactions.map(t => 
-          t._id === transaction._id ? result.transaction : t
-        ));
-        
-        toast.success('Invoice generated successfully');
-        
-        // Fetch the invoice details
-        const invoiceDetails = await getInvoice(transaction._id);
-        setInvoiceData(invoiceDetails);
-        setShowInvoiceDialog(true);
-      } else {
-        toast.error('Failed to generate invoice');
-      }
-    } catch (error) {
-      console.error('Error generating invoice:', error);
-      toast.error(error.message || 'Failed to generate invoice');
-    } finally {
-      setProcessingInvoice(false);
-    }
-  };
-
-  const handleViewInvoice = async (transaction: Transaction) => {
-    try {
-      setSelectedTransaction(transaction);
-      setProcessingInvoice(true);
-      
-      const invoiceDetails = await getInvoice(transaction._id);
-      setInvoiceData(invoiceDetails);
-      setShowInvoiceDialog(true);
-    } catch (error) {
-      console.error('Error fetching invoice:', error);
-      toast.error(error.message || 'Failed to fetch invoice');
-    } finally {
-      setProcessingInvoice(false);
     }
   };
 
@@ -202,7 +124,7 @@ const TransactionManager = () => {
       <div className="flex justify-between items-center">
         <div>
           <h1 className="text-2xl font-semibold mb-2">Transactions</h1>
-          <p className="text-muted-foreground">Manage user payment transactions and invoices</p>
+          <p className="text-muted-foreground">Manage user payment transactions.</p>
         </div>
         <Button onClick={fetchTransactions} variant="outline" size="icon">
           <RefreshCw className="h-4 w-4" />
@@ -217,7 +139,7 @@ const TransactionManager = () => {
           <TabsTrigger value="processing">Processing</TabsTrigger>
           <TabsTrigger value="failed">Failed</TabsTrigger>
         </TabsList>
-        
+
         <TabsContent value={activeTab} className="mt-4">
           <Card>
             <CardHeader>
@@ -243,11 +165,9 @@ const TransactionManager = () => {
                         <TableHead>Date</TableHead>
                         <TableHead>Order ID</TableHead>
                         <TableHead>Customer</TableHead>
-                        <TableHead>Plan</TableHead>
+                        <TableHead>Description</TableHead>
                         <TableHead>Amount</TableHead>
                         <TableHead className="text-center">Status</TableHead>
-                        <TableHead className="text-center">Invoice</TableHead>
-                        <TableHead className="text-right">Actions</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
@@ -260,49 +180,15 @@ const TransactionManager = () => {
                             {transaction.orderId.substring(0, 12)}...
                           </TableCell>
                           <TableCell>
-                            {transaction.userId.name}
-                            <div className="text-xs text-muted-foreground">{transaction.userId.email}</div>
+                            {transaction.userId?.name || 'Unknown'}
+                            <div className="text-xs text-muted-foreground">{transaction.userId?.email}</div>
                           </TableCell>
-                          <TableCell>{transaction.planId.name}</TableCell>
+                          <TableCell>
+                            {transaction.planId ? transaction.planId.name : (transaction.description || 'Wallet Recharge')}
+                          </TableCell>
                           <TableCell>INR {transaction.amount}</TableCell>
                           <TableCell className="text-center">
                             {getStatusBadge(transaction.status)}
-                          </TableCell>
-                          <TableCell className="text-center">
-                            {transaction.invoiceGenerated ? (
-                              <Badge variant="outline" className="bg-green-50 text-green-600 hover:bg-green-100">
-                                {transaction.invoiceNumber?.substring(0, 8)}...
-                              </Badge>
-                            ) : (
-                              transaction.status === 'success' ? (
-                                <Badge variant="outline">Not Generated</Badge>
-                              ) : (
-                                <Badge variant="outline" className="bg-muted/30">N/A</Badge>
-                              )
-                            )}
-                          </TableCell>
-                          <TableCell className="text-right">
-                            <DropdownMenu>
-                              <DropdownMenuTrigger asChild>
-                                <Button variant="ghost" size="icon">
-                                  <MoreVertical className="h-4 w-4" />
-                                </Button>
-                              </DropdownMenuTrigger>
-                              <DropdownMenuContent align="end">
-                                {transaction.status === 'success' && !transaction.invoiceGenerated && (
-                                  <DropdownMenuItem onClick={() => handleGenerateInvoice(transaction)}>
-                                    <Receipt className="h-4 w-4 mr-2" />
-                                    Generate Invoice
-                                  </DropdownMenuItem>
-                                )}
-                                {transaction.invoiceGenerated && (
-                                  <DropdownMenuItem onClick={() => handleViewInvoice(transaction)}>
-                                    <FileText className="h-4 w-4 mr-2" />
-                                    View Invoice
-                                  </DropdownMenuItem>
-                                )}
-                              </DropdownMenuContent>
-                            </DropdownMenu>
                           </TableCell>
                         </TableRow>
                       ))}
@@ -314,98 +200,6 @@ const TransactionManager = () => {
           </Card>
         </TabsContent>
       </Tabs>
-
-      {/* Invoice Dialog */}
-      <Dialog open={showInvoiceDialog} onOpenChange={setShowInvoiceDialog}>
-        <DialogContent className="max-w-3xl">
-          <DialogHeader>
-            <DialogTitle>Invoice {invoiceData?.invoiceNumber}</DialogTitle>
-            <DialogDescription>
-              Transaction details and invoice information.
-            </DialogDescription>
-          </DialogHeader>
-          
-          {invoiceData && (
-            <div className="space-y-6">
-              <div className="bg-muted/30 rounded-lg p-6 border">
-                <div className="flex justify-between items-start mb-8">
-                  <div>
-                    <h3 className="text-xl font-bold">Invoice</h3>
-                    <p className="text-sm text-muted-foreground">
-                      #{invoiceData.invoiceNumber}
-                    </p>
-                  </div>
-                  <div className="text-right">
-                    <p className="font-medium">Date: {new Date(invoiceData.date).toLocaleDateString()}</p>
-                    <p className="text-sm text-muted-foreground">
-                      Order ID: {invoiceData.orderId}
-                    </p>
-                  </div>
-                </div>
-                
-                <div className="grid grid-cols-2 gap-8 mb-8">
-                  <div>
-                    <h4 className="font-medium mb-2">Bill To:</h4>
-                    <p>{invoiceData.customerName}</p>
-                    <p>{invoiceData.customerEmail}</p>
-                    {invoiceData.customerWebsite && <p>{invoiceData.customerWebsite}</p>}
-                  </div>
-                  <div>
-                    <h4 className="font-medium mb-2">Payment Info:</h4>
-                    <p>Status: <span className="capitalize">{invoiceData.status}</span></p>
-                    <p>Transaction ID: {invoiceData.transactionId}</p>
-                  </div>
-                </div>
-                
-                <div className="border-t border-b py-4 mb-6">
-                  <div className="grid grid-cols-12 font-medium">
-                    <div className="col-span-6">Item</div>
-                    <div className="col-span-2">Quantity</div>
-                    <div className="col-span-2 text-right">Unit Price</div>
-                    <div className="col-span-2 text-right">Total</div>
-                  </div>
-                </div>
-                
-                <div className="grid grid-cols-12 mb-4">
-                  <div className="col-span-6">{invoiceData.planName} Subscription</div>
-                  <div className="col-span-2">1</div>
-                  <div className="col-span-2 text-right">INR {invoiceData.amount}</div>
-                  <div className="col-span-2 text-right">INR {invoiceData.amount}</div>
-                </div>
-                
-                <div className="border-t pt-4">
-                  <div className="flex justify-end">
-                    <div className="w-60">
-                      <div className="flex justify-between mb-1">
-                        <span>Subtotal:</span>
-                        <span>INR {invoiceData.amount}</span>
-                      </div>
-                      <div className="flex justify-between mb-1">
-                        <span>Tax:</span>
-                        <span>INR 0.00</span>
-                      </div>
-                      <div className="flex justify-between font-bold text-lg mt-2">
-                        <span>Total:</span>
-                        <span>INR {invoiceData.amount}</span>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-              
-              <div className="flex justify-end">
-                <Button variant="outline" size="sm" className="mr-2" onClick={() => setShowInvoiceDialog(false)}>
-                  Close
-                </Button>
-                <Button size="sm">
-                  <Download className="h-4 w-4 mr-2" />
-                  Download PDF
-                </Button>
-              </div>
-            </div>
-          )}
-        </DialogContent>
-      </Dialog>
     </div>
   );
 };

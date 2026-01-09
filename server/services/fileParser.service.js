@@ -1,4 +1,4 @@
-const pdfParse = require('pdf-parse');
+const pdfParse = require('pdf-parse-new');
 const mammoth = require('mammoth');
 const { v4: uuidv4 } = require('uuid');
 const r2Storage = require('./r2Storage.service');

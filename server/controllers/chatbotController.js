@@ -49,7 +49,7 @@ const getChatbotData = async (req, res) => {
         const qas = await QA.find({ userId });
         return res.status(200).json({
             userId,
-            name: user.name,
+            name: user.brandName || user.name,
             qas
         });
     } catch (error) {
@@ -66,7 +66,7 @@ const getUserChatbotData = async (req, res) => {
         const qas = await QA.find({ userId: req.userId });
         return res.status(200).json({
             userId: req.userId,
-            name: user.name,
+            name: user.brandName || user.name,
             qas
         });
     } catch (error) {
@@ -105,7 +105,7 @@ const uploadFile = async (req, res) => {
         if (!req.file) {
             return res.status(400).json({ message: 'No file uploaded.' });
         }
-        const { userId } = req.body; // or req.userId from auth middleware if used
+        const userId = req.body.userId || req.userId; // Use body or auth middleware
         if (!userId) {
             return res.status(400).json({ message: 'User ID is required.' });
         }
@@ -127,7 +127,8 @@ const uploadFile = async (req, res) => {
  */
 const scrapeWebsite = async (req, res) => {
     try {
-        const { userId, url } = req.body;
+        const { url } = req.body;
+        const userId = req.body.userId || req.userId; // Use body or auth middleware
         if (!userId || !url) {
             return res.status(400).json({ message: 'User ID and URL are required.' });
         }

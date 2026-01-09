@@ -14,6 +14,7 @@ const profileSchema = z.object({
   name: z.string().min(2, { message: 'Name must be at least 2 characters' }),
   email: z.string().email({ message: 'Please enter a valid email' }),
   website: z.string().optional(),
+  brandName: z.string().optional(),
 });
 
 const passwordSchema = z.object({
@@ -40,6 +41,7 @@ const UserProfile = () => {
       name: '',
       email: '',
       website: '',
+      brandName: '',
     }
   });
 
@@ -57,11 +59,12 @@ const UserProfile = () => {
       try {
         const userData = await getUserProfile();
         setUser(userData);
-        
+
         profileForm.reset({
           name: userData.name,
           email: userData.email,
           website: userData.website || '',
+          brandName: userData.brandName || '',
         });
       } catch (error) {
         console.error('Error fetching profile:', error);
@@ -80,14 +83,16 @@ const UserProfile = () => {
       const result = await updateUserProfile({
         name: data.name,
         website: data.website || '',
+        brandName: data.brandName || '',
       });
-      
+
       setUser({
         ...user,
         name: data.name,
-        website: data.website
+        website: data.website,
+        brandName: data.brandName
       });
-      
+
       toast.success('Profile updated successfully');
     } catch (error: any) {
       console.error('Profile update error:', error);
@@ -104,18 +109,18 @@ const UserProfile = () => {
         toast.error('New passwords do not match');
         return;
       }
-      
+
       await updateUserPassword({
         currentPassword: data.currentPassword,
         newPassword: data.newPassword,
       });
-      
+
       passwordForm.reset({
         currentPassword: '',
         newPassword: '',
         confirmPassword: ''
       });
-      
+
       toast.success('Password updated successfully');
     } catch (error: any) {
       console.error('Password update error:', error);
@@ -180,6 +185,23 @@ const UserProfile = () => {
                       <FormControl>
                         <Input {...field} />
                       </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                <FormField
+                  control={profileForm.control}
+                  name="brandName"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Brand Name (Displayed in Chatbot)</FormLabel>
+                      <FormControl>
+                        <Input {...field} placeholder="e.g. Acme Corp" />
+                      </FormControl>
+                      <FormDescription>
+                        This name will be shown to users chatting with your bot.
+                      </FormDescription>
                       <FormMessage />
                     </FormItem>
                   )}

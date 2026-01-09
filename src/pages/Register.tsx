@@ -15,37 +15,40 @@ interface RegisterFormData {
   password: string;
   confirmPassword: string;
   website: string;
+  brandName: string;
 }
 
 const Register = () => {
   const navigate = useNavigate();
   const [isLoading, setIsLoading] = useState(false);
-  
+
   const form = useForm<RegisterFormData>({
     defaultValues: {
       name: '',
       email: '',
       password: '',
       confirmPassword: '',
-      website: ''
+      website: '',
+      brandName: ''
     }
   });
-  
+
   const onSubmit = async (data: RegisterFormData) => {
     if (data.password !== data.confirmPassword) {
       toast.error('Passwords do not match');
       return;
     }
-    
+
     setIsLoading(true);
     try {
       await registerUser({
         name: data.name,
         email: data.email,
         password: data.password,
-        website: data.website
+        website: data.website,
+        brandName: data.brandName
       });
-      
+
       toast.success('Registration successful! Please wait for admin approval before logging in.');
       navigate('/login');
     } catch (error: any) {
@@ -55,7 +58,7 @@ const Register = () => {
       setIsLoading(false);
     }
   };
-  
+
   return (
     <div className="min-h-screen flex items-center justify-center bg-muted/40 p-4">
       <Card className="w-full max-w-md">
@@ -81,7 +84,22 @@ const Register = () => {
                   </FormItem>
                 )}
               />
-              
+
+              <FormField
+                control={form.control}
+                name="brandName"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Brand Name</FormLabel>
+                    <FormControl>
+                      <Input placeholder="Your Brand Name" {...field} required />
+                    </FormControl>
+                    <FormDescription>This will be the display name of your chatbot.</FormDescription>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
               <FormField
                 control={form.control}
                 name="email"
@@ -95,7 +113,7 @@ const Register = () => {
                   </FormItem>
                 )}
               />
-              
+
               <FormField
                 control={form.control}
                 name="password"
@@ -109,7 +127,7 @@ const Register = () => {
                   </FormItem>
                 )}
               />
-              
+
               <FormField
                 control={form.control}
                 name="confirmPassword"
@@ -123,7 +141,7 @@ const Register = () => {
                   </FormItem>
                 )}
               />
-              
+
               <FormField
                 control={form.control}
                 name="website"
@@ -140,7 +158,7 @@ const Register = () => {
                   </FormItem>
                 )}
               />
-              
+
               <Button type="submit" className="w-full" disabled={isLoading}>
                 {isLoading ? 'Creating account...' : 'Register'}
               </Button>

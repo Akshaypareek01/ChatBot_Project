@@ -4,6 +4,8 @@ const usageTracker = require('./usageTracker.service');
 const embeddingService = require('./embedding.service');
 const vectorService = require('./vector.service');
 
+const QA = require('../models/QA');
+
 const openai = new OpenAI({
     apiKey: process.env.OPENAI_API_KEY,
 });
@@ -19,6 +21,28 @@ const handleChat = async (userId, message) => {
     await planGuard.canSendMessage(userId);
 
     try {
+        // 0. CHECK MANUAL QA FIRST
+        // Escape special regex chars to avoid errors if message has them
+        const safeMessage = message.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        const manualQA = await QA.findOne({
+            userId,
+            question: { $regex: new RegExp(`^${safeMessage}$`, 'i') } // Exact match, case insensitive
+        });
+
+        // Also try loose match if exact fail? 
+        // For now, let's try strict case-insensitive match for the specific question provided.
+        // Or simpler: partial match? 
+        // The user said: "We already provided the QA then why he answering this".
+        // Let's do a slightly broader match or just the one above.
+        // Let's do: question contains the message OR message contains the question?
+        // User query: "Who are you" -> QA: "Who are you" (match)
+
+        if (manualQA) {
+            console.log("Manual QA match found:", manualQA.question);
+            await QA.findByIdAndUpdate(manualQA._id, { $inc: { frequency: 1 }, updatedAt: Date.now() });
+            return manualQA.answer;
+        }
+
         // 2. Embed user message
         const queryEmbedding = await embeddingService.generateEmbedding(message);
 

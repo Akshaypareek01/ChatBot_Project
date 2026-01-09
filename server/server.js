@@ -23,7 +23,7 @@ const helmet = require('helmet');
 const rateLimit = require('express-rate-limit');
 
 // Middleware
-app.use(helmet()); // Secure HTTP headers
+app.use(helmet({ crossOriginResourcePolicy: { policy: "cross-origin" } })); // Secure HTTP headers with cross-origin access
 
 // CORS: Allow all for development, but in production, restrict this:
 // app.use(cors({ origin: 'https://your-frontend-domain.com' }));
@@ -51,12 +51,12 @@ app.get('/', (req, res) => {
 // Mount API routes
 // Mount API routes
 app.use('/api', authRoutes);
+app.use('/api', chatbotRoutes);
 app.use('/api', userRoutes);
 // app.use('/api', subscriptionRoutes); // Removed
 app.use('/api', adminRoutes);
 // app.use('/api', planRoutes); // Removed
 app.use('/api', paymentRoutes);
-app.use('/api', chatbotRoutes);
 
 // Cron Job for Subscription Expiration (Removed - Token System)
 // checkSubscriptionExpiration();

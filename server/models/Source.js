@@ -15,7 +15,7 @@ const SourceSchema = new mongoose.Schema({
     // Common fields
     status: {
         type: String,
-        enum: ['pending', 'processing', 'indexed', 'failed'],
+        enum: ['pending', 'processing', 'indexed', 'failed', 'processed_and_deleted'],
         default: 'pending'
     },
     error: String,

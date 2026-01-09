@@ -26,7 +26,7 @@
     "mongoose": "^8.0.3",
     "multer": "^2.0.2",
     "openai": "^4.88.0",
-    "pdf-parse": "^2.4.5",
+    "pdf-parse-new": "^2.0.0",
     "uuid": "^13.0.0"
   },
   "devDependencies": {
