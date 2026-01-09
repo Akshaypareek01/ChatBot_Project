@@ -1,299 +1,385 @@
+(function () {
+  // 1. Dynamic Configuration
+  // Derives API URL from the script source (e.g., http://myserver.com/chatbot.js -> http://myserver.com/api)
+  const scriptSource = document.currentScript.src;
+  const baseUrl = new URL(scriptSource).origin;
+  const API_URL = `${baseUrl}/api`;
 
-(function() {
-  // Configuration
-  const API_URL = 'http://localhost:5000/api';
   const userId = document.currentScript.getAttribute('data-user-id');
-  
+
   if (!userId) {
     console.error('Chatbot Error: No user ID provided');
     return;
   }
-  console.log("Chat bot is live")
-  // Create chatbot container
-  const createChatbotUI = () => {
-    // Create container
+
+  // Inject Custom Font (Inter)
+  const fontLink = document.createElement('link');
+  fontLink.href = 'https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap';
+  fontLink.rel = 'stylesheet';
+  document.head.appendChild(fontLink);
+
+  // 2. Create Chatbot UI with Premium Styles
+  const createChatbotUI = (brandName) => {
+    // Container
     const container = document.createElement('div');
-    container.id = 'external-chatbot-container';
-    container.style.position = 'fixed';
-    container.style.bottom = '20px';
-    container.style.right = '20px';
-    container.style.zIndex = '9999';
+    container.id = 'chatbot-widget-container';
+    Object.assign(container.style, {
+      position: 'fixed',
+      bottom: '24px',
+      right: '24px',
+      zIndex: '2147483647', // Max z-index
+      fontFamily: '"Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
+      display: 'flex',
+      flexDirection: 'column',
+      alignItems: 'flex-end',
+      gap: '16px'
+    });
     document.body.appendChild(container);
-    
-    // Create button
+
+    // Toggle Button
     const button = document.createElement('button');
-    button.id = 'external-chatbot-button';
-    button.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg>';
-    button.style.width = '50px';
-    button.style.height = '50px';
-    button.style.borderRadius = '50%';
-    button.style.backgroundColor = '#4C6EF5';
-    button.style.color = 'white';
-    button.style.border = 'none';
-    button.style.boxShadow = '0 4px 12px rgba(0, 0, 0, 0.15)';
-    button.style.cursor = 'pointer';
-    button.style.display = 'flex';
-    button.style.alignItems = 'center';
-    button.style.justifyContent = 'center';
-    button.style.transition = 'transform 0.3s ease';
-    container.appendChild(button);
-    
-    // Chat window
+    Object.assign(button.style, {
+      width: '60px',
+      height: '60px',
+      borderRadius: '50%',
+      backgroundColor: '#2563EB', // Vibrant Blue
+      color: 'white',
+      border: 'none',
+      boxShadow: '0 8px 24px rgba(37, 99, 235, 0.35)',
+      cursor: 'pointer',
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+      transform: 'scale(0)', // Start hidden for animation
+      opacity: '0'
+    });
+    button.innerHTML = `
+      <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
+      </svg>
+    `;
+
+    // Main Window (Glassmorphism effect)
     const chatWindow = document.createElement('div');
-    chatWindow.id = 'external-chatbot-window';
-    chatWindow.style.display = 'none';
-    chatWindow.style.width = '350px';
-    chatWindow.style.height = '450px';
-    chatWindow.style.backgroundColor = 'white';
-    chatWindow.style.borderRadius = '12px';
-    chatWindow.style.boxShadow = '0 10px 25px rgba(0, 0, 0, 0.1)';
-    chatWindow.style.overflow = 'hidden';
-    chatWindow.style.display = 'none';
-    chatWindow.style.flexDirection = 'column';
-    chatWindow.style.marginBottom = '16px';
-    container.appendChild(chatWindow);
-    
-    // Chat header
-    const chatHeader = document.createElement('div');
-    chatHeader.style.backgroundColor = '#4C6EF5';
-    chatHeader.style.color = 'white';
-    chatHeader.style.padding = '12px 16px';
-    chatHeader.style.display = 'flex';
-    chatHeader.style.justifyContent = 'space-between';
-    chatHeader.style.alignItems = 'center';
-    chatWindow.appendChild(chatHeader);
-    
-    const title = document.createElement('div');
-    title.innerText = 'Chat Support';
-    title.style.fontWeight = 'bold';
-    chatHeader.appendChild(title);
-    
-    const closeButton = document.createElement('button');
-    closeButton.innerHTML = '&times;';
-    closeButton.style.backgroundColor = 'transparent';
-    closeButton.style.border = 'none';
-    closeButton.style.color = 'white';
-    closeButton.style.fontSize = '20px';
-    closeButton.style.cursor = 'pointer';
-    chatHeader.appendChild(closeButton);
-    
-    // Chat body
+    Object.assign(chatWindow.style, {
+      width: '380px',
+      height: '600px',
+      maxHeight: '80vh',
+      backgroundColor: '#ffffff',
+      borderRadius: '20px',
+      boxShadow: '0 12px 40px rgba(0, 0, 0, 0.12)',
+      overflow: 'hidden',
+      display: 'none', // Start hidden
+      flexDirection: 'column',
+      opacity: '0',
+      transform: 'translateY(20px)',
+      transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+      border: '1px solid rgba(0, 0, 0, 0.05)'
+    });
+
+    // Header
+    const header = document.createElement('div');
+    Object.assign(header.style, {
+      background: 'linear-gradient(135deg, #2563EB 0%, #1D4ED8 100%)',
+      padding: '20px',
+      color: 'white',
+      display: 'flex',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      boxShadow: '0 2px 10px rgba(37, 99, 235, 0.2)'
+    });
+
+    const headerTitle = document.createElement('h3');
+    headerTitle.textContent = brandName || 'Chat Support';
+    Object.assign(headerTitle.style, {
+      margin: '0',
+      fontSize: '18px',
+      fontWeight: '600',
+      letterSpacing: '-0.02em'
+    });
+
+    const closeBtn = document.createElement('button');
+    closeBtn.innerHTML = `
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <line x1="18" y1="6" x2="6" y2="18"></line>
+        <line x1="6" y1="6" x2="18" y2="18"></line>
+      </svg>
+    `;
+    Object.assign(closeBtn.style, {
+      background: 'rgba(255,255,255,0.2)',
+      border: 'none',
+      color: 'white',
+      borderRadius: '50%',
+      width: '32px',
+      height: '32px',
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      cursor: 'pointer',
+      transition: 'background 0.2s'
+    });
+    closeBtn.onmouseover = () => closeBtn.style.background = 'rgba(255,255,255,0.3)';
+    closeBtn.onmouseout = () => closeBtn.style.background = 'rgba(255,255,255,0.2)';
+
+    header.appendChild(headerTitle);
+    header.appendChild(closeBtn);
+    chatWindow.appendChild(header);
+
+    // Chat Body
     const chatBody = document.createElement('div');
-    chatBody.id = 'external-chatbot-messages';
-    chatBody.style.flexGrow = '1';
-    chatBody.style.padding = '16px';
-    chatBody.style.overflowY = 'auto';
-    chatBody.style.display = 'flex';
-    chatBody.style.flexDirection = 'column';
-    chatBody.style.gap = '12px';
+    Object.assign(chatBody.style, {
+      flex: '1',
+      padding: '20px',
+      overflowY: 'auto',
+      display: 'flex',
+      flexDirection: 'column',
+      gap: '12px',
+      backgroundColor: '#F8FAFC' // Light gray background
+    });
     chatWindow.appendChild(chatBody);
-    
-    // Input area
-    const inputContainer = document.createElement('div');
-    inputContainer.style.borderTop = '1px solid #eee';
-    inputContainer.style.padding = '12px';
-    inputContainer.style.display = 'flex';
-    inputContainer.style.gap = '8px';
-    chatWindow.appendChild(inputContainer);
-    
+
+    // Input Area
+    const inputArea = document.createElement('div');
+    Object.assign(inputArea.style, {
+      padding: '16px',
+      backgroundColor: 'white',
+      borderTop: '1px solid #EEF2FF',
+      display: 'flex',
+      gap: '10px'
+    });
+
     const input = document.createElement('input');
-    input.id = 'external-chatbot-input';
-    input.type = 'text';
-    input.placeholder = 'Type your message...';
-    input.style.flexGrow = '1';
-    input.style.padding = '8px 12px';
-    input.style.border = '1px solid #ddd';
-    input.style.borderRadius = '20px';
-    input.style.outline = 'none';
-    inputContainer.appendChild(input);
-    
-    const sendButton = document.createElement('button');
-    sendButton.id = 'external-chatbot-send';
-    sendButton.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"></line><polygon points="22 2 15 22 11 13 2 9 22 2"></polygon></svg>';
-    sendButton.style.width = '36px';
-    sendButton.style.height = '36px';
-    sendButton.style.borderRadius = '50%';
-    sendButton.style.backgroundColor = '#4C6EF5';
-    sendButton.style.color = 'white';
-    sendButton.style.border = 'none';
-    sendButton.style.display = 'flex';
-    sendButton.style.alignItems = 'center';
-    sendButton.style.justifyContent = 'center';
-    sendButton.style.cursor = 'pointer';
-    inputContainer.appendChild(sendButton);
-    
-    // Toggle chat window
-    button.addEventListener('click', () => {
-      if (chatWindow.style.display === 'none') {
+    input.placeholder = 'Message...';
+    Object.assign(input.style, {
+      flex: '1',
+      padding: '12px 16px',
+      border: '1px solid #E2E8F0',
+      borderRadius: '24px',
+      fontSize: '15px',
+      outline: 'none',
+      fontFamily: 'inherit',
+      transition: 'border-color 0.2s'
+    });
+    input.onfocus = () => input.style.borderColor = '#2563EB';
+    input.onblur = () => input.style.borderColor = '#E2E8F0';
+
+    const sendBtn = document.createElement('button');
+    Object.assign(sendBtn.style, {
+      background: '#2563EB',
+      color: 'white',
+      border: 'none',
+      borderRadius: '50%',
+      width: '44px',
+      height: '44px',
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      cursor: 'pointer',
+      boxShadow: '0 2px 8px rgba(37, 99, 235, 0.2)',
+      transition: 'transform 0.2s'
+    });
+    sendBtn.onmousedown = () => sendBtn.style.transform = 'scale(0.95)';
+    sendBtn.onmouseup = () => sendBtn.style.transform = 'scale(1)';
+    sendBtn.innerHTML = `
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <line x1="22" y1="2" x2="11" y2="13"></line>
+        <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
+      </svg>
+    `;
+
+    inputArea.appendChild(input);
+    inputArea.appendChild(sendBtn);
+    chatWindow.appendChild(inputArea);
+
+    container.appendChild(chatWindow);
+    container.appendChild(button); // Button below window
+
+    // State & Animations
+    let isOpen = false;
+
+    const toggleChat = () => {
+      isOpen = !isOpen;
+      if (isOpen) {
         chatWindow.style.display = 'flex';
-        button.style.transform = 'scale(0.9)';
+        // Need frame for transition
+        requestAnimationFrame(() => {
+          chatWindow.style.opacity = '1';
+          chatWindow.style.transform = 'translateY(0)';
+        });
+        button.style.transform = 'scale(0.8) rotate(90deg)';
+        button.innerHTML = `
+          <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+            <line x1="18" y1="6" x2="6" y2="18"></line>
+            <line x1="6" y1="6" x2="18" y2="18"></line>
+          </svg>
+        `;
       } else {
-        chatWindow.style.display = 'none';
-        button.style.transform = 'scale(1)';
+        chatWindow.style.opacity = '0';
+        chatWindow.style.transform = 'translateY(20px)';
+        setTimeout(() => {
+          if (!isOpen) chatWindow.style.display = 'none';
+        }, 300);
+        button.style.transform = 'scale(1) rotate(0deg)';
+        button.innerHTML = `
+          <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
+          </svg>
+        `;
       }
-    });
-    
-    // Close chat window
-    closeButton.addEventListener('click', () => {
-      chatWindow.style.display = 'none';
+    };
+
+    button.onclick = toggleChat;
+    closeBtn.onclick = toggleChat;
+
+    // Entrance Animation for Button
+    setTimeout(() => {
+      button.style.opacity = '1';
       button.style.transform = 'scale(1)';
+    }, 500);
+
+    return { chatBody, input, sendBtn };
+  };
+
+  // Helper: Message Bubbles
+  const addMessage = (target, type, text) => {
+    const bubble = document.createElement('div');
+    Object.assign(bubble.style, {
+      maxWidth: '85%',
+      padding: '12px 16px',
+      borderRadius: '16px',
+      fontSize: '14px',
+      lineHeight: '1.5',
+      position: 'relative',
+      wordWrap: 'break-word',
+      animation: 'fadeIn 0.3s ease-out'
     });
-    
-    // Add welcome message
-    addMessage('bot', 'Hi there! How can I help you today?');
-    
-    return { chatBody, input, sendButton };
-  };
-  
-  // Add message to chat
-  const addMessage = (sender, content) => {
-    const chatBody = document.getElementById('external-chatbot-messages');
-    
-    const message = document.createElement('div');
-    message.className = `external-chatbot-message ${sender}`;
-    message.style.maxWidth = '80%';
-    message.style.padding = '10px 14px';
-    message.style.borderRadius = '18px';
-    message.style.wordBreak = 'break-word';
-    
-    if (sender === 'user') {
-      message.style.alignSelf = 'flex-end';
-      message.style.backgroundColor = '#4C6EF5';
-      message.style.color = 'white';
+
+    if (type === 'user') {
+      Object.assign(bubble.style, {
+        alignSelf: 'flex-end',
+        backgroundColor: '#2563EB',
+        color: 'white',
+        borderBottomRightRadius: '4px'
+      });
     } else {
-      message.style.alignSelf = 'flex-start';
-      message.style.backgroundColor = '#f1f3f5';
-      message.style.color = '#333';
+      Object.assign(bubble.style, {
+        alignSelf: 'flex-start',
+        backgroundColor: 'white',
+        color: '#1E293B',
+        border: '1px solid #E2E8F0',
+        borderBottomLeftRadius: '4px',
+        boxShadow: '0 1px 2px rgba(0,0,0,0.05)'
+      });
     }
-    
-    message.innerText = content;
-    chatBody.appendChild(message);
-    chatBody.scrollTop = chatBody.scrollHeight;
+
+    bubble.innerText = text;
+    target.appendChild(bubble);
+    target.scrollTop = target.scrollHeight;
   };
-  
-  // Add typing indicator
-  const addTypingIndicator = () => {
-    const chatBody = document.getElementById('external-chatbot-messages');
-    
-    const indicator = document.createElement('div');
-    indicator.id = 'external-chatbot-typing';
-    indicator.style.alignSelf = 'flex-start';
-    indicator.style.backgroundColor = '#f1f3f5';
-    indicator.style.borderRadius = '18px';
-    indicator.style.padding = '12px 14px';
-    indicator.style.display = 'flex';
-    indicator.style.gap = '4px';
-    
-    for (let i = 0; i < 3; i++) {
+
+  // Helper: Typing Indicator
+  const addTyping = (target) => {
+    const loader = document.createElement('div');
+    loader.id = 'chatbot-typing-indicator';
+    Object.assign(loader.style, {
+      alignSelf: 'flex-start',
+      backgroundColor: 'white',
+      padding: '12px 16px',
+      borderRadius: '16px',
+      borderBottomLeftRadius: '4px',
+      border: '1px solid #E2E8F0',
+      display: 'flex',
+      gap: '4px',
+      alignItems: 'center',
+      width: 'fit-content'
+    });
+
+    [0, 1, 2].forEach(i => {
       const dot = document.createElement('div');
-      dot.style.width = '8px';
-      dot.style.height = '8px';
-      dot.style.backgroundColor = '#888';
-      dot.style.borderRadius = '50%';
-      dot.style.opacity = '0.6';
-      dot.style.animation = 'external-chatbot-pulse 1s infinite';
-      dot.style.animationDelay = `${i * 0.2}s`;
-      indicator.appendChild(dot);
-    }
-    
-    chatBody.appendChild(indicator);
-    chatBody.scrollTop = chatBody.scrollHeight;
-    
-    return indicator;
+      Object.assign(dot.style, {
+        width: '6px',
+        height: '6px',
+        backgroundColor: '#94A3B8',
+        borderRadius: '50%',
+        animation: `bounce 1.4s infinite ease-in-out both ${i * 0.16}s`
+      });
+      loader.appendChild(dot);
+    });
+
+    // Inject Keyframes for dots & fade
+    const styleSheet = document.createElement('style');
+    styleSheet.innerText = `
+      @keyframes bounce { 0%, 80%, 100% { transform: scale(0); } 40% { transform: scale(1); } }
+      @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+    `;
+    document.head.appendChild(styleSheet);
+
+    target.appendChild(loader);
+    target.scrollTop = target.scrollHeight; // Scroll to bottom
+    return loader;
   };
-  
-  // Remove typing indicator
-  const removeTypingIndicator = () => {
-    const indicator = document.getElementById('external-chatbot-typing');
-    if (indicator) {
-      indicator.remove();
-    }
-  };
-  
-  // Initialize the chatbot
+
+  // Logic: Initialize
   const init = async () => {
     try {
-      // Fetch user QA data
-      const response = await fetch(`${API_URL}/chatbot/${userId}`);
-      const data = await response.json();
-      
-      if (!response.ok) {
-        console.error('Chatbot Error:', data.message);
+      // Fetch Brand Info / Status
+      const res = await fetch(`${API_URL}/chatbot/${userId}`);
+      const data = await res.json();
+
+      if (!res.ok) {
+        console.warn(`Chatbot: ${data.message || 'Unavailable'}`);
         return;
       }
-      
-      // Initialize chatbot
-      const { chatBody, input, sendButton } = createChatbotUI();
-      
-      // Add animation styles
-      const style = document.createElement('style');
-      style.textContent = `
-        @keyframes external-chatbot-pulse {
-          0%, 100% { transform: scale(1); opacity: 0.6; }
-          50% { transform: scale(1.1); opacity: 1; }
-        }
-      `;
-      document.head.appendChild(style);
-      
-      // Handle send message
-      const sendMessage = async () => {
-        const message = input.value.trim();
-        if (!message) return;
-        
-        // Add user message
-        addMessage('user', message);
+
+      const { chatBody, input, sendBtn } = createChatbotUI(data.name);
+
+      const handleSend = async () => {
+        const text = input.value.trim();
+        if (!text) return;
+
         input.value = '';
-        
-        // Add typing indicator
-        const indicator = addTypingIndicator();
-        
-        // Find answer in QA data
-        const qa = data.qas.find(qa => 
-          qa.question.toLowerCase().includes(message.toLowerCase()) || 
-          message.toLowerCase().includes(qa.question.toLowerCase())
-        );
-        
-        setTimeout(async () => {
-          removeTypingIndicator();
-          
-          if (qa) {
-            // Increment frequency
-            fetch(`${API_URL}/chatbot/frequency`, {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ qaId: qa._id })
-            });
-            
-            addMessage('bot', qa.answer);
+        addMessage(chatBody, 'user', text);
+
+        const loader = addTyping(chatBody);
+
+        try {
+          const apiRes = await fetch(`${API_URL}/chat`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ userId, message: text })
+          });
+          const apiData = await apiRes.json();
+
+          loader.remove(); // Remove typing
+
+          if (apiRes.ok) {
+            addMessage(chatBody, 'bot', apiData.answer);
           } else {
-            // Log unanswered question
-            fetch(`${API_URL}/chatbot/log`, {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ userId, question: message })
-            });
-            
-            addMessage('bot', "I'm not sure about that, but I'll make sure someone gets back to you soon!");
+            addMessage(chatBody, 'bot', apiData.message || "Something went wrong.");
           }
-        }, 1000 + Math.random() * 1000);
-      };
-      
-      sendButton.addEventListener('click', sendMessage);
-      input.addEventListener('keypress', (e) => {
-        if (e.key === 'Enter') {
-          sendMessage();
+
+        } catch (err) {
+          console.error(err);
+          loader.remove();
+          addMessage(chatBody, 'bot', "Network error. Please try again.");
         }
-      });
-      
-    } catch (error) {
-      console.error('Chatbot Error:', error);
+      };
+
+      sendBtn.onclick = handleSend;
+      input.onkeypress = (e) => { if (e.key === 'Enter') handleSend(); };
+
+      // Welcome Message (Optional: delay slightly)
+      setTimeout(() => {
+        addMessage(chatBody, 'bot', `Hello! Welcome to ${data.name || 'our support'}. How can I help you today?`);
+      }, 800);
+
+    } catch (e) {
+      console.error('Chatbot init failed:', e);
     }
   };
-  
-  // Load chatbot
-  if (document.readyState === 'complete') {
-    init();
-  } else {
-    window.addEventListener('load', init);
-  }
+
+  if (document.readyState === 'complete') init();
+  else window.addEventListener('load', init);
+
 })();

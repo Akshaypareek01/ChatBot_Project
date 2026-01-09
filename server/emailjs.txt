@@ -1,0 +1,7 @@
+Fields being sent:
+name - User's name (from formData.name)
+email - User's email (from formData.email)
+phone - Full phone number (formatted as ${countryCode} ${phone})
+date - Selected appointment date (formatted as 'PPP' format, e.g., "January 15, 2024", or "Not selected" if not chosen)
+time_slot - Selected time slot (from formData.timeSlot, e.g., "9:00 AM", "2:00 PM", etc.)
+message - User's message/notes (from formData.message)
