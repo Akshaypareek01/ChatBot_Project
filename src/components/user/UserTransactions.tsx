@@ -23,14 +23,7 @@ import { toast } from 'sonner';
 import { load } from '@cashfreepayments/cashfree-js';
 
 // Initialize Cashfree
-let cashfree: any;
-try {
-  cashfree = await load({
-    mode: "sandbox" // or "production"
-  });
-} catch (e) {
-  console.error("Cashfree SDK failed to load", e);
-}
+let cashfreeInstance: any = null;
 
 interface Transaction {
   _id: string;
@@ -38,6 +31,7 @@ interface Transaction {
   amount: number;
   currency: string;
   status: 'initiated' | 'processing' | 'success' | 'failed' | 'refunded';
+  tokens: number;
   createdAt: string;
 }
 
@@ -61,6 +55,17 @@ const UserTransactions = () => {
   };
 
   useEffect(() => {
+    const initCashfree = async () => {
+      try {
+        cashfreeInstance = await load({
+          mode: "sandbox"
+        });
+      } catch (e) {
+        console.error("Cashfree SDK failed to load", e);
+      }
+    };
+
+    initCashfree();
     fetchTransactions();
   }, []);
 
@@ -81,8 +86,8 @@ const UserTransactions = () => {
           redirectTarget: "_self"
         };
 
-        if (cashfree) {
-          cashfree.checkout(checkoutOptions);
+        if (cashfreeInstance) {
+          cashfreeInstance.checkout(checkoutOptions);
         } else {
           // Fallback for missing SDK, maybe redirect if url provided (rare in session flow)
           toast.error("Payment SDK not loaded. Please refresh.");
@@ -132,20 +137,33 @@ const UserTransactions = () => {
           <CardDescription>Minimum recharge amount is ₹100. (1 INR = 5000 Tokens)</CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="flex items-center space-x-4 max-w-md">
-            <div className="relative flex-1">
-              <span className="absolute left-3 top-2.5 text-gray-500">₹</span>
-              <Input
-                type="number"
-                min="100"
-                value={amount}
-                onChange={(e) => setAmount(Number(e.target.value))}
-                className="pl-7"
-              />
+          <div className="space-y-4">
+            <div className="flex items-center space-x-4 max-w-md">
+              <div className="relative flex-1">
+                <span className="absolute left-3 top-2.5 text-gray-500 font-medium">₹</span>
+                <Input
+                  type="number"
+                  min="100"
+                  value={amount}
+                  onChange={(e) => setAmount(Number(e.target.value))}
+                  className="pl-7 text-lg font-semibold"
+                />
+              </div>
+              <Button
+                onClick={handleRecharge}
+                disabled={processing}
+                className="px-8"
+              >
+                {processing ? "Processing..." : "Recharge Now"}
+              </Button>
             </div>
-            <Button onClick={handleRecharge} disabled={processing}>
-              {processing ? "Processing..." : "Recharge Now"}
-            </Button>
+            {amount >= 100 && (
+              <p className="text-sm font-medium text-primary flex items-center">
+                <span className="bg-primary/10 px-2 py-1 rounded">
+                  You will receive <span className="font-bold">{(amount * 5000).toLocaleString()}</span> Tokens
+                </span>
+              </p>
+            )}
           </div>
         </CardContent>
       </Card>
@@ -171,6 +189,7 @@ const UserTransactions = () => {
                     <TableHead>Date</TableHead>
                     <TableHead>Description</TableHead>
                     <TableHead>Amount</TableHead>
+                    <TableHead>Tokens</TableHead>
                     <TableHead>Order ID</TableHead>
                     <TableHead className="text-center">Status</TableHead>
                   </TableRow>
@@ -182,7 +201,8 @@ const UserTransactions = () => {
                         {new Date(transaction.createdAt).toLocaleDateString()}
                       </TableCell>
                       <TableCell>Wallet Recharge</TableCell>
-                      <TableCell>INR {transaction.amount}</TableCell>
+                      <TableCell>₹{transaction.amount}</TableCell>
+                      <TableCell>{transaction.tokens?.toLocaleString() || (transaction.amount * 5000).toLocaleString()}</TableCell>
                       <TableCell className="font-mono text-xs">
                         {transaction.orderId}
                       </TableCell>

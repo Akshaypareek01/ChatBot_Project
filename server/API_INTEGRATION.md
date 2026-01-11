@@ -130,3 +130,6 @@ Headers: `Authorization: Bearer <token>` (Required for all protected routes)
 The system automatically sends emails via EmailJS when:
 1. **Low Balance**: User has < 10,000 tokens.
 2. **Expired**: User has 0 tokens (Chat stops).
+
+
+kill -9 $(lsof -t -i :5001)

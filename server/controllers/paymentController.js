@@ -2,6 +2,7 @@ const User = require('../models/User');
 const Transaction = require('../models/Transaction');
 const { createOrder: createCashfreeOrder, fetchPayments } = require('../services/cashfreeService');
 const usageTracker = require('../services/usageTracker.service');
+const emailService = require('../services/email.service');
 
 const createOrder = async (req, res) => {
     try {
@@ -18,10 +19,12 @@ const createOrder = async (req, res) => {
 
         const orderId = 'order_' + Date.now() + '_' + Math.random().toString(36).substring(2, 15);
 
+        const tokens = amount * usageTracker.TOKENS_PER_INR;
         const transaction = new Transaction({
             userId: user._id,
             orderId,
             amount,
+            tokens,
             status: 'initiated'
         });
 
@@ -61,68 +64,112 @@ const createOrder = async (req, res) => {
 
 const saveTransaction = async (paymentData) => {
     try {
-        for (const payment of paymentData) {
-            const {
-                order_id,
-                cf_payment_id,
-                payment_time,
-                payment_completion_time,
-                is_captured,
-                payment_method,
-                payment_status
-            } = payment;
+        if (!paymentData || paymentData.length === 0) return null;
 
-            let transaction = await Transaction.findOne({ orderId: order_id });
+        // Try to find a SUCCESS payment first
+        let payment = paymentData.find(p => p.payment_status === "SUCCESS") || paymentData[0];
 
-            if (transaction) {
-                transaction.status = payment_status.toLowerCase();
-                transaction.isCaptured = is_captured || transaction.isCaptured;
-                transaction.paymentTime = payment_time ? new Date(payment_time) : transaction.paymentTime;
-                transaction.paymentCompletionTime = payment_completion_time ? new Date(payment_completion_time) : transaction.paymentCompletionTime;
-                transaction.updatedAt = Date.now();
-                transaction.cfPaymentId = cf_payment_id;
-                transaction.paymentMethod = payment_method;
+        const {
+            order_id,
+            cf_payment_id,
+            payment_time,
+            payment_completion_time,
+            is_captured,
+            payment_method,
+            payment_status
+        } = payment;
 
-                await transaction.save();
-                return true;
-            }
+        let transaction = await Transaction.findOne({ orderId: order_id });
+
+        if (transaction) {
+            transaction.status = payment_status.toLowerCase();
+            transaction.isCaptured = is_captured || transaction.isCaptured;
+            transaction.paymentTime = payment_time ? new Date(payment_time) : transaction.paymentTime;
+            transaction.paymentCompletionTime = payment_completion_time ? new Date(payment_completion_time) : transaction.paymentCompletionTime;
+            transaction.updatedAt = Date.now();
+            transaction.cfPaymentId = cf_payment_id;
+            transaction.paymentMethod = payment_method;
+
+            await transaction.save();
+            return payment_status; // Return the status string
         }
-        return false;
+        return null;
     } catch (error) {
         console.error('Error saving transaction:', error);
-        return false;
+        return null;
     }
 };
 
 const callback = async (req, res) => {
     try {
         const { orderId } = req.query;
+        const WEB_URL = process.env.Web_url || process.env.WEB_URL || 'http://localhost:8080';
+
+        console.log(`Processing callback for Order ID: ${orderId}`);
 
         const txData = await fetchPayments(orderId);
 
-        if (orderId && txData && txData.data) {
-            const transaction = await Transaction.findOne({ orderId });
+        if (!txData || !txData.data) {
+            console.error(`No transaction data found for Order ID: ${orderId}`);
+            return res.redirect(`${WEB_URL}/payment/failed?orderId=${orderId}&error=no_data`);
+        }
 
-            if (!transaction) {
-                return res.status(404).json({ message: 'Transaction not found' });
-            }
+        const transaction = await Transaction.findOne({ orderId }).populate('userId');
 
-            const resData = await saveTransaction(txData.data);
+        if (!transaction) {
+            console.error(`Transaction record not found in DB for Order ID: ${orderId}`);
+            return res.status(404).json({ message: 'Transaction not found' });
+        }
 
-            if (resData === true) {
-                if (txData.data[0].payment_status === "SUCCESS") {
-                    // **TOKEN RECHARGE LOGIC**
-                    await usageTracker.rechargeTokens(transaction.userId, transaction.amount);
-                    console.log(`Recharged tokens for user ${transaction.userId} Amount: ${transaction.amount}`);
+        const paymentStatus = await saveTransaction(txData.data);
+
+        if (paymentStatus) {
+            console.log(`Final Payment Status for ${orderId}: ${paymentStatus}`);
+
+            if (paymentStatus.toUpperCase() === "SUCCESS") {
+                // **TOKEN RECHARGE LOGIC**
+                await usageTracker.rechargeTokens(transaction.userId, transaction.amount);
+
+                transaction.tokens = transaction.amount * usageTracker.TOKENS_PER_INR;
+                transaction.status = 'success';
+                await transaction.save();
+
+                // **SEND EMAIL NOTIFICATION**
+                if (transaction.userId && transaction.userId.email) {
+                    await emailService.sendPaymentSuccessEmail(
+                        transaction.userId.email,
+                        transaction.userId.name,
+                        transaction.amount,
+                        transaction.tokens,
+                        orderId
+                    );
                 }
 
-                if (txData.data[0].payment_status === "FAILED") {
-                    return res.redirect(`${process.env.Web_url}/payment/failed?orderId=${orderId}`);
-                }
-                return res.redirect(`${process.env.Web_url}/payment/success?orderId=${orderId}`);
+                console.log(`✅ Success: Recharged tokens and sent email for user ${transaction.userId?._id}`);
+                return res.redirect(`${WEB_URL}/payment/success?orderId=${orderId}`);
             }
+
+            if (paymentStatus.toUpperCase() === "FAILED" || paymentStatus.toUpperCase() === "CANCELLED") {
+                console.log(`❌ Payment ${paymentStatus} for ${orderId}`);
+                transaction.status = paymentStatus.toLowerCase();
+                await transaction.save();
+
+                // **SEND FAILURE EMAIL**
+                if (transaction.userId && transaction.userId.email) {
+                    await emailService.sendPaymentFailureEmail(
+                        transaction.userId.email,
+                        transaction.userId.name,
+                        transaction.amount,
+                        orderId
+                    );
+                }
+
+                return res.redirect(`${WEB_URL}/payment/failed?orderId=${orderId}&status=${paymentStatus}`);
+            }
+
+            return res.redirect(`${WEB_URL}/payment/failed?orderId=${orderId}&status=${paymentStatus}`);
         } else {
-            return res.redirect(`${process.env.Web_url}/payment/failed?orderId=${orderId}`);
+            return res.redirect(`${WEB_URL}/payment/failed?orderId=${orderId}&error=save_failed`);
         }
     } catch (error) {
         console.error('Payment callback error:', error);
@@ -152,6 +199,8 @@ const simulatePayment = async (req, res) => {
         if (transaction.status === 'success') {
             // **TOKEN RECHARGE LOGIC**
             await usageTracker.rechargeTokens(transaction.userId, transaction.amount);
+            transaction.tokens = transaction.amount * usageTracker.TOKENS_PER_INR;
+            await transaction.save();
             return res.json({ success: true, message: 'Payment simulation successful', transaction });
         } else {
             return res.json({ success: false, message: 'Payment simulation failed', transaction });

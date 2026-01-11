@@ -9,7 +9,11 @@ const transactionSchema = new mongoose.Schema({
     planId: {
         type: mongoose.Schema.Types.ObjectId,
         ref: 'Plan',
-        required: true
+        required: false
+    },
+    tokens: {
+        type: Number,
+        default: 0
     },
     subscriptionId: {
         type: mongoose.Schema.Types.ObjectId,

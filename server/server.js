@@ -53,14 +53,11 @@ app.get('/', (req, res) => {
 });
 
 // Mount API routes
-// Mount API routes
 app.use('/api', authRoutes);
+app.use('/api', paymentRoutes); // This must be before userRoutes/adminRoutes to prevent auth logic conflicts
 app.use('/api', chatbotRoutes);
 app.use('/api', userRoutes);
-// app.use('/api', subscriptionRoutes); // Removed
 app.use('/api', adminRoutes);
-// app.use('/api', planRoutes); // Removed
-app.use('/api', paymentRoutes);
 
 // Cron Job for Subscription Expiration (Removed - Token System)
 // checkSubscriptionExpiration();
