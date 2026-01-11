@@ -193,9 +193,69 @@ const sendPaymentFailureEmail = async (userEmail, userName, amount, orderId) => 
     }
 };
 
+/**
+ * Send Verification Email with OTP
+ */
+const sendVerificationEmail = async (userEmail, userName, otp) => {
+    try {
+        const mailOptions = {
+            from: safeFrom,
+            to: userEmail,
+            subject: 'Verify Your Email - ChatBot',
+            html: `
+                <div style="font-family: sans-serif; padding: 20px; border: 1px solid #eee; border-radius: 10px;">
+                    <h2>Welcome to ChatBot!</h2>
+                    <p>Hello ${userName},</p>
+                    <p>Thank you for registering. Please use the following OTP to verify your email address:</p>
+                    <div style="background: #f8f9fa; padding: 15px; text-align: center; font-size: 24px; font-weight: bold; letter-spacing: 5px; color: #3498db; border-radius: 5px; margin: 20px 0;">
+                        ${otp}
+                    </div>
+                    <p>This OTP is valid for 10 minutes. If you did not request this, please ignore this email.</p>
+                </div>
+            `
+        };
+
+        await transporter.sendMail(mailOptions);
+        console.log(`✅ Verification email sent to ${userEmail}`);
+    } catch (error) {
+        console.error("❌ SMTP Verification Email Error:", error.message);
+    }
+};
+
+/**
+ * Send Password Reset Email with OTP
+ */
+const sendPasswordResetEmail = async (userEmail, userName, otp) => {
+    try {
+        const mailOptions = {
+            from: safeFrom,
+            to: userEmail,
+            subject: 'Password Reset Request - ChatBot',
+            html: `
+                <div style="font-family: sans-serif; padding: 20px; border: 1px solid #eee; border-radius: 10px;">
+                    <h2>Password Reset Request</h2>
+                    <p>Hello ${userName},</p>
+                    <p>We received a request to reset your password. Use the following OTP to proceed:</p>
+                    <div style="background: #f8f9fa; padding: 15px; text-align: center; font-size: 24px; font-weight: bold; letter-spacing: 5px; color: #e74c3c; border-radius: 5px; margin: 20px 0;">
+                        ${otp}
+                    </div>
+                    <p>This OTP is valid for 10 minutes. If you did not request a password reset, please secure your account.</p>
+                </div>
+            `
+        };
+
+        await transporter.sendMail(mailOptions);
+        console.log(`✅ Password reset email sent to ${userEmail}`);
+    } catch (error) {
+        console.error("❌ SMTP Password Reset Email Error:", error.message);
+    }
+};
+
 module.exports = {
     sendLowBalanceEmail,
     sendEmptyBalanceEmail,
     sendPaymentSuccessEmail,
-    sendPaymentFailureEmail
+    sendPaymentFailureEmail,
+    sendVerificationEmail,
+    sendPasswordResetEmail
 };

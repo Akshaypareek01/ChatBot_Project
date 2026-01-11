@@ -59,6 +59,42 @@ export const registerUser = async (userData: { name: string; email: string; pass
   }
 };
 
+export const verifyOTP = async (email: string, otp: string) => {
+  try {
+    const response = await api.post('/users/verify-otp', { email, otp });
+    return response.data;
+  } catch (error: any) {
+    throw error.response?.data || { message: 'Invalid or expired OTP' };
+  }
+};
+
+export const resendVerificationOTP = async (email: string) => {
+  try {
+    const response = await api.post('/users/resend-otp', { email });
+    return response.data;
+  } catch (error: any) {
+    throw error.response?.data || { message: 'Failed to resend OTP' };
+  }
+};
+
+export const forgotPassword = async (email: string) => {
+  try {
+    const response = await api.post('/users/forgot-password', { email });
+    return response.data;
+  } catch (error: any) {
+    throw error.response?.data || { message: error.response?.data?.message || 'Error sending reset OTP' };
+  }
+};
+
+export const resetPassword = async (resetData: { email: string; otp: string; newPassword: any }) => {
+  try {
+    const response = await api.post('/users/reset-password', resetData);
+    return response.data;
+  } catch (error: any) {
+    throw error.response?.data || { message: 'Failed to reset password' };
+  }
+};
+
 // --- User Services ---
 
 export const getUserProfile = async () => {
