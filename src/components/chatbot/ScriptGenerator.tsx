@@ -39,37 +39,37 @@ const ScriptGenerator: React.FC<ScriptGeneratorProps> = ({
   };
 
   return (
-    <Card className="w-full shadow-soft overflow-hidden">
-      <CardHeader className="bg-muted/50">
-        <CardTitle className="flex items-center">
-          <Code className="mr-2 h-5 w-5" />
-          Embed Script {websiteDomain && <span className="ml-2 text-sm text-muted-foreground">for {websiteDomain}</span>}
+    <Card className="w-full shadow-premium overflow-hidden border-none bg-background/50 backdrop-blur-sm rounded-[2rem]">
+      <CardHeader className="bg-primary/5 pb-4">
+        <CardTitle className="flex items-center text-lg">
+          <Code className="mr-2 h-5 w-5 text-primary" />
+          General Installation {websiteDomain && <span className="ml-2 text-xs font-normal text-muted-foreground">({websiteDomain})</span>}
         </CardTitle>
-        <CardDescription>
-          Copy and paste this script into your website to embed the chatbot
+        <CardDescription className="text-xs">
+          Copy and paste this script into your website to embed the bot
         </CardDescription>
       </CardHeader>
       <CardContent className="pt-6">
-        <div className="bg-muted p-4 rounded-md overflow-x-auto">
-          <pre className="text-sm whitespace-pre-wrap break-all">
+        <div className="bg-muted p-4 rounded-2xl border border-muted-foreground/10">
+          <pre className="text-xs whitespace-pre-wrap break-all font-mono leading-relaxed">
             <code>{scriptCode}</code>
           </pre>
         </div>
       </CardContent>
-      <CardFooter className="flex justify-between border-t bg-muted/30 py-3">
-        <div className="text-sm text-muted-foreground">
-          Add this before the closing <code className="text-xs bg-muted p-1 rounded">&lt;/body&gt;</code> tag
+      <CardFooter className="flex justify-between border-t bg-muted/30 py-4 px-6">
+        <div className="text-[10px] text-muted-foreground uppercase font-bold tracking-widest">
+          Add before &lt;/body&gt;
         </div>
-        <Button variant="outline" size="sm" className="ml-auto" onClick={handleCopy}>
+        <Button variant="default" size="sm" className="rounded-full px-5 h-8 text-xs font-bold shadow-soft" onClick={handleCopy}>
           {copied ? (
             <>
-              <Check className="mr-2 h-4 w-4" />
+              <Check className="mr-2 h-3 w-3" />
               Copied
             </>
           ) : (
             <>
-              <ClipboardCopy className="mr-2 h-4 w-4" />
-              Copy
+              <ClipboardCopy className="mr-2 h-3 w-3" />
+              Copy Script
             </>
           )}
         </Button>
