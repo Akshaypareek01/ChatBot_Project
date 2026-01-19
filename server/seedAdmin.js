@@ -10,8 +10,12 @@ const seedAdmin = async () => {
         await mongoose.connect(process.env.MONGODB_URI);
         console.log('Connected to MongoDB');
 
-        const email = 'superadmin@gmail.com';
-        const password = 'Akshay@0111';
+        const email = process.env.ADMIN_EMAIL;
+        const password = process.env.ADMIN_PASSWORD;
+
+        if (!email || !password) {
+            throw new Error('ADMIN_EMAIL and ADMIN_PASSWORD must be set in .env file');
+        }
 
         // Check if admin exists
         let admin = await User.findOne({ email });

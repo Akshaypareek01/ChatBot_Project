@@ -1,8 +1,12 @@
 const { Cashfree } = require("cashfree-pg");
 
 const initCashfree = () => {
-    Cashfree.XClientId = process.env.CASHFREE_CLIENT_ID || "TEST105251470bc8511b567e6c3fb7c174152501";
-    Cashfree.XClientSecret = process.env.CASHFREE_CLIENT_SECRET || "cfsk_ma_test_6b8005ab482ad695ebb7fb462f15f992_cc7f650f";
+    if (!process.env.CASHFREE_CLIENT_ID || !process.env.CASHFREE_CLIENT_SECRET) {
+        throw new Error('CASHFREE_CLIENT_ID and CASHFREE_CLIENT_SECRET must be set in .env file');
+    }
+
+    Cashfree.XClientId = process.env.CASHFREE_CLIENT_ID;
+    Cashfree.XClientSecret = process.env.CASHFREE_CLIENT_SECRET;
     Cashfree.XEnvironment = process.env.CASHFREE_ENVIRONMENT === 'PRODUCTION'
         ? Cashfree.Environment.PRODUCTION
         : Cashfree.Environment.SANDBOX;
