@@ -30,6 +30,16 @@ const createOrder = async (req, res) => {
 
         await transaction.save();
 
+        const baseUrl = process.env.BASE_URL.endsWith('/')
+            ? process.env.BASE_URL.slice(0, -1)
+            : process.env.BASE_URL;
+        const returnUrl = `${baseUrl}/api/payments/callback?orderId=${orderId}`;
+
+        // Cashfree Production requires HTTPS return_url
+        if (process.env.CASHFREE_ENVIRONMENT === 'PRODUCTION' && !returnUrl.startsWith('https://')) {
+            console.warn('CRITICAL: CASHFREE_ENVIRONMENT is PRODUCTION but return_url is NOT HTTPS. This WILL result in a 400 Bad Request error.');
+        }
+
         const request = {
             "order_amount": amount,
             "order_currency": "INR",
@@ -41,7 +51,7 @@ const createOrder = async (req, res) => {
                 "customer_phone": "8290918154" // Should ideally be user.phone if available
             },
             "order_meta": {
-                "return_url": `${process.env.BASE_URL}/api/payments/callback?orderId=${orderId}`
+                "return_url": returnUrl
             }
         };
 
@@ -58,7 +68,16 @@ const createOrder = async (req, res) => {
         });
     } catch (error) {
         console.error('Payment order creation error:', error);
-        return res.status(500).json({ message: 'Error creating payment order', error: error.message });
+
+        // Enhanced error reporting for Cashfree specific errors
+        const errorMessage = error.response?.data?.message || error.message;
+        const errorCode = error.response?.data?.code || 'internal_error';
+
+        return res.status(error.response?.status || 500).json({
+            message: 'Error creating payment order',
+            error: errorMessage,
+            code: errorCode
+        });
     }
 };
 
@@ -103,7 +122,10 @@ const saveTransaction = async (paymentData) => {
 const callback = async (req, res) => {
     try {
         const { orderId } = req.query;
-        const WEB_URL = process.env.Web_url || process.env.WEB_URL || 'http://localhost:8080';
+        let WEB_URL = process.env.Web_url || process.env.WEB_URL || 'http://localhost:8080';
+        if (WEB_URL.endsWith('/')) {
+            WEB_URL = WEB_URL.slice(0, -1);
+        }
 
         console.log(`Processing callback for Order ID: ${orderId}`);
 
