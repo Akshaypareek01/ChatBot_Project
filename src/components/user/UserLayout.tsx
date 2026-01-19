@@ -33,7 +33,7 @@ const UserLayout: React.FC<UserLayoutProps> = ({ children, onLogout, user }) => 
           <div className="p-6">
             <div className="flex items-center space-x-2">
               <MessageSquareText className="h-6 w-6 text-primary" />
-              <h1 className="font-semibold text-xl">ChatBot Dashboard</h1>
+              <h1 className="font-semibold text-xl">IndicBot Dashboard</h1>
             </div>
           </div>
 
@@ -82,7 +82,7 @@ const UserLayout: React.FC<UserLayoutProps> = ({ children, onLogout, user }) => 
         <div className="flex justify-between items-center">
           <div className="flex items-center space-x-2">
             <MessageSquareText className="h-5 w-5 text-primary" />
-            <h1 className="font-semibold">ChatBot Dashboard</h1>
+            <h1 className="font-semibold">IndicBot Dashboard</h1>
           </div>
 
           {/* Mobile menu - simplified for this version */}

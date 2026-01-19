@@ -74,7 +74,7 @@ const Dashboard = () => {
   return (
     <div className="space-y-8">
       <div>
-        <h1 className="text-2xl font-semibold mb-2">Admin Dashboard</h1>
+        <h1 className="text-2xl font-semibold mb-2">IndicBot Admin</h1>
         <p className="text-muted-foreground">Platform overview and analytics</p>
       </div>
 
