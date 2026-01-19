@@ -34,7 +34,7 @@ const UserDashboardHome = () => {
 
         setUserData(userProfileData);
         setChatbotData(chatbotDataResponse);
-        setUsageHistory(usageData.slice(0, 5)); // Only show last 5
+        setUsageHistory(usageData); // Grouping function will limit to 5
       } catch (error) {
         console.error('Error fetching dashboard data:', error);
       } finally {
@@ -52,6 +52,36 @@ const UserDashboardHome = () => {
       case 'scrape': return 'bg-orange-100 text-orange-700';
       default: return 'bg-gray-100 text-gray-700';
     }
+  };
+
+  // Group usage by date and calculate totals
+  const groupUsageByDate = (usageData: UsageRecord[]) => {
+    const grouped = usageData.reduce((acc, usage) => {
+      const date = new Date(usage.createdAt).toLocaleDateString('en-IN', {
+        day: '2-digit',
+        month: 'short'
+      });
+
+      if (!acc[date]) {
+        acc[date] = {
+          date,
+          totalTokens: 0,
+          count: 0,
+          types: new Set<string>(),
+          firstCreatedAt: usage.createdAt
+        };
+      }
+
+      acc[date].totalTokens += usage.tokensUsed;
+      acc[date].count += 1;
+      acc[date].types.add(usage.type);
+
+      return acc;
+    }, {} as Record<string, { date: string; totalTokens: number; count: number; types: Set<string>; firstCreatedAt: string }>);
+
+    return Object.values(grouped).sort((a, b) =>
+      new Date(b.firstCreatedAt).getTime() - new Date(a.firstCreatedAt).getTime()
+    ).slice(0, 5); // Only show last 5 days
   };
 
   if (isLoading) {
@@ -195,25 +225,29 @@ const UserDashboardHome = () => {
               <CardContent className="p-0">
                 <Table>
                   <TableBody>
-                    {usageHistory.map((usage) => (
-                      <TableRow key={usage._id} className="hover:bg-muted/30 border-b last:border-0">
+                    {groupUsageByDate(usageHistory).map((dailyUsage, index) => (
+                      <TableRow key={index} className="hover:bg-muted/30 border-b last:border-0">
                         <TableCell className="py-4 pl-4">
-                          <div className="flex flex-col gap-1">
-                            <span className={`w-fit px-1.5 py-0.5 rounded text-[9px] font-bold uppercase ${getUsageTypeColor(usage.type)}`}>
-                              {usage.type}
-                            </span>
-                            <span className="text-[11px] font-medium max-w-[140px] truncate">
-                              {usage.description}
+                          <div className="flex flex-col gap-1.5">
+                            <div className="flex flex-wrap gap-1">
+                              {Array.from(dailyUsage.types).map((type) => (
+                                <span key={type} className={`w-fit px-1.5 py-0.5 rounded text-[9px] font-bold uppercase ${getUsageTypeColor(type)}`}>
+                                  {type}
+                                </span>
+                              ))}
+                            </div>
+                            <span className="text-[10px] text-muted-foreground">
+                              {dailyUsage.count} {dailyUsage.count === 1 ? 'activity' : 'activities'}
                             </span>
                           </div>
                         </TableCell>
                         <TableCell className="py-4 text-right pr-4">
                           <div className="flex flex-col items-end gap-1">
-                            <span className="text-[12px] font-bold text-destructive">
-                              -{usage.tokensUsed.toLocaleString()}
+                            <span className="text-[13px] font-bold text-destructive">
+                              -{dailyUsage.totalTokens.toLocaleString()}
                             </span>
-                            <span className="text-[9px] text-muted-foreground">
-                              {new Date(usage.createdAt).toLocaleDateString('en-IN', { day: '2-digit', month: 'short' })}
+                            <span className="text-[9px] text-muted-foreground font-medium">
+                              {dailyUsage.date}
                             </span>
                           </div>
                         </TableCell>

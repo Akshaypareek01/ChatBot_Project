@@ -60,6 +60,20 @@
       </svg>
     `;
 
+    // Add hover effects
+    button.onmouseenter = () => {
+      if (!isOpen) {
+        button.style.transform = 'scale(1.1)';
+        button.style.boxShadow = '0 10px 30px rgba(37, 99, 235, 0.45)';
+      }
+    };
+    button.onmouseleave = () => {
+      if (!isOpen) {
+        button.style.transform = 'scale(1)';
+        button.style.boxShadow = '0 8px 24px rgba(37, 99, 235, 0.35)';
+      }
+    };
+
     // Main Window (Glassmorphism effect)
     const chatWindow = document.createElement('div');
     Object.assign(chatWindow.style, {
@@ -73,8 +87,9 @@
       display: 'none', // Start hidden
       flexDirection: 'column',
       opacity: '0',
-      transform: 'translateY(20px)',
-      transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+      transform: 'scale(0.85) translateY(20px)', // Start smaller and lower
+      transition: 'all 0.4s cubic-bezier(0.34, 1.56, 0.64, 1)', // Bouncy easing
+      transformOrigin: 'bottom right', // Animate from bottom right corner
       border: '1px solid rgba(0, 0, 0, 0.05)'
     });
 
@@ -205,9 +220,11 @@
         // Need frame for transition
         requestAnimationFrame(() => {
           chatWindow.style.opacity = '1';
-          chatWindow.style.transform = 'translateY(0)';
+          chatWindow.style.transform = 'scale(1) translateY(0)'; // Scale to full size
         });
-        button.style.transform = 'scale(0.8) rotate(90deg)';
+        // Button transforms with rotation
+        button.style.transform = 'scale(0.85) rotate(90deg)';
+        button.style.boxShadow = '0 6px 20px rgba(37, 99, 235, 0.4)';
         button.innerHTML = `
           <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
             <line x1="18" y1="6" x2="6" y2="18"></line>
@@ -216,11 +233,13 @@
         `;
       } else {
         chatWindow.style.opacity = '0';
-        chatWindow.style.transform = 'translateY(20px)';
+        chatWindow.style.transform = 'scale(0.85) translateY(20px)'; // Scale down and slide
         setTimeout(() => {
           if (!isOpen) chatWindow.style.display = 'none';
-        }, 300);
+        }, 400); // Match transition duration
+        // Button returns to normal
         button.style.transform = 'scale(1) rotate(0deg)';
+        button.style.boxShadow = '0 8px 24px rgba(37, 99, 235, 0.35)';
         button.innerHTML = `
           <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
             <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
@@ -232,10 +251,11 @@
     button.onclick = toggleChat;
     closeBtn.onclick = toggleChat;
 
-    // Entrance Animation for Button
+    // Entrance Animation for Button (with bounce)
     setTimeout(() => {
       button.style.opacity = '1';
       button.style.transform = 'scale(1)';
+      button.style.transition = 'all 0.5s cubic-bezier(0.34, 1.56, 0.64, 1)'; // Bouncy entrance
     }, 500);
 
     return { chatBody, input, sendBtn };

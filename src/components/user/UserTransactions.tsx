@@ -107,6 +107,37 @@ const UserTransactions = () => {
     }
   };
 
+  // Group usage by date and calculate totals
+  const groupUsageByDate = (usageData: UsageRecord[]) => {
+    const grouped = usageData.reduce((acc, usage) => {
+      const date = new Date(usage.createdAt).toLocaleDateString('en-IN', {
+        day: '2-digit',
+        month: 'short',
+        year: 'numeric'
+      });
+
+      if (!acc[date]) {
+        acc[date] = {
+          date,
+          totalTokens: 0,
+          count: 0,
+          types: new Set<string>(),
+          firstCreatedAt: usage.createdAt
+        };
+      }
+
+      acc[date].totalTokens += usage.tokensUsed;
+      acc[date].count += 1;
+      acc[date].types.add(usage.type);
+
+      return acc;
+    }, {} as Record<string, { date: string; totalTokens: number; count: number; types: Set<string>; firstCreatedAt: string }>);
+
+    return Object.values(grouped).sort((a, b) =>
+      new Date(b.firstCreatedAt).getTime() - new Date(a.firstCreatedAt).getTime()
+    );
+  };
+
   useEffect(() => {
     const initCashfree = async () => {
       try {
@@ -406,28 +437,31 @@ const UserTransactions = () => {
                   <Table>
                     <TableHeader className="bg-muted/50">
                       <TableRow>
-                        <TableHead className="w-[120px]">Date</TableHead>
-                        <TableHead>Action</TableHead>
-                        <TableHead>Description</TableHead>
-                        <TableHead className="text-right">Tokens Used</TableHead>
+                        <TableHead className="w-[150px]">Date</TableHead>
+                        <TableHead>Activities</TableHead>
+                        <TableHead className="text-right">Total Tokens Used</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {usageHistory.map((usage) => (
-                        <TableRow key={usage._id} className="hover:bg-muted/30">
+                      {groupUsageByDate(usageHistory).map((dailyUsage, index) => (
+                        <TableRow key={index} className="hover:bg-muted/30">
                           <TableCell className="font-medium">
-                            {new Date(usage.createdAt).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })}
+                            {dailyUsage.date}
                           </TableCell>
                           <TableCell>
-                            <span className={`px-2 py-1 rounded-full text-[10px] font-bold uppercase ${getUsageTypeColor(usage.type)}`}>
-                              {usage.type}
-                            </span>
+                            <div className="flex flex-wrap gap-1.5">
+                              {Array.from(dailyUsage.types).map((type) => (
+                                <span key={type} className={`px-2 py-1 rounded-full text-[10px] font-bold uppercase ${getUsageTypeColor(type)}`}>
+                                  {type}
+                                </span>
+                              ))}
+                              <span className="text-xs text-muted-foreground ml-2">
+                                {dailyUsage.count} {dailyUsage.count === 1 ? 'activity' : 'activities'}
+                              </span>
+                            </div>
                           </TableCell>
-                          <TableCell className="max-w-[300px] truncate text-xs">
-                            {usage.description}
-                          </TableCell>
-                          <TableCell className="text-right font-bold text-destructive">
-                            -{usage.tokensUsed.toLocaleString()}
+                          <TableCell className="text-right font-bold text-destructive text-lg">
+                            -{dailyUsage.totalTokens.toLocaleString()}
                           </TableCell>
                         </TableRow>
                       ))}
