@@ -48,7 +48,7 @@ const createOrder = async (req, res) => {
                 "customer_name": user.name,
                 "customer_id": user._id.toString(),
                 "customer_email": user.email,
-                "customer_phone": "8290918154" // Should ideally be user.phone if available
+                "customer_phone": user.phone || "9999999999" // Fallback number for Cashfree requirement
             },
             "order_meta": {
                 "return_url": returnUrl

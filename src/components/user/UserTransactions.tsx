@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { getUserTransactions, createPaymentOrder } from '@/services/api';
+import { Base_url } from '@/config/Base_url.jsx';
 import {
   Card,
   CardContent,
@@ -57,8 +58,14 @@ const UserTransactions = () => {
   useEffect(() => {
     const initCashfree = async () => {
       try {
+        // Use production mode if Base_url is a live domain, otherwise sandbox
+        const isProduction = Base_url.includes('nvhotech.in') || !Base_url.includes('localhost');
+        const mode = isProduction ? "production" : "sandbox";
+
+        console.log(`Initializing Cashfree in ${mode} mode`);
+
         cashfreeInstance = await load({
-          mode: "sandbox"
+          mode: mode as "sandbox" | "production"
         });
       } catch (e) {
         console.error("Cashfree SDK failed to load", e);
