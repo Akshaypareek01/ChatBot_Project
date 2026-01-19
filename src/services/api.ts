@@ -1,8 +1,9 @@
 
 import axios from 'axios';
+import { Base_url } from '@/config/Base_url.jsx';
 
 // Determine API URL based on environment or default to localhost
-export const API_URL = 'http://localhost:5001/api';
+export const API_URL = Base_url;
 
 // Create axios instance
 const api = axios.create({
