@@ -1,4 +1,5 @@
 const User = require('../models/User');
+const Usage = require('../models/Usage');
 const bcrypt = require('bcrypt');
 
 const getProfile = async (req, res) => {
@@ -38,7 +39,8 @@ const updateProfile = async (req, res) => {
                 name: user.name,
                 email: user.email,
                 website: user.website,
-                brandName: user.brandName
+                brandName: user.brandName,
+                allowedDomains: user.allowedDomains
             }
         });
     } catch (error) {
@@ -75,4 +77,32 @@ const updatePassword = async (req, res) => {
     }
 };
 
-module.exports = { getProfile, updateProfile, updatePassword };
+const updateAllowedDomains = async (req, res) => {
+    try {
+        const { allowedDomains } = req.body;
+        if (!Array.isArray(allowedDomains)) {
+            return res.status(400).json({ message: "Allowed domains must be an array" });
+        }
+
+        const user = await User.findByIdAndUpdate(
+            req.userId,
+            { allowedDomains },
+            { new: true }
+        ).select('allowedDomains');
+
+        return res.json({ message: "Domains updated", allowedDomains: user.allowedDomains });
+    } catch (error) {
+        return res.status(500).json({ message: 'Server error', error: error.message });
+    }
+};
+
+const getUsageHistory = async (req, res) => {
+    try {
+        const history = await Usage.find({ userId: req.userId }).sort({ createdAt: -1 }).limit(100);
+        return res.json(history);
+    } catch (error) {
+        return res.status(500).json({ message: 'Server error', error: error.message });
+    }
+};
+
+module.exports = { getProfile, updateProfile, updatePassword, updateAllowedDomains, getUsageHistory };

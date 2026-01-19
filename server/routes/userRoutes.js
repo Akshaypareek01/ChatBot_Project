@@ -7,9 +7,12 @@ const authMiddleware = require('../middleware/authMiddleware');
 
 router.use(authMiddleware);
 
+// Profile & Security
 router.get('/users/profile', userController.getProfile);
 router.put('/users/profile', userController.updateProfile);
 router.put('/users/password', userController.updatePassword);
+router.put('/users/domains', userController.updateAllowedDomains);
+router.get('/users/usage', userController.getUsageHistory);
 
 // User QA
 router.get('/users/qa', qaController.getUserQAs);

@@ -8,8 +8,8 @@ const createOrder = async (req, res) => {
     try {
         const { amount } = req.body;
 
-        if (!amount || amount < 100) {
-            return res.status(400).json({ message: 'Minimum recharge amount is ₹100' });
+        if (!amount || amount < 49) {
+            return res.status(400).json({ message: 'Minimum recharge amount is ₹49' });
         }
 
         const user = await User.findById(req.userId);

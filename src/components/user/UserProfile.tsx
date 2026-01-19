@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Form, FormField, FormItem, FormLabel, FormControl, FormDescription, FormMessage } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
+import { Badge } from '@/components/ui/badge';
 import { getUserProfile, updateUserProfile, updateUserPassword } from '@/services/api';
 import { toast } from 'sonner';
 import { z } from 'zod';
@@ -306,6 +307,7 @@ const UserProfile = () => {
             </Form>
           </CardContent>
         </Card>
+
       </div>
     </div>
   );

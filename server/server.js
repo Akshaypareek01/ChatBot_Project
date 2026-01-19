@@ -34,7 +34,7 @@ app.use(cors());
 const limiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   max: 100,
-  message: 'Too many requests from this IP, please try again later.',
+  message: { message: 'Too many requests from this IP, please try again later.' },
   skip: (req) => {
     // Skip rate limiting for admin login
     return req.path === '/admin/login';

@@ -45,7 +45,7 @@ const userSchema = new mongoose.Schema({
     },
     tokenBalance: {
         type: Number,
-        default: 50000 // Free trial: 50k tokens (~10 chats)
+        default: 25000 // Strategic Trial: 25k tokens (~15 chats)
     },
     role: {
         type: String,
@@ -63,7 +63,27 @@ const userSchema = new mongoose.Schema({
     verificationOTP: String,
     verificationOTPExpires: Date,
     resetOTP: String,
-    resetOTPExpires: Date
+    resetOTPExpires: Date,
+    lastAlertThreshold: {
+        type: Number,
+        default: 100
+    },
+    autoRecharge: {
+        type: Boolean,
+        default: false
+    },
+    autoRechargeAmount: {
+        type: Number,
+        default: 199
+    },
+    allowedDomains: {
+        type: [String],
+        default: []
+    },
+    knowledgeVersion: {
+        type: Number,
+        default: 1
+    }
 });
 
 module.exports = mongoose.model('User', userSchema);

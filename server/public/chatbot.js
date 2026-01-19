@@ -334,6 +334,18 @@
 
       const { chatBody, input, sendBtn } = createChatbotUI(data.name);
 
+      if (data.isOffline) {
+        // Disable interaction
+        input.disabled = true;
+        input.placeholder = 'Chatbot is currently offline';
+        sendBtn.style.display = 'none';
+
+        setTimeout(() => {
+          addMessage(chatBody, 'bot', `Hello! We are currently offline. Please contact our administrator at ${data.email} for assistance.`);
+        }, 800);
+        return;
+      }
+
       const handleSend = async () => {
         const text = input.value.trim();
         if (!text) return;

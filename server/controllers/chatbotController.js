@@ -4,6 +4,7 @@ const { getAIResponse } = require('../services/openaiService');
 const chatService = require('../services/chat.service');
 const scraperService = require('../services/scraperService');
 const fileParserService = require('../services/fileParser.service');
+const usageTracker = require('../services/usageTracker.service');
 
 const Source = require('../models/Source');
 
@@ -41,18 +42,46 @@ const getAIResponseController = async (req, res) => {
     }
 };
 
+const isDomainAllowed = (user, req) => {
+    if (!user.allowedDomains || user.allowedDomains.length === 0) return true;
+
+    const origin = req.headers.origin || req.headers.referer;
+    if (!origin) return false;
+
+    try {
+        const domain = new URL(origin).hostname;
+        return user.allowedDomains.some(d => {
+            const pattern = d.replace('*', '.*');
+            return new RegExp(`^${pattern}$`, 'i').test(domain);
+        });
+    } catch (e) {
+        return false;
+    }
+};
+
 const getChatbotData = async (req, res) => {
     try {
         const { userId } = req.params;
-        const user = await User.findById(userId);
-        if (!user || !user.isActive) {
-            return res.status(404).json({ message: 'Chatbot not available' });
+        const user = await User.findById(userId).select('allowedDomains isActive brandName name email tokenBalance');
+        if (!user) {
+            return res.status(404).json({ message: 'Chatbot not found' });
         }
-        const qas = await QA.find({ userId });
+
+        // Domain Check
+        if (!isDomainAllowed(user, req)) {
+            console.warn(`Blocked init request from unauthorized domain for user ${userId}`);
+            return res.status(403).json({ message: 'Domain not authorized' });
+        }
+
+        const isOffline = !user.isActive || user.tokenBalance <= 0;
+
         return res.status(200).json({
             userId,
             name: user.brandName || user.name,
-            qas
+            email: user.email, // For support contact
+            isOffline,
+            isActive: user.isActive,
+            tokenBalance: user.tokenBalance
         });
     } catch (error) {
         return res.status(500).json({ message: 'Server error', error: error.message });
@@ -107,12 +136,16 @@ const uploadFile = async (req, res) => {
         if (!req.file) {
             return res.status(400).json({ message: 'No file uploaded.' });
         }
-        const userId = req.body.userId || req.userId; // Use body or auth middleware
+        const userId = req.body.userId || req.userId;
         if (!userId) {
             return res.status(400).json({ message: 'User ID is required.' });
         }
 
         const source = await fileParserService.processFile(userId, req.file);
+
+        // Update Knowledge Version and Log Usage
+        await User.findByIdAndUpdate(userId, { $inc: { knowledgeVersion: 1 } });
+        await usageTracker.trackFileUpload(userId, req.file.originalname);
 
         return res.json({
             message: 'File processed successfully.',
@@ -130,12 +163,16 @@ const uploadFile = async (req, res) => {
 const scrapeWebsite = async (req, res) => {
     try {
         const { url } = req.body;
-        const userId = req.body.userId || req.userId; // Use body or auth middleware
+        const userId = req.body.userId || req.userId;
         if (!userId || !url) {
             return res.status(400).json({ message: 'User ID and URL are required.' });
         }
 
         const source = await scraperService.processWebsite(userId, url);
+
+        // Update Knowledge Version and Log Usage
+        await User.findByIdAndUpdate(userId, { $inc: { knowledgeVersion: 1 } });
+        await usageTracker.trackWebsiteScrape(userId, url);
 
         return res.json({
             message: 'Website processed successfully.',
@@ -177,13 +214,24 @@ const chatWithBot = async (req, res) => {
             return res.status(400).json({ message: 'User ID and message are required.' });
         }
 
+        // --- SECURITY: Domain Allow-List Check ---
+        const user = await User.findById(userId).select('allowedDomains isActive');
+        if (!user || !user.isActive) {
+            return res.status(404).json({ message: 'Chatbot not available' });
+        }
+
+        if (!isDomainAllowed(user, req)) {
+            console.warn(`Blocked chat request from unauthorized domain for user ${userId}`);
+            return res.status(403).json({ message: 'Domain not authorized' });
+        }
+        // --- END SECURITY CHECK ---
+
         const response = await chatService.handleChat(userId, message);
         return res.json({ answer: response, source: 'RAG' });
 
     } catch (error) {
         console.error("Chat error:", error);
-        // Return 403 for limits, 500 for others
-        if (error.message.includes("limit")) {
+        if (error.message.includes("limit") || error.message.includes("tokens") || error.message.includes("balance")) {
             return res.status(403).json({ message: error.message });
         }
         return res.status(500).json({ message: error.message });

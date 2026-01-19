@@ -25,6 +25,22 @@ api.interceptors.request.use(
   (error) => Promise.reject(error)
 );
 
+// --- Error Handler ---
+const handleApiError = (error: any, defaultMessage: string) => {
+  const status = error.response?.status;
+  let message = defaultMessage;
+  let data = {};
+
+  if (typeof error.response?.data === 'string') {
+    message = error.response.data;
+  } else if (error.response?.data?.message) {
+    message = error.response.data.message;
+    data = error.response.data;
+  }
+
+  throw { ...data, message, status };
+};
+
 // --- Auth Services ---
 
 export const login = async (email: string, password: string) => {
@@ -32,9 +48,7 @@ export const login = async (email: string, password: string) => {
     const response = await api.post('/users/login', { email, password });
     return response.data;
   } catch (error: any) {
-    const errorData = error.response?.data || { message: 'An error occurred during login' };
-    const errorWithStatus = { ...errorData, response: { status: error.response?.status } };
-    throw errorWithStatus;
+    return handleApiError(error, 'An error occurred during login');
   }
 };
 
@@ -43,9 +57,7 @@ export const adminLogin = async (email: string, password: string) => {
     const response = await api.post('/admin/login', { email, password });
     return response.data;
   } catch (error: any) {
-    const errorData = error.response?.data || { message: 'An error occurred during admin login' };
-    const errorWithStatus = { ...errorData, response: { status: error.response?.status } };
-    throw errorWithStatus;
+    return handleApiError(error, 'An error occurred during admin login');
   }
 };
 
@@ -54,9 +66,7 @@ export const registerUser = async (userData: { name: string; email: string; pass
     const response = await api.post('/users/register', userData);
     return response.data;
   } catch (error: any) {
-    const errorData = error.response?.data || { message: 'An error occurred during registration' };
-    const errorWithStatus = { ...errorData, response: { status: error.response?.status } };
-    throw errorWithStatus;
+    return handleApiError(error, 'An error occurred during registration');
   }
 };
 
@@ -65,7 +75,7 @@ export const verifyOTP = async (email: string, otp: string) => {
     const response = await api.post('/users/verify-otp', { email, otp });
     return response.data;
   } catch (error: any) {
-    throw error.response?.data || { message: 'Invalid or expired OTP' };
+    return handleApiError(error, 'Invalid or expired OTP');
   }
 };
 
@@ -74,7 +84,7 @@ export const resendVerificationOTP = async (email: string) => {
     const response = await api.post('/users/resend-otp', { email });
     return response.data;
   } catch (error: any) {
-    throw error.response?.data || { message: 'Failed to resend OTP' };
+    return handleApiError(error, 'Failed to resend OTP');
   }
 };
 
@@ -83,7 +93,7 @@ export const forgotPassword = async (email: string) => {
     const response = await api.post('/users/forgot-password', { email });
     return response.data;
   } catch (error: any) {
-    throw error.response?.data || { message: error.response?.data?.message || 'Error sending reset OTP' };
+    return handleApiError(error, 'Error sending reset OTP');
   }
 };
 
@@ -92,7 +102,7 @@ export const resetPassword = async (resetData: { email: string; otp: string; new
     const response = await api.post('/users/reset-password', resetData);
     return response.data;
   } catch (error: any) {
-    throw error.response?.data || { message: 'Failed to reset password' };
+    return handleApiError(error, 'Failed to reset password');
   }
 };
 
@@ -103,7 +113,7 @@ export const getUserProfile = async () => {
     const response = await api.get('/users/profile');
     return response.data;
   } catch (error: any) {
-    throw error.response?.data || { message: 'An error occurred while fetching user profile' };
+    return handleApiError(error, 'An error occurred while fetching user profile');
   }
 };
 
@@ -112,7 +122,7 @@ export const updateUserProfile = async (userData: { name: string; website: strin
     const response = await api.put('/users/profile', userData);
     return response.data;
   } catch (error: any) {
-    throw error.response?.data || { message: 'An error occurred while updating profile' };
+    return handleApiError(error, 'An error occurred while updating profile');
   }
 };
 
@@ -121,7 +131,25 @@ export const updateUserPassword = async (passwordData: { currentPassword: string
     const response = await api.put('/users/password', passwordData);
     return response.data;
   } catch (error: any) {
-    throw error.response?.data || { message: 'An error occurred while updating password' };
+    return handleApiError(error, 'An error occurred while updating password');
+  }
+};
+
+export const updateAllowedDomains = async (allowedDomains: string[]) => {
+  try {
+    const response = await api.put('/users/domains', { allowedDomains });
+    return response.data;
+  } catch (error: any) {
+    return handleApiError(error, 'An error occurred while updating domains');
+  }
+};
+
+export const getUsageHistory = async () => {
+  try {
+    const response = await api.get('/users/usage');
+    return response.data;
+  } catch (error: any) {
+    return handleApiError(error, 'Error fetching usage history');
   }
 };
 
@@ -140,7 +168,7 @@ export const getUsers = async (params?: { page?: number; limit?: number; search?
     const response = await api.get(`/admin/users?${queryParams.toString()}`);
     return response.data;
   } catch (error: any) {
-    throw error.response?.data || { message: 'An error occurred while fetching users' };
+    return handleApiError(error, 'An error occurred while fetching users');
   }
 };
 
@@ -149,7 +177,7 @@ export const createUser = async (userData: { name: string; email: string; passwo
     const response = await api.post('/admin/users', userData);
     return response.data;
   } catch (error: any) {
-    throw error.response?.data || { message: 'An error occurred while creating user' };
+    return handleApiError(error, 'An error occurred while creating user');
   }
 };
 
@@ -158,7 +186,7 @@ export const updateUser = async (id: string, userData: { name: string; email: st
     const response = await api.put(`/admin/users/${id}`, userData);
     return response.data;
   } catch (error: any) {
-    throw error.response?.data || { message: 'An error occurred while updating user' };
+    return handleApiError(error, 'An error occurred while updating user');
   }
 };
 
@@ -167,7 +195,7 @@ export const deleteUser = async (id: string) => {
     const response = await api.delete(`/admin/users/${id}`);
     return response.data;
   } catch (error: any) {
-    throw error.response?.data || { message: 'An error occurred while deleting user' };
+    return handleApiError(error, 'An error occurred while deleting user');
   }
 };
 
@@ -176,7 +204,7 @@ export const getAnalytics = async () => {
     const response = await api.get('/admin/analytics');
     return response.data;
   } catch (error: any) {
-    throw error.response?.data || { message: 'An error occurred while fetching analytics' };
+    return handleApiError(error, 'An error occurred while fetching analytics');
   }
 };
 
@@ -187,7 +215,7 @@ export const getUserQAs = async (userId: string) => {
     const response = await api.get(`/qa/${userId}`);
     return response.data;
   } catch (error: any) {
-    throw error.response?.data || { message: 'An error occurred while fetching QAs' };
+    return handleApiError(error, 'An error occurred while fetching QAs');
   }
 };
 
@@ -196,7 +224,7 @@ export const getCurrentUserQAs = async () => {
     const response = await api.get('/users/qa');
     return response.data;
   } catch (error: any) {
-    throw error.response?.data || { message: 'Error fetching your QAs' };
+    return handleApiError(error, 'Error fetching your QAs');
   }
 };
 
@@ -205,7 +233,7 @@ export const createQA = async (qaData: { userId: string; question: string; answe
     const response = await api.post('/admin/qa', qaData);
     return response.data;
   } catch (error: any) {
-    throw error.response?.data || { message: 'Error creating QA' };
+    return handleApiError(error, 'Error creating QA');
   }
 };
 
@@ -214,7 +242,7 @@ export const createUserQA = async (qaData: { question: string; answer: string; c
     const response = await api.post('/users/qa', qaData);
     return response.data;
   } catch (error: any) {
-    throw error.response?.data || { message: 'Error creating QA' };
+    return handleApiError(error, 'Error creating QA');
   }
 };
 
@@ -223,7 +251,7 @@ export const updateQA = async (id: string, qaData: { question: string; answer: s
     const response = await api.put(`/admin/qa/${id}`, qaData);
     return response.data;
   } catch (error: any) {
-    throw error.response?.data || { message: 'Error updating QA' };
+    return handleApiError(error, 'Error updating QA');
   }
 };
 
@@ -232,7 +260,7 @@ export const updateUserQA = async (id: string, qaData: { question: string; answe
     const response = await api.put(`/users/qa/${id}`, qaData);
     return response.data;
   } catch (error: any) {
-    throw error.response?.data || { message: 'Error updating QA' };
+    return handleApiError(error, 'Error updating QA');
   }
 };
 
@@ -241,7 +269,7 @@ export const deleteQA = async (id: string) => {
     const response = await api.delete(`/admin/qa/${id}`);
     return response.data;
   } catch (error: any) {
-    throw error.response?.data || { message: 'Error deleting QA' };
+    return handleApiError(error, 'Error deleting QA');
   }
 };
 
@@ -250,7 +278,7 @@ export const deleteUserQA = async (id: string) => {
     const response = await api.delete(`/users/qa/${id}`);
     return response.data;
   } catch (error: any) {
-    throw error.response?.data || { message: 'Error deleting QA' };
+    return handleApiError(error, 'Error deleting QA');
   }
 };
 
@@ -262,7 +290,7 @@ export const createPaymentOrder = async (amount: number) => {
     const response = await api.post('/payments/create-order', { amount });
     return response.data;
   } catch (error: any) {
-    throw error.response?.data || { message: 'Error creating payment order' };
+    return handleApiError(error, 'Error creating payment order');
   }
 };
 
@@ -271,7 +299,7 @@ export const getUserTransactions = async () => {
     const response = await api.get('/payments/transactions');
     return response.data;
   } catch (error: any) {
-    throw error.response?.data || { message: 'Error fetching transactions' };
+    return handleApiError(error, 'Error fetching transactions');
   }
 };
 
@@ -286,7 +314,7 @@ export const getAdminTransactions = async (params?: { page?: number; limit?: num
     const response = await api.get(`/admin/transactions?${queryParams.toString()}`);
     return response.data;
   } catch (error: any) {
-    throw error.response?.data || { message: 'Error fetching transactions' };
+    return handleApiError(error, 'Error fetching transactions');
   }
 };
 
@@ -295,7 +323,7 @@ export const getTransactionDetails = async (orderId: string) => {
     const response = await api.get(`/transactions/${orderId}`);
     return response.data;
   } catch (error: any) {
-    throw error.response?.data || { message: "Failed to fetch transaction details" };
+    return handleApiError(error, "Failed to fetch transaction details");
   }
 };
 
@@ -306,7 +334,7 @@ export const getChatbotData = async (userId: string) => {
     const response = await api.get(`/chatbot/${userId}`);
     return response.data;
   } catch (error: any) {
-    throw error.response?.data || { message: 'Error fetching chatbot data' };
+    return handleApiError(error, 'Error fetching chatbot data');
   }
 };
 
@@ -315,7 +343,7 @@ export const getUserChatbotData = async () => {
     const response = await api.get('/users/chatbot');
     return response.data;
   } catch (error: any) {
-    throw error.response?.data || { message: 'Error fetching chatbot data' };
+    return handleApiError(error, 'Error fetching chatbot data');
   }
 };
 
@@ -324,7 +352,7 @@ export const logUnansweredQuestion = async (userId: string, question: string) =>
     const response = await api.post('/chatbot/log', { userId, question });
     return response.data;
   } catch (error: any) {
-    throw error.response?.data || { message: 'Error logging question' };
+    return handleApiError(error, 'Error logging question');
   }
 };
 
@@ -342,7 +370,7 @@ export const uploadFile = async (file: File, userId?: string) => {
     });
     return response.data;
   } catch (error: any) {
-    throw error.response?.data || { message: 'Error uploading file' };
+    return handleApiError(error, 'Error uploading file');
   }
 };
 
@@ -355,7 +383,7 @@ export const scrapeWebsite = async (url: string, userId?: string) => {
     const response = await api.post('/scrape', payload);
     return response.data;
   } catch (error: any) {
-    throw error.response?.data || { message: 'Error scraping website' };
+    return handleApiError(error, 'Error scraping website');
   }
 };
 
@@ -364,7 +392,7 @@ export const getUserSources = async () => {
     const response = await api.get('/sources');
     return response.data;
   } catch (error: any) {
-    throw error.response?.data || { message: 'Error fetching sources' };
+    return handleApiError(error, 'Error fetching sources');
   }
 };
 
@@ -375,7 +403,7 @@ export const createTicket = async (ticketData: { title: string; description: str
     const response = await api.post('/ticket', ticketData);
     return response.data;
   } catch (error: any) {
-    throw error.response?.data || { message: 'Error creating ticket' };
+    return handleApiError(error, 'Error creating ticket');
   }
 };
 
@@ -384,7 +412,7 @@ export const getUserTickets = async () => {
     const response = await api.get('/my-tickets');
     return response.data;
   } catch (error: any) {
-    throw error.response?.data || { message: 'Error fetching tickets' };
+    return handleApiError(error, 'Error fetching tickets');
   }
 };
 
@@ -393,7 +421,7 @@ export const getTicketDetails = async (ticketId: string) => {
     const response = await api.get(`/ticket/${ticketId}`);
     return response.data;
   } catch (error: any) {
-    throw error.response?.data || { message: 'Error fetching ticket details' };
+    return handleApiError(error, 'Error fetching ticket details');
   }
 };
 
@@ -402,7 +430,7 @@ export const getAdminTickets = async () => {
     const response = await api.get('/all-tickets');
     return response.data;
   } catch (error: any) {
-    throw error.response?.data || { message: 'Error fetching admin tickets' };
+    return handleApiError(error, 'Error fetching admin tickets');
   }
 };
 
@@ -411,7 +439,7 @@ export const addTicketMessage = async (ticketId: string, message: string) => {
     const response = await api.post(`/ticket/${ticketId}/message`, { message });
     return response.data;
   } catch (error: any) {
-    throw error.response?.data || { message: 'Error sending message' };
+    return handleApiError(error, 'Error sending message');
   }
 };
 
@@ -420,7 +448,7 @@ export const updateTicketStatus = async (ticketId: string, status: string) => {
     const response = await api.patch(`/ticket/${ticketId}/status`, { status });
     return response.data;
   } catch (error: any) {
-    throw error.response?.data || { message: 'Error updating ticket status' };
+    return handleApiError(error, 'Error updating ticket status');
   }
 };
 
