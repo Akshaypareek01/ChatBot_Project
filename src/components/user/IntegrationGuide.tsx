@@ -27,7 +27,8 @@ interface IntegrationItem {
 }
 
 const getDefaultScriptUrl = () => {
-    const baseUrl = API_URL.replace('/api', '');
+    // Use regex to only replace /api at the end of the string to avoid matching subdomains like 'apis'
+    const baseUrl = API_URL.replace(/\/api$/, '');
     return `${baseUrl}/chatbot.js`;
 };
 

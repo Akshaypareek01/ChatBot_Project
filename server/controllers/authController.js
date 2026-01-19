@@ -153,6 +153,10 @@ const login = async (req, res) => {
             });
         }
 
+        if (!user.isApproved) {
+            return res.status(403).json({ message: 'Your account is pending admin approval. Please wait for the administrator to approve your account.' });
+        }
+
         if (!user.isActive) {
             return res.status(403).json({ message: 'Your account has been deactivated. Please contact support.' });
         }
@@ -175,7 +179,8 @@ const login = async (req, res) => {
                 email: user.email,
                 website: user.website,
                 isActive: user.isActive,
-                isVerified: user.isVerified
+                isVerified: user.isVerified,
+                isApproved: user.isApproved
             }
         });
     } catch (error) {

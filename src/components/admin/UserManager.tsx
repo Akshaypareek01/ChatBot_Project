@@ -3,7 +3,8 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Input } from '@/components/ui/input';
-import { Search, UserPlus, Link as LinkIcon, ExternalLink, Users2, Edit, Trash2, MessageSquare, Loader2, Wallet } from 'lucide-react';
+import { Search, UserPlus, Link as LinkIcon, ExternalLink, Users2, Edit, Trash2, MessageSquare, Loader2, Wallet, CheckCircle2, Ban, UserCheck, ShieldAlert } from 'lucide-react';
+import { Switch } from '@/components/ui/switch';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import ScriptGenerator from '../chatbot/ScriptGenerator';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from '@/components/ui/dialog';
@@ -20,6 +21,8 @@ interface UserFormData {
   password?: string;
   website: string;
   tokenBalance: number;
+  isActive?: boolean;
+  isApproved?: boolean;
 }
 
 interface User {
@@ -29,6 +32,7 @@ interface User {
   email: string;
   website: string;
   isActive: boolean;
+  isApproved: boolean;
   tokenBalance: number;
   createdAt?: string;
   lastActive?: string;
@@ -64,7 +68,9 @@ const UserManager = () => {
       name: '',
       email: '',
       website: '',
-      tokenBalance: 0
+      tokenBalance: 0,
+      isActive: true,
+      isApproved: true
     }
   });
 
@@ -132,7 +138,9 @@ const UserManager = () => {
       name: user.name,
       email: user.email,
       website: user.website,
-      tokenBalance: user.tokenBalance
+      tokenBalance: user.tokenBalance,
+      isActive: user.isActive,
+      isApproved: user.isApproved
     });
     setIsEditDialogOpen(true);
   };
@@ -145,7 +153,8 @@ const UserManager = () => {
         name: data.name,
         email: data.email,
         website: data.website,
-        isActive: selectedUser.isActive,
+        isActive: data.isActive ?? selectedUser.isActive,
+        isApproved: data.isApproved ?? selectedUser.isApproved,
         tokenBalance: data.tokenBalance
       });
 
@@ -300,7 +309,7 @@ const UserManager = () => {
                 <TableHead>User</TableHead>
                 <TableHead>Website</TableHead>
                 <TableHead>Tokens</TableHead>
-                <TableHead className="text-center">Chats</TableHead>
+                <TableHead className="text-center">Status</TableHead>
                 <TableHead className="text-right">Actions</TableHead>
               </TableRow>
             </TableHeader>
@@ -340,9 +349,53 @@ const UserManager = () => {
                         {user.tokenBalance?.toLocaleString()}
                       </div>
                     </TableCell>
-                    <TableCell className="text-center">{user.totalChats || 0}</TableCell>
+                    <TableCell className="text-center">
+                      <div className="flex flex-col items-center gap-1">
+                        {!user.isApproved ? (
+                          <div className="flex items-center text-amber-500 text-xs font-medium bg-amber-50 px-2 py-0.5 rounded-full border border-amber-100">
+                            <ShieldAlert className="h-3 w-3 mr-1" />
+                            Pending
+                          </div>
+                        ) : !user.isActive ? (
+                          <div className="flex items-center text-red-500 text-xs font-medium bg-red-50 px-2 py-0.5 rounded-full border border-red-100">
+                            <Ban className="h-3 w-3 mr-1" />
+                            Inactive
+                          </div>
+                        ) : (
+                          <div className="flex items-center text-green-600 text-xs font-medium bg-green-50 px-2 py-0.5 rounded-full border border-green-100">
+                            <CheckCircle2 className="h-3 w-3 mr-1" />
+                            Active
+                          </div>
+                        )}
+                      </div>
+                    </TableCell>
                     <TableCell className="text-right">
                       <div className="flex justify-end space-x-1">
+                        {!user.isApproved && (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="text-green-600 hover:text-green-700 hover:bg-green-50"
+                            onClick={async () => {
+                              try {
+                                await updateUser(user._id, {
+                                  name: user.name,
+                                  email: user.email,
+                                  website: user.website,
+                                  isActive: user.isActive,
+                                  isApproved: true,
+                                  tokenBalance: user.tokenBalance
+                                });
+                                toast.success('User approved successfully');
+                                fetchUsers();
+                              } catch (error) {
+                                toast.error('Failed to approve user');
+                              }
+                            }}
+                          >
+                            <UserCheck className="h-4 w-4" />
+                          </Button>
+                        )}
                         <Button variant="ghost" size="sm" onClick={() => handleEditClick(user)}>
                           <Edit className="h-4 w-4" />
                         </Button>
@@ -442,6 +495,46 @@ const UserManager = () => {
                   </FormItem>
                 )}
               />
+
+              <div className="grid grid-cols-2 gap-4">
+                <FormField
+                  control={editUserForm.control}
+                  name="isActive"
+                  render={({ field }) => (
+                    <FormItem className="flex flex-row items-center justify-between rounded-lg border p-3 shadow-sm">
+                      <div className="space-y-0.5">
+                        <FormLabel>Active Status</FormLabel>
+                        <FormDescription>Enable/Disable account</FormDescription>
+                      </div>
+                      <FormControl>
+                        <Switch
+                          checked={field.value}
+                          onCheckedChange={field.onChange}
+                        />
+                      </FormControl>
+                    </FormItem>
+                  )}
+                />
+
+                <FormField
+                  control={editUserForm.control}
+                  name="isApproved"
+                  render={({ field }) => (
+                    <FormItem className="flex flex-row items-center justify-between rounded-lg border p-3 shadow-sm">
+                      <div className="space-y-0.5">
+                        <FormLabel>Admin Approval</FormLabel>
+                        <FormDescription>Account approved</FormDescription>
+                      </div>
+                      <FormControl>
+                        <Switch
+                          checked={field.value}
+                          onCheckedChange={field.onChange}
+                        />
+                      </FormControl>
+                    </FormItem>
+                  )}
+                />
+              </div>
 
               <DialogFooter>
                 <Button type="button" variant="outline" onClick={() => setIsEditDialogOpen(false)}>Cancel</Button>

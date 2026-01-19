@@ -16,6 +16,7 @@ const getUsers = async (req, res) => {
         // Filter parameters
         const search = req.query.search || '';
         const isActive = req.query.isActive;
+        const isApproved = req.query.isApproved;
         const lowTokens = req.query.lowTokens === 'true';
 
         // Build query
@@ -30,6 +31,10 @@ const getUsers = async (req, res) => {
 
         if (isActive !== undefined) {
             query.isActive = isActive === 'true';
+        }
+
+        if (isApproved !== undefined) {
+            query.isApproved = isApproved === 'true';
         }
 
         if (lowTokens) {
@@ -94,6 +99,7 @@ const createUser = async (req, res) => {
             password: hashedPassword,
             website,
             isActive: true,
+            isApproved: true,
             tokenBalance: tokenBalance || 50000 // Default or Admin Provided
         });
 
@@ -120,9 +126,9 @@ const updateUser = async (req, res) => {
             return res.status(403).json({ message: 'Admin access required' });
         }
 
-        const { name, email, website, isActive, tokenBalance } = req.body;
+        const { name, email, website, isActive, isApproved, tokenBalance } = req.body;
 
-        const updateData = { name, email, website, isActive };
+        const updateData = { name, email, website, isActive, isApproved };
         if (tokenBalance !== undefined) {
             updateData.tokenBalance = tokenBalance;
         }

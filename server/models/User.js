@@ -56,6 +56,10 @@ const userSchema = new mongoose.Schema({
         type: Boolean,
         default: false
     },
+    isApproved: {
+        type: Boolean,
+        default: false
+    },
     verificationOTP: String,
     verificationOTPExpires: Date,
     resetOTP: String,

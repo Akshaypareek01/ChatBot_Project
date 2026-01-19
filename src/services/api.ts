@@ -127,13 +127,14 @@ export const updateUserPassword = async (passwordData: { currentPassword: string
 
 // --- Admin Services ---
 
-export const getUsers = async (params?: { page?: number; limit?: number; search?: string; isActive?: boolean; lowTokens?: boolean }) => {
+export const getUsers = async (params?: { page?: number; limit?: number; search?: string; isActive?: boolean; isApproved?: boolean; lowTokens?: boolean }) => {
   try {
     const queryParams = new URLSearchParams();
     if (params?.page) queryParams.append('page', params.page.toString());
     if (params?.limit) queryParams.append('limit', params.limit.toString());
     if (params?.search) queryParams.append('search', params.search);
     if (params?.isActive !== undefined) queryParams.append('isActive', params.isActive.toString());
+    if (params?.isApproved !== undefined) queryParams.append('isApproved', params.isApproved.toString());
     if (params?.lowTokens) queryParams.append('lowTokens', 'true');
 
     const response = await api.get(`/admin/users?${queryParams.toString()}`);
@@ -152,7 +153,7 @@ export const createUser = async (userData: { name: string; email: string; passwo
   }
 };
 
-export const updateUser = async (id: string, userData: { name: string; email: string; website: string; isActive: boolean; tokenBalance?: number }) => {
+export const updateUser = async (id: string, userData: { name: string; email: string; website: string; isActive: boolean; isApproved: boolean; tokenBalance?: number }) => {
   try {
     const response = await api.put(`/admin/users/${id}`, userData);
     return response.data;

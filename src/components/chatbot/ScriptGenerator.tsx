@@ -15,7 +15,8 @@ interface ScriptGeneratorProps {
 // Derive the chatbot script URL from API_URL
 // API_URL is like 'http://localhost:5001/api', we need 'http://localhost:5001/chatbot.js'
 const getDefaultScriptUrl = () => {
-  const baseUrl = API_URL.replace('/api', '');
+  // Use regex to only replace /api at the end of the string to avoid matching subdomains like 'apis'
+  const baseUrl = API_URL.replace(/\/api$/, '');
   return `${baseUrl}/chatbot.js`;
 };
 
