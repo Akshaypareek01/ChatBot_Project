@@ -11,6 +11,7 @@ const adminRoutes = require('./routes/adminRoutes');
 // const planRoutes = require('./routes/planRoutes'); // Removed
 const paymentRoutes = require('./routes/paymentRoutes');
 const chatbotRoutes = require('./routes/chatbotRoutes');
+const supportRoutes = require('./routes/supportRoutes');
 
 // Configure environment variables
 // Configure environment variables (moved to top)
@@ -58,6 +59,7 @@ app.use('/api', paymentRoutes); // This must be before userRoutes/adminRoutes to
 app.use('/api', chatbotRoutes);
 app.use('/api', userRoutes);
 app.use('/api', adminRoutes);
+app.use('/api', supportRoutes);
 
 // Cron Job for Subscription Expiration (Removed - Token System)
 // checkSubscriptionExpiration();

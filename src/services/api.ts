@@ -368,4 +368,60 @@ export const getUserSources = async () => {
   }
 };
 
+// --- Support Ticket Services ---
+
+export const createTicket = async (ticketData: { title: string; description: string }) => {
+  try {
+    const response = await api.post('/ticket', ticketData);
+    return response.data;
+  } catch (error: any) {
+    throw error.response?.data || { message: 'Error creating ticket' };
+  }
+};
+
+export const getUserTickets = async () => {
+  try {
+    const response = await api.get('/my-tickets');
+    return response.data;
+  } catch (error: any) {
+    throw error.response?.data || { message: 'Error fetching tickets' };
+  }
+};
+
+export const getTicketDetails = async (ticketId: string) => {
+  try {
+    const response = await api.get(`/ticket/${ticketId}`);
+    return response.data;
+  } catch (error: any) {
+    throw error.response?.data || { message: 'Error fetching ticket details' };
+  }
+};
+
+export const getAdminTickets = async () => {
+  try {
+    const response = await api.get('/all-tickets');
+    return response.data;
+  } catch (error: any) {
+    throw error.response?.data || { message: 'Error fetching admin tickets' };
+  }
+};
+
+export const addTicketMessage = async (ticketId: string, message: string) => {
+  try {
+    const response = await api.post(`/ticket/${ticketId}/message`, { message });
+    return response.data;
+  } catch (error: any) {
+    throw error.response?.data || { message: 'Error sending message' };
+  }
+};
+
+export const updateTicketStatus = async (ticketId: string, status: string) => {
+  try {
+    const response = await api.patch(`/ticket/${ticketId}/status`, { status });
+    return response.data;
+  } catch (error: any) {
+    throw error.response?.data || { message: 'Error updating ticket status' };
+  }
+};
+
 export default api;

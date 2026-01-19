@@ -8,6 +8,7 @@ import UserProfile from '@/components/user/UserProfile';
 import { getUserProfile } from '@/services/api';
 import { toast } from 'sonner';
 import UserTransactions from '@/components/user/UserTransactions';
+import SupportSystem from '@/components/user/SupportSystem';
 
 const UserDashboard = () => {
   const location = useLocation();
@@ -78,6 +79,7 @@ const UserDashboard = () => {
           <Route path="/qa" element={<UserKnowledgeBase />} />
           <Route path="/profile" element={<UserProfile />} />
           <Route path="/transactions" element={<UserTransactions />} />
+          <Route path="/support" element={<SupportSystem />} />
           <Route path="*" element={<Navigate to="/user" replace />} />
         </Routes>
       </UserLayout>

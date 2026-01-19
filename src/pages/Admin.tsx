@@ -8,6 +8,7 @@ import UserManager from '@/components/admin/UserManager';
 // import PlanManager from '@/components/admin/PlanManager'; // Removed
 import { toast } from 'sonner';
 import TransactionManager from '@/components/admin/TransactionManager';
+import AdminSupport from '@/components/admin/AdminSupport';
 
 const Settings = () => (
   <div className="space-y-8">
@@ -72,6 +73,7 @@ const Admin = () => {
           <Route path="/qa" element={<AdminKnowledgeBase />} />
           <Route path="/users" element={<UserManager />} />
           <Route path="/transactions" element={<TransactionManager />} />
+          <Route path="/support" element={<AdminSupport />} />
           <Route path="/settings" element={<Settings />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
