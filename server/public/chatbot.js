@@ -18,6 +18,79 @@
   fontLink.rel = 'stylesheet';
   document.head.appendChild(fontLink);
 
+  // 1.5 Google Translate Integration (Legacy Free Method)
+  const injectTranslateScript = () => {
+    const gDiv = document.createElement('div');
+    gDiv.id = 'google_translate_element';
+    gDiv.style.display = 'none';
+    document.body.appendChild(gDiv);
+
+    // Style to hide Google's default UI elements and custom scrollbars
+    const style = document.createElement('style');
+    style.innerHTML = `
+      .goog-te-banner-frame.skiptranslate, .goog-te-gadget-icon, .goog-te-gadget-simple span { display: none !important; }
+      body { top: 0px !important; }
+      .goog-te-menu-value { display: none !important; }
+      .skiptranslate { display: none !important; }
+      iframe.goog-te-menu-frame { display: none !important; }
+      #google_translate_element { display: none !important; }
+      .goog-tooltip { display: none !important; }
+      .goog-tooltip:hover { display: none !important; }
+      .goog-text-highlight { background-color: transparent !important; box-shadow: none !important; }
+      
+      /* Neural Slim Scrollbars */
+      #neural-chat-body::-webkit-scrollbar, 
+      #neural-lang-body::-webkit-scrollbar {
+        width: 4px;
+      }
+      #neural-chat-body::-webkit-scrollbar-track, 
+      #neural-lang-body::-webkit-scrollbar-track {
+        background: rgba(255, 255, 255, 0.02);
+      }
+      #neural-chat-body::-webkit-scrollbar-thumb, 
+      #neural-lang-body::-webkit-scrollbar-thumb {
+        background: rgba(34, 211, 238, 0.3);
+        border-radius: 10px;
+        transition: background 0.3s;
+      }
+      #neural-chat-body::-webkit-scrollbar-thumb:hover, 
+      #neural-lang-body::-webkit-scrollbar-thumb:hover {
+        background: rgba(34, 211, 238, 0.8);
+        box-shadow: 0 0 10px rgba(34, 211, 238, 0.5);
+      }
+    `;
+    document.head.appendChild(style);
+
+    window.googleTranslateElementInit = function () {
+      new google.translate.TranslateElement({
+        pageLanguage: 'en',
+        layout: google.translate.TranslateElement.InlineLayout.SIMPLE,
+        autoDisplay: false
+      }, 'google_translate_element');
+    };
+
+    const script = document.createElement('script');
+    script.src = 'https://translate.google.com/translate_a/element.js?cb=googleTranslateElementInit';
+    document.head.appendChild(script);
+  };
+
+  const changeLanguage = (langCode) => {
+    // 1. Update the cookie that Google Translate uses
+    // Format: /source_lang/target_lang
+    document.cookie = `googtrans=/en/${langCode}; path=/`;
+    document.cookie = `googtrans=/en/${langCode}; path=/; domain=${window.location.hostname}`;
+
+    // 2. Try to trigger the dropdown if it exists
+    const select = document.querySelector('.goog-te-combo');
+    if (select) {
+      select.value = langCode;
+      select.dispatchEvent(new Event('change'));
+    } else {
+      // 3. Fallback: If engine isn't ready, reload with the cookie set
+      window.location.reload();
+    }
+  };
+
   // 2. Create Chatbot UI with Premium Styles
   const createChatbotUI = (brandName) => {
     // Container
@@ -74,177 +147,207 @@
       }
     };
 
-    // Main Window (Glassmorphism effect)
-    const chatWindow = document.createElement('div');
-    Object.assign(chatWindow.style, {
-      width: '380px',
-      height: '600px',
-      maxHeight: '80vh',
-      backgroundColor: '#ffffff',
-      borderRadius: '20px',
-      boxShadow: '0 12px 40px rgba(0, 0, 0, 0.12)',
-      overflow: 'hidden',
-      display: 'none', // Start hidden
-      flexDirection: 'column',
+    // State
+    let isOpen = false;
+
+    // 2. Chat Drawer Backdrop
+    const backdrop = document.createElement('div');
+    Object.assign(backdrop.style, {
+      position: 'fixed',
+      top: '0',
+      left: '0',
+      width: '100%',
+      height: '100%',
+      backgroundColor: 'rgba(0,0,0,0.6)',
+      backdropFilter: 'blur(4px)',
+      zIndex: '2147483648',
+      display: 'none',
       opacity: '0',
-      transform: 'scale(0.85) translateY(20px)', // Start smaller and lower
-      transition: 'all 0.4s cubic-bezier(0.34, 1.56, 0.64, 1)', // Bouncy easing
-      transformOrigin: 'bottom right', // Animate from bottom right corner
-      border: '1px solid rgba(0, 0, 0, 0.05)'
+      transition: 'opacity 0.4s ease'
+    });
+    document.body.appendChild(backdrop);
+
+    // 3. Main Chat Drawer
+    const chatWindow = document.createElement('div');
+    chatWindow.className = 'notranslate';
+    Object.assign(chatWindow.style, {
+      position: 'fixed',
+      top: '0',
+      right: '-420px', // Start hidden
+      width: '400px',
+      maxWidth: '90vw',
+      height: '100%',
+      backgroundColor: '#0B0F17', // Neural Dark
+      zIndex: '2147483649',
+      boxShadow: '-8px 0 32px rgba(0,0,0,0.5)',
+      display: 'flex',
+      flexDirection: 'column',
+      transition: 'right 0.4s cubic-bezier(0.4, 0, 0.2, 1)',
+      fontFamily: '"Inter", "JetBrains Mono", monospace'
     });
 
-    // Header
+    // Header (Futuristic Neural Style)
     const header = document.createElement('div');
     Object.assign(header.style, {
-      background: 'linear-gradient(135deg, #2563EB 0%, #1D4ED8 100%)',
-      padding: '20px',
-      color: 'white',
+      padding: '24px',
+      background: '#0F172A',
+      borderBottom: '1px solid rgba(34, 211, 238, 0.1)',
       display: 'flex',
       justifyContent: 'space-between',
       alignItems: 'center',
-      boxShadow: '0 2px 10px rgba(37, 99, 235, 0.2)'
+      position: 'relative'
     });
 
-    const headerTitle = document.createElement('h3');
-    headerTitle.textContent = brandName || 'Chat Support';
-    Object.assign(headerTitle.style, {
-      margin: '0',
-      fontSize: '18px',
-      fontWeight: '600',
-      letterSpacing: '-0.02em'
-    });
+    const headerTitleContainer = document.createElement('div');
+    headerTitleContainer.innerHTML = `
+      <div style="display: flex; align-items: center; gap: 10px;">
+        <div style="width: 8px; height: 8px; border-radius: 50%; background: #22D3EE; box-shadow: 0 0 10px #22D3EE;"></div>
+        <h3 style="margin:0; font-size: 14px; color: white; font-weight: 700; text-transform: uppercase; letter-spacing: 0.1em;">${brandName || 'AI Agent'}</h3>
+      </div>
+    `;
 
     const closeBtn = document.createElement('button');
-    closeBtn.innerHTML = `
-      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-        <line x1="18" y1="6" x2="6" y2="18"></line>
-        <line x1="6" y1="6" x2="18" y2="18"></line>
-      </svg>
-    `;
+    closeBtn.innerHTML = '✕';
     Object.assign(closeBtn.style, {
-      background: 'rgba(255,255,255,0.2)',
-      border: 'none',
+      background: 'rgba(255,255,255,0.05)',
+      border: '1px solid rgba(255,255,255,0.1)',
       color: 'white',
-      borderRadius: '50%',
-      width: '32px',
-      height: '32px',
-      display: 'flex',
-      alignItems: 'center',
-      justifyContent: 'center',
+      borderRadius: '8px',
+      padding: '8px 12px',
       cursor: 'pointer',
-      transition: 'background 0.2s'
+      fontSize: '14px',
+      transition: 'all 0.2s'
     });
-    closeBtn.onmouseover = () => closeBtn.style.background = 'rgba(255,255,255,0.3)';
-    closeBtn.onmouseout = () => closeBtn.style.background = 'rgba(255,255,255,0.2)';
+    closeBtn.onmouseover = () => {
+      closeBtn.style.background = 'rgba(255,255,255,0.1)';
+      closeBtn.style.borderColor = '#22D3EE';
+    };
+    closeBtn.onmouseout = () => {
+      closeBtn.style.background = 'rgba(255,255,255,0.05)';
+      closeBtn.style.borderColor = 'rgba(255,255,255,0.1)';
+    };
 
-    header.appendChild(headerTitle);
+    header.appendChild(headerTitleContainer);
     header.appendChild(closeBtn);
     chatWindow.appendChild(header);
 
     // Chat Body
     const chatBody = document.createElement('div');
+    chatBody.id = 'neural-chat-body';
     Object.assign(chatBody.style, {
       flex: '1',
-      padding: '20px',
+      padding: '24px',
       overflowY: 'auto',
       display: 'flex',
       flexDirection: 'column',
-      gap: '12px',
-      backgroundColor: '#F8FAFC' // Light gray background
+      gap: '24px',
+      backgroundColor: '#0B0F17' // Neural Dark
     });
     chatWindow.appendChild(chatBody);
 
     // Input Area
     const inputArea = document.createElement('div');
     Object.assign(inputArea.style, {
-      padding: '16px',
-      backgroundColor: 'white',
-      borderTop: '1px solid #EEF2FF',
+      padding: '20px',
+      backgroundColor: '#0F172A',
+      borderTop: '1px solid rgba(34, 211, 238, 0.1)',
       display: 'flex',
-      gap: '10px'
+      flexDirection: 'column',
+      gap: '12px'
+    });
+
+    const inputWrapper = document.createElement('div');
+    Object.assign(inputWrapper.style, {
+      display: 'flex',
+      gap: '10px',
+      alignItems: 'center'
     });
 
     const input = document.createElement('input');
-    input.placeholder = 'Message...';
+    input.placeholder = 'Inquire Neural Agent...';
     Object.assign(input.style, {
       flex: '1',
       padding: '12px 16px',
-      border: '1px solid #E2E8F0',
-      borderRadius: '24px',
-      fontSize: '15px',
+      border: '1px solid rgba(255,255,255,0.1)',
+      backgroundColor: 'rgba(255,255,255,0.03)',
+      borderRadius: '12px',
+      fontSize: '14px',
+      color: 'white',
       outline: 'none',
       fontFamily: 'inherit',
-      transition: 'border-color 0.2s'
+      transition: 'all 0.2s'
     });
-    input.onfocus = () => input.style.borderColor = '#2563EB';
-    input.onblur = () => input.style.borderColor = '#E2E8F0';
+    input.onfocus = () => {
+      input.style.borderColor = '#22D3EE';
+      input.style.backgroundColor = 'rgba(34, 211, 238, 0.05)';
+    };
+    input.onblur = () => {
+      input.style.borderColor = 'rgba(255,255,255,0.1)';
+      input.style.backgroundColor = 'rgba(255,255,255,0.03)';
+    };
 
     const sendBtn = document.createElement('button');
     Object.assign(sendBtn.style, {
-      background: '#2563EB',
-      color: 'white',
+      background: '#22D3EE',
+      color: '#0B0F17',
       border: 'none',
-      borderRadius: '50%',
-      width: '44px',
-      height: '44px',
+      borderRadius: '10px',
+      width: '42px',
+      height: '42px',
       display: 'flex',
       alignItems: 'center',
       justifyContent: 'center',
       cursor: 'pointer',
-      boxShadow: '0 2px 8px rgba(37, 99, 235, 0.2)',
-      transition: 'transform 0.2s'
+      transition: 'all 0.2s',
+      boxShadow: '0 0 15px rgba(34, 211, 238, 0.3)'
     });
-    sendBtn.onmousedown = () => sendBtn.style.transform = 'scale(0.95)';
-    sendBtn.onmouseup = () => sendBtn.style.transform = 'scale(1)';
     sendBtn.innerHTML = `
-      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
         <line x1="22" y1="2" x2="11" y2="13"></line>
         <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
       </svg>
     `;
+    sendBtn.onmouseover = () => {
+      sendBtn.style.transform = 'scale(1.05)';
+      sendBtn.style.boxShadow = '0 0 20px rgba(34, 211, 238, 0.5)';
+    };
 
-    inputArea.appendChild(input);
-    inputArea.appendChild(sendBtn);
+    inputWrapper.appendChild(input);
+    inputWrapper.appendChild(sendBtn);
+    inputArea.appendChild(inputWrapper);
+
+    // Branding Footer
+    const branding = document.createElement('div');
+    Object.assign(branding.style, {
+      textAlign: 'center',
+      marginTop: '4px'
+    });
+    branding.innerHTML = `
+      <p style="margin:0; font-size: 9px; color: #475569; text-transform: uppercase; letter-spacing: 0.1em;">Powered By</p>
+      <p style="margin:2px 0 0; font-size: 11px; color: #64748B; font-weight: 600;">Nvhotech Private Limited</p>
+    `;
+    inputArea.appendChild(branding);
+
     chatWindow.appendChild(inputArea);
-
-    container.appendChild(chatWindow);
-    container.appendChild(button); // Button below window
-
-    // State & Animations
-    let isOpen = false;
+    document.body.appendChild(chatWindow);
+    container.appendChild(button);
 
     const toggleChat = () => {
       isOpen = !isOpen;
       if (isOpen) {
-        chatWindow.style.display = 'flex';
-        // Need frame for transition
-        requestAnimationFrame(() => {
-          chatWindow.style.opacity = '1';
-          chatWindow.style.transform = 'scale(1) translateY(0)'; // Scale to full size
-        });
-        // Button transforms with rotation
-        button.style.transform = 'scale(0.85) rotate(90deg)';
-        button.style.boxShadow = '0 6px 20px rgba(37, 99, 235, 0.4)';
-        button.innerHTML = `
-          <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-            <line x1="18" y1="6" x2="6" y2="18"></line>
-            <line x1="6" y1="6" x2="18" y2="18"></line>
-          </svg>
-        `;
-      } else {
-        chatWindow.style.opacity = '0';
-        chatWindow.style.transform = 'scale(0.85) translateY(20px)'; // Scale down and slide
+        backdrop.style.display = 'block';
         setTimeout(() => {
-          if (!isOpen) chatWindow.style.display = 'none';
-        }, 400); // Match transition duration
-        // Button returns to normal
-        button.style.transform = 'scale(1) rotate(0deg)';
-        button.style.boxShadow = '0 8px 24px rgba(37, 99, 235, 0.35)';
-        button.innerHTML = `
-          <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
-          </svg>
-        `;
+          backdrop.style.opacity = '1';
+          chatWindow.style.right = '0';
+        }, 10);
+        document.body.style.overflow = 'hidden';
+      } else {
+        backdrop.style.opacity = '0';
+        chatWindow.style.right = '-420px';
+        setTimeout(() => {
+          backdrop.style.display = 'none';
+          document.body.style.overflow = '';
+        }, 400);
       }
     };
 
@@ -261,83 +364,314 @@
     return { chatBody, input, sendBtn };
   };
 
-  // Helper: Message Bubbles
+  // Helper: Neural Message Bubbles
   const addMessage = (target, type, text) => {
-    const bubble = document.createElement('div');
-    Object.assign(bubble.style, {
-      maxWidth: '85%',
-      padding: '12px 16px',
-      borderRadius: '16px',
-      fontSize: '14px',
-      lineHeight: '1.5',
-      position: 'relative',
-      wordWrap: 'break-word',
-      animation: 'fadeIn 0.3s ease-out'
+    const container = document.createElement('div');
+    Object.assign(container.style, {
+      display: 'flex',
+      flexDirection: 'column',
+      gap: '8px',
+      animation: 'fadeIn 0.4s ease-out'
     });
 
+    const timeStr = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false });
+
     if (type === 'user') {
-      Object.assign(bubble.style, {
-        alignSelf: 'flex-end',
-        backgroundColor: '#2563EB',
-        color: 'white',
-        borderBottomRightRadius: '4px'
-      });
+      container.innerHTML = `
+        <div style="display: flex; justify-content: space-between; align-items: baseline;">
+          <span style="font-size: 11px; font-weight: 700; color: white; letter-spacing: 0.1em;">USER</span>
+          <span style="font-size: 10px; color: #475569;">${timeStr}</span>
+        </div>
+        <div style="padding: 16px; background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.08); border-radius: 12px; color: #94A3B8; font-size: 14px; line-height: 1.6; font-family: 'JetBrains Mono', monospace;">
+          ${text}
+        </div>
+      `;
     } else {
-      Object.assign(bubble.style, {
-        alignSelf: 'flex-start',
-        backgroundColor: 'white',
-        color: '#1E293B',
-        border: '1px solid #E2E8F0',
-        borderBottomLeftRadius: '4px',
-        boxShadow: '0 1px 2px rgba(0,0,0,0.05)'
-      });
+      container.innerHTML = `
+        <div style="display: flex; justify-content: space-between; align-items: baseline;">
+          <span style="font-size: 11px; font-weight: 700; color: #22D3EE; letter-spacing: 0.1em;">AGENT</span>
+          <span style="font-size: 10px; color: #475569;">${timeStr}</span>
+        </div>
+        <div style="padding: 18px; background: rgba(34, 211, 238, 0.03); border: 1px solid rgba(34, 211, 238, 0.15); border-radius: 12px; color: white; font-size: 14px; line-height: 1.6; box-shadow: 0 4px 20px rgba(0,0,0,0.2);">
+          ${text}
+        </div>
+      `;
     }
 
-    bubble.innerText = text;
-    target.appendChild(bubble);
+    target.appendChild(container);
     target.scrollTop = target.scrollHeight;
   };
 
-  // Helper: Typing Indicator
+  // Helper: Neural Typing Indicator
   const addTyping = (target) => {
     const loader = document.createElement('div');
     loader.id = 'chatbot-typing-indicator';
     Object.assign(loader.style, {
-      alignSelf: 'flex-start',
-      backgroundColor: 'white',
-      padding: '12px 16px',
-      borderRadius: '16px',
-      borderBottomLeftRadius: '4px',
-      border: '1px solid #E2E8F0',
       display: 'flex',
-      gap: '4px',
-      alignItems: 'center',
-      width: 'fit-content'
+      flexDirection: 'column',
+      gap: '8px',
+      animation: 'fadeIn 0.3s ease-out'
     });
 
-    [0, 1, 2].forEach(i => {
-      const dot = document.createElement('div');
-      Object.assign(dot.style, {
-        width: '6px',
-        height: '6px',
-        backgroundColor: '#94A3B8',
-        borderRadius: '50%',
-        animation: `bounce 1.4s infinite ease-in-out both ${i * 0.16}s`
-      });
-      loader.appendChild(dot);
-    });
-
-    // Inject Keyframes for dots & fade
-    const styleSheet = document.createElement('style');
-    styleSheet.innerText = `
-      @keyframes bounce { 0%, 80%, 100% { transform: scale(0); } 40% { transform: scale(1); } }
-      @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+    loader.innerHTML = `
+      <div style="display: flex; justify-content: space-between; align-items: baseline;">
+        <span style="font-size: 11px; font-weight: 700; color: #22D3EE; letter-spacing: 0.1em;">PROCESSING</span>
+        <span style="font-size: 9px; color: #22D3EE; font-weight: 600;">REAL-TIME</span>
+      </div>
+      <div style="padding: 14px 18px; background: rgba(34, 211, 238, 0.02); border: 1px dashed rgba(34, 211, 238, 0.3); border-radius: 12px; display: flex; align-items: center; gap: 12px; color: #22D3EE; font-size: 13px;">
+        <div class="neural-spin" style="width: 14px; height: 14px; border: 2px solid #22D3EE; border-top-color: transparent; border-radius: 50%;"></div>
+        <span>Synchronizing with high-speed nodes...</span>
+      </div>
     `;
-    document.head.appendChild(styleSheet);
+
+    // Add spin animation if not exists
+    if (!document.getElementById('neural-style')) {
+      const style = document.createElement('style');
+      style.id = 'neural-style';
+      style.innerText = `
+        @keyframes neural-spin { to { transform: rotate(360deg); } }
+        .neural-spin { animation: neural-spin 0.8s linear infinite; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+      `;
+      document.head.appendChild(style);
+    }
 
     target.appendChild(loader);
-    target.scrollTop = target.scrollHeight; // Scroll to bottom
+    target.scrollTop = target.scrollHeight;
     return loader;
+  };
+
+
+  // 3. Global Language Switcher (Side Drawer Version)
+  const createGlobalLanguageSwitcher = () => {
+    // 1. Trigger Button
+    const container = document.createElement('div');
+    container.id = 'global-lang-switcher';
+    container.className = 'notranslate';
+    Object.assign(container.style, {
+      position: 'fixed',
+      top: '20px',
+      right: '20px',
+      zIndex: '2147483646',
+      fontFamily: '"Inter", sans-serif'
+    });
+
+    const langBtn = document.createElement('button');
+    langBtn.innerHTML = `
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+        <circle cx="12" cy="12" r="10"></circle>
+        <line x1="2" y1="12" x2="22" y2="12"></line>
+        <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"></path>
+      </svg>
+      <span style="font-weight: 600; font-size: 13px;">Language</span>
+    `;
+    Object.assign(langBtn.style, {
+      backgroundColor: 'white',
+      border: '1px solid #E2E8F0',
+      borderRadius: '20px',
+      padding: '8px 16px',
+      display: 'flex',
+      alignItems: 'center',
+      gap: '8px',
+      cursor: 'pointer',
+      boxShadow: '0 4px 12px rgba(0,0,0,0.08)',
+      color: '#1E293B',
+      transition: 'all 0.3s ease'
+    });
+
+    // 2. Drawer Backdrop
+    const backdrop = document.createElement('div');
+    Object.assign(backdrop.style, {
+      position: 'fixed',
+      top: '0',
+      left: '0',
+      width: '100%',
+      height: '100%',
+      backgroundColor: 'rgba(0,0,0,0.4)',
+      backdropFilter: 'blur(2px)',
+      zIndex: '2147483648',
+      display: 'none',
+      opacity: '0',
+      transition: 'opacity 0.3s ease'
+    });
+
+    // 3. Side Drawer
+    const drawer = document.createElement('div');
+    drawer.className = 'notranslate';
+    drawer.setAttribute('translate', 'no');
+    Object.assign(drawer.style, {
+      position: 'fixed',
+      top: '0',
+      right: '-320px', // Start hidden
+      width: '280px',
+      height: '100%',
+      backgroundColor: '#0B0F17', // Neural Dark
+      zIndex: '2147483649',
+      boxShadow: '-8px 0 32px rgba(0,0,0,0.5)',
+      display: 'flex',
+      flexDirection: 'column',
+      transition: 'right 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+      fontFamily: '"Inter", "JetBrains Mono", monospace'
+    });
+
+    // Drawer Header
+    const drawerHeader = document.createElement('div');
+    Object.assign(drawerHeader.style, {
+      padding: '24px',
+      background: '#0F172A',
+      borderBottom: '1px solid rgba(34, 211, 238, 0.1)',
+      display: 'flex',
+      justifyContent: 'space-between',
+      alignItems: 'center'
+    });
+    drawerHeader.innerHTML = `
+      <div style="display: flex; align-items: center; gap: 10px;">
+        <div style="width: 6px; height: 6px; border-radius: 50%; background: #22D3EE; box-shadow: 0 0 10px #22D3EE;"></div>
+        <h3 style="margin:0; font-size: 14px; color: white; font-weight: 700; text-transform: uppercase; letter-spacing: 0.1em;">Select Language</h3>
+      </div>
+    `;
+
+    const closeDrawerBtn = document.createElement('button');
+    closeDrawerBtn.innerHTML = '✕';
+    Object.assign(closeDrawerBtn.style, {
+      border: '1px solid rgba(255,255,255,0.1)',
+      background: 'rgba(255,255,255,0.05)',
+      width: '32px',
+      height: '32px',
+      borderRadius: '8px',
+      cursor: 'pointer',
+      color: 'white',
+      fontSize: '12px',
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      transition: 'all 0.2s'
+    });
+    closeDrawerBtn.onmouseover = () => {
+      closeDrawerBtn.style.background = 'rgba(255,255,255,0.1)';
+      closeDrawerBtn.style.borderColor = '#22D3EE';
+    };
+    closeDrawerBtn.onmouseout = () => {
+      closeDrawerBtn.style.background = 'rgba(255,255,255,0.05)';
+      closeDrawerBtn.style.borderColor = 'rgba(255,255,255,0.1)';
+    };
+
+    // Drawer Body (Language List)
+    const drawerBody = document.createElement('div');
+    drawerBody.id = 'neural-lang-body';
+    Object.assign(drawerBody.style, {
+      flex: '1',
+      overflowY: 'auto',
+      padding: '16px',
+      backgroundColor: '#0B0F17'
+    });
+
+    // Drawer Footer (Branding)
+    const drawerFooter = document.createElement('div');
+    Object.assign(drawerFooter.style, {
+      padding: '20px',
+      borderTop: '1px solid rgba(34, 211, 238, 0.1)',
+      textAlign: 'center',
+      backgroundColor: '#0F172A'
+    });
+    drawerFooter.innerHTML = `
+      <p style="margin:0; font-size: 9px; color: #475569; text-transform: uppercase; letter-spacing: 0.1em;">Powered By</p>
+      <p style="margin:2px 0 0; font-size: 11px; color: #64748B; font-weight: 600;">Nvhotech Private Limited</p>
+    `;
+
+    const languages = [
+      { name: 'English', code: 'en' },
+      { name: 'Hindi', code: 'hi' },
+      { name: 'Gujarati', code: 'gu' },
+      { name: 'Marathi', code: 'mr' },
+      { name: 'Bengali', code: 'bn' },
+      { name: 'Tamil', code: 'ta' },
+      { name: 'Telugu', code: 'te' },
+      { name: 'Kannada', code: 'kn' },
+      { name: 'Spanish', code: 'es' },
+      { name: 'French', code: 'fr' },
+      { name: 'Arabic', code: 'ar' },
+      { name: 'German', code: 'de' },
+      { name: 'Chinese (Simp)', code: 'zh-CN' },
+      { name: 'Japanese', code: 'ja' },
+      { name: 'Korean', code: 'ko' },
+      { name: 'Portuguese', code: 'pt' },
+      { name: 'Russian', code: 'ru' },
+      { name: 'Italian', code: 'it' },
+      { name: 'Turkish', code: 'tr' }
+    ];
+
+    languages.forEach(lang => {
+      const item = document.createElement('button');
+      item.innerHTML = `
+        <span>${lang.name}</span>
+        <span style="opacity: 0.4; font-size: 12px;">${lang.code.toUpperCase()}</span>
+      `;
+      Object.assign(item.style, {
+        width: '100%',
+        padding: '12px 16px',
+        border: '1px solid rgba(255,255,255,0.05)',
+        background: 'rgba(255,255,255,0.02)',
+        display: 'flex',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        cursor: 'pointer',
+        fontSize: '13px',
+        borderRadius: '10px',
+        color: '#94A3B8',
+        transition: 'all 0.2s',
+        marginBottom: '8px',
+        fontFamily: 'inherit',
+        fontWeight: '500'
+      });
+      item.onclick = () => {
+        changeLanguage(lang.code);
+        closeDrawer();
+      };
+      item.onmouseover = () => {
+        item.style.backgroundColor = 'rgba(34, 211, 238, 0.05)';
+        item.style.borderColor = 'rgba(34, 211, 238, 0.3)';
+        item.style.color = '#22D3EE';
+      };
+      item.onmouseout = () => {
+        item.style.backgroundColor = 'rgba(255,255,255,0.02)';
+        item.style.borderColor = 'rgba(255,255,255,0.05)';
+        item.style.color = '#94A3B8';
+      };
+      drawerBody.appendChild(item);
+    });
+
+    const openDrawer = () => {
+      backdrop.style.display = 'block';
+      setTimeout(() => {
+        backdrop.style.opacity = '1';
+        drawer.style.right = '0';
+      }, 10);
+      document.body.style.overflow = 'hidden'; // Prevent page scroll
+    };
+
+    const closeDrawer = () => {
+      backdrop.style.opacity = '0';
+      drawer.style.right = '-320px';
+      setTimeout(() => {
+        backdrop.style.display = 'none';
+        document.body.style.overflow = '';
+      }, 300);
+    };
+
+    langBtn.onclick = openDrawer;
+    closeDrawerBtn.onclick = closeDrawer;
+    backdrop.onclick = closeDrawer;
+
+    drawerHeader.appendChild(closeDrawerBtn);
+    drawer.appendChild(drawerHeader);
+    drawer.appendChild(drawerBody);
+    drawer.appendChild(drawerFooter);
+
+    container.appendChild(langBtn);
+    document.body.appendChild(container);
+    document.body.appendChild(backdrop);
+    document.body.appendChild(drawer);
   };
 
   // Logic: Initialize
@@ -353,6 +687,12 @@
       }
 
       const { chatBody, input, sendBtn } = createChatbotUI(data.name);
+
+      // Initialize translation engine
+      injectTranslateScript();
+
+      // Initialize Global Language Switcher
+      createGlobalLanguageSwitcher();
 
       if (data.isOffline) {
         // Disable interaction
