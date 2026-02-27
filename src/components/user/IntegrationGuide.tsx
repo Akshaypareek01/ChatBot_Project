@@ -143,6 +143,37 @@ const IntegrationGuide = ({ userId }: { userId: string }) => {
             ]
         },
         {
+            id: "wix",
+            title: "Wix",
+            description: "Wix website builder",
+            steps: [
+                "In Wix Editor, go to Settings → Custom Code",
+                "Add a new code snippet (Body - end)",
+                "Paste the script and apply to All pages or specific pages",
+                "Publish your site"
+            ],
+            code: `<script\n  src="https://api.yourdomain.com/chatbot.js"\n  data-user-id="{{USER_ID}}"\n  data-bot-id="default"\n  defer\n></script>`,
+            notes: [
+                "Use 'Body - end' so the script loads after page content",
+                "Clear Wix cache after adding the code"
+            ]
+        },
+        {
+            id: "squarespace",
+            title: "Squarespace",
+            description: "Squarespace 7 and 7.1",
+            steps: [
+                "Go to Settings → Advanced → Code Injection",
+                "Paste the script in the Footer section",
+                "Save and refresh your site"
+            ],
+            code: `<script\n  src="https://api.yourdomain.com/chatbot.js"\n  data-user-id="{{USER_ID}}"\n  data-bot-id="default"\n  defer\n></script>`,
+            notes: [
+                "Footer code runs on every page",
+                "For Squarespace 7.1, use Code Injection in site-wide settings"
+            ]
+        },
+        {
             id: "other",
             title: "Other / Custom Website",
             description: "Any platform not listed above",
@@ -165,6 +196,8 @@ const IntegrationGuide = ({ userId }: { userId: string }) => {
             case 'nextjs': return <div className="w-12 h-12 flex items-center justify-center bg-black/10 dark:bg-white/10 rounded-2xl text-black dark:text-white"><Code className="w-6 h-6" /></div>;
             case 'wordpress': return <div className="w-12 h-12 flex items-center justify-center bg-[#21759b]/10 rounded-2xl text-[#21759b]"><ExternalLink className="w-6 h-6" /></div>;
             case 'shopify': return <div className="w-12 h-12 flex items-center justify-center bg-[#95BF47]/10 rounded-2xl text-[#95BF47]"><ExternalLink className="w-6 h-6" /></div>;
+            case 'wix': return <div className="w-12 h-12 flex items-center justify-center bg-[#0C6EFC]/10 rounded-2xl text-[#0C6EFC]"><ExternalLink className="w-6 h-6" /></div>;
+            case 'squarespace': return <div className="w-12 h-12 flex items-center justify-center bg-[#000]/10 dark:bg-white/10 rounded-2xl text-[#000] dark:text-white"><ExternalLink className="w-6 h-6" /></div>;
             case 'html': return <div className="w-12 h-12 flex items-center justify-center bg-[#E34F26]/10 rounded-2xl text-[#E34F26]"><Code className="w-6 h-6" /></div>;
             default: return <div className="w-12 h-12 flex items-center justify-center bg-gray-500/10 rounded-2xl text-gray-500"><Code className="w-6 h-6" /></div>;
         }

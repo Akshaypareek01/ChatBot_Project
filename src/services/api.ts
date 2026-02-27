@@ -163,7 +163,7 @@ export const getUserProfile = async () => {
   }
 };
 
-export const updateUserProfile = async (userData: { name: string; website: string; brandName?: string }) => {
+export const updateUserProfile = async (userData: { name: string; website: string; brandName?: string; onboardingCompleted?: boolean }) => {
   try {
     const response = await api.put('/users/profile', userData);
     return response.data;
@@ -393,18 +393,46 @@ export const getUserChatbotData = async () => {
   }
 };
 
-export const getWidgetConfig = async () => {
-  const response = await api.get('/users/chatbot/config');
+export const getWidgetConfig = async (botId?: string | null) => {
+  const response = await api.get('/users/chatbot/config', botId ? { params: { botId } } : undefined);
   return response.data;
 };
 
-export const updateWidgetConfig = async (config: Record<string, unknown>) => {
-  const response = await api.put('/users/chatbot/config', config);
+export const updateWidgetConfig = async (config: Record<string, unknown>, botId?: string | null) => {
+  const response = await api.put('/users/chatbot/config', { ...config, ...(botId ? { botId } : {}) });
   return response.data;
 };
 
-export const getConversations = async (params?: { page?: number; limit?: number; status?: string }) => {
+export const uploadWidgetAvatar = async (file: File) => {
+  const formData = new FormData();
+  formData.append('avatar', file);
+  const response = await api.post('/users/chatbot/avatar', formData, {
+    headers: { 'Content-Type': 'multipart/form-data' },
+  });
+  return response.data;
+};
+
+export const generateSuggestedQuestions = async () => {
+  const response = await api.get('/users/chatbot/suggested-questions/generate');
+  return response.data;
+};
+
+export const getConversations = async (params?: {
+  page?: number;
+  limit?: number;
+  status?: string;
+  keyword?: string;
+  dateFrom?: string;
+  dateTo?: string;
+  feedback?: string;
+  botId?: string | null;
+}) => {
   const response = await api.get('/users/conversations', { params });
+  return response.data;
+};
+
+export const updateConversation = async (id: string, data: { status?: string; rating?: number }) => {
+  const response = await api.patch(`/users/conversations/${id}`, data);
   return response.data;
 };
 
@@ -415,6 +443,59 @@ export const getConversationById = async (id: string) => {
 
 export const exportConversationsCsv = async () => {
   const response = await api.get('/users/conversations/export', { responseType: 'blob' });
+  return response.data;
+};
+
+export const exportLeadsCsv = async () => {
+  const response = await api.get('/users/conversations/leads/export', { responseType: 'blob' });
+  return response.data;
+};
+
+export const getFeedbackStats = async () => {
+  const response = await api.get('/users/feedback-stats');
+  return response.data;
+};
+
+/** User analytics dashboard (Phase 3.1): volume, totals, token breakdown, peak hours, satisfaction */
+export const getUserAnalytics = async (period: '7d' | '30d' | '90d' = '30d', botId?: string | null) => {
+  const response = await api.get('/users/analytics', { params: { period, ...(botId ? { botId } : {}) } });
+  return response.data;
+};
+
+/** Phase 3.4: In-app notifications */
+export const getNotifications = async (params?: { limit?: number; before?: string }) => {
+  const response = await api.get('/users/notifications', { params });
+  return response.data;
+};
+
+export const markNotificationRead = async (id: string) => {
+  const response = await api.patch(`/users/notifications/${id}/read`);
+  return response.data;
+};
+
+export const getNotificationPrefs = async () => {
+  const response = await api.get('/users/notification-prefs');
+  return response.data;
+};
+
+export const updateNotificationPrefs = async (prefs: { emailOnNewLead?: boolean; emailOnLowBalance?: boolean; emailSummary?: 'none' | 'daily' | 'weekly' }) => {
+  const response = await api.put('/users/notification-prefs', prefs);
+  return response.data;
+};
+
+/** Phase 3.5: Multi-bot */
+export const getBots = async () => {
+  const response = await api.get('/users/bots');
+  return response.data;
+};
+
+export const createBot = async (data: { name: string; slug?: string }) => {
+  const response = await api.post('/users/bots', data);
+  return response.data;
+};
+
+export const updateBot = async (id: string, data: { name?: string; slug?: string }) => {
+  const response = await api.patch(`/users/bots/${id}`, data);
   return response.data;
 };
 
@@ -445,17 +526,36 @@ export const uploadFile = async (file: File, userId?: string) => {
   }
 };
 
-export const scrapeWebsite = async (url: string, userId?: string) => {
+export const scrapeWebsite = async (url: string, options?: { userId?: string; maxDepth?: number }) => {
   try {
-    const payload: any = { url };
-    if (userId) {
-      payload.userId = userId;
-    }
+    const payload: { url: string; userId?: string; maxDepth?: number } = { url };
+    if (options?.userId) payload.userId = options.userId;
+    if (options?.maxDepth) payload.maxDepth = options.maxDepth;
     const response = await api.post('/scrape', payload);
     return response.data;
   } catch (error: any) {
     return handleApiError(error, 'Error scraping website');
   }
+};
+
+export const getScrapeStatus = async (jobId: string) => {
+  const response = await api.get(`/scrape/status/${jobId}`);
+  return response.data;
+};
+
+export const addPasteSource = async (title: string, content: string) => {
+  const response = await api.post('/sources/paste', { title, content });
+  return response.data;
+};
+
+export const updateSource = async (id: string, data: { scrapeSchedule?: string }) => {
+  const response = await api.patch(`/sources/${id}`, data);
+  return response.data;
+};
+
+export const getSourcesHealth = async () => {
+  const response = await api.get('/users/sources/health');
+  return response.data;
 };
 
 export const getUserSources = async () => {

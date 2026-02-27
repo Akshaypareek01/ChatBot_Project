@@ -1,11 +1,12 @@
 
 import React from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import { LayoutDashboard, MessageSquareText, User, LogOut, DollarSign, HelpCircle, Shield, Palette, MessagesSquare } from 'lucide-react';
+import { LayoutDashboard, MessageSquareText, User, LogOut, DollarSign, HelpCircle, Shield, Palette, MessagesSquare, BarChart2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
 import { cn } from '@/lib/utils';
-import ScriptGenerator from '../chatbot/ScriptGenerator';
+import NotificationBell from './NotificationBell';
+import BotSwitcher from './BotSwitcher';
 
 interface UserLayoutProps {
   children: React.ReactNode;
@@ -18,6 +19,7 @@ const UserLayout: React.FC<UserLayoutProps> = ({ children, onLogout, user }) => 
 
   const navItems = [
     { icon: LayoutDashboard, label: 'Dashboard', path: '/user' },
+    { icon: BarChart2, label: 'Analytics', path: '/user/analytics' },
     { icon: MessageSquareText, label: 'Knowledge Base', path: '/user/qa' },
     { icon: Palette, label: 'Widget', path: '/user/widget' },
     { icon: MessagesSquare, label: 'Conversations', path: '/user/conversations' },
@@ -32,14 +34,19 @@ const UserLayout: React.FC<UserLayoutProps> = ({ children, onLogout, user }) => 
       {/* Sidebar */}
       <aside className="w-64 bg-background border-r border-border hidden md:block">
         <div className="h-full flex flex-col">
-          <div className="p-6">
+          <div className="p-6 flex items-center justify-between">
             <div className="flex items-center space-x-2">
               <MessageSquareText className="h-6 w-6 text-primary" />
               <h1 className="font-semibold text-xl">IndicBot Dashboard</h1>
             </div>
+            <NotificationBell />
           </div>
 
           <Separator />
+
+          <div className="px-4 py-2">
+            <BotSwitcher />
+          </div>
 
           <nav className="flex-1 p-4">
             <ul className="space-y-1">
@@ -86,9 +93,10 @@ const UserLayout: React.FC<UserLayoutProps> = ({ children, onLogout, user }) => 
             <MessageSquareText className="h-5 w-5 text-primary" />
             <h1 className="font-semibold">IndicBot Dashboard</h1>
           </div>
-
-          {/* Mobile menu - simplified for this version */}
-          <div className="flex space-x-1">
+          <div className="flex items-center gap-1">
+            <NotificationBell />
+            {/* Mobile menu - simplified for this version */}
+            <div className="flex space-x-1">
             {navItems.map((item) => (
               <Link key={item.path} to={item.path}>
                 <Button
@@ -100,13 +108,14 @@ const UserLayout: React.FC<UserLayoutProps> = ({ children, onLogout, user }) => 
                 </Button>
               </Link>
             ))}
+            </div>
           </div>
         </div>
       </div>
 
-      {/* Main content */}
-      <main className="flex-1 overflow-auto pt-4 md:pt-0">
-        <div className="p-4 md:p-8 max-w-7xl mx-auto">
+      {/* Main content - pt for mobile fixed header */}
+      <main className="flex-1 overflow-auto pt-20 md:pt-4 md:pb-0 pb-8">
+        <div className="p-4 md:p-8 max-w-7xl mx-auto w-full overflow-x-hidden">
           {children}
         </div>
       </main>

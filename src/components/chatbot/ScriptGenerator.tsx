@@ -10,6 +10,8 @@ interface ScriptGeneratorProps {
   userId: string;
   scriptUrl?: string;
   websiteDomain?: string;
+  /** Phase 3.5: bot slug for multi-bot (data-bot-id attribute) */
+  botSlug?: string | null;
 }
 
 // Derive the chatbot script URL from API_URL
@@ -23,11 +25,13 @@ const getDefaultScriptUrl = () => {
 const ScriptGenerator: React.FC<ScriptGeneratorProps> = ({
   userId,
   scriptUrl = getDefaultScriptUrl(),
-  websiteDomain
+  websiteDomain,
+  botSlug
 }) => {
   const [copied, setCopied] = useState(false);
 
-  const scriptCode = `<script src="${scriptUrl}" data-user-id="${userId}" defer></script>`;
+  const botAttr = botSlug ? ` data-bot-id="${botSlug}"` : '';
+  const scriptCode = `<script src="${scriptUrl}" data-user-id="${userId}"${botAttr} defer></script>`;
 
   const handleCopy = () => {
     navigator.clipboard.writeText(scriptCode);

@@ -375,6 +375,7 @@ const UserTransactions = () => {
                 </div>
               ) : (
                 <div className="rounded-xl border overflow-hidden">
+                  <div className="overflow-x-auto -mx-4 md:mx-0">
                   <Table>
                     <TableHeader className="bg-muted/50">
                       <TableRow>
@@ -410,6 +411,7 @@ const UserTransactions = () => {
                       ))}
                     </TableBody>
                   </Table>
+                  </div>
                 </div>
               )}
             </CardContent>
@@ -433,7 +435,7 @@ const UserTransactions = () => {
                   <p className="text-muted-foreground font-medium">No usage records found.</p>
                 </div>
               ) : (
-                <div className="rounded-xl border overflow-hidden">
+                <div className="rounded-xl border overflow-hidden overflow-x-auto">
                   <Table>
                     <TableHeader className="bg-muted/50">
                       <TableRow>

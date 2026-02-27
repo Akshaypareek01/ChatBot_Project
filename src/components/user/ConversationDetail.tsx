@@ -2,14 +2,16 @@ import React, { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { getConversationById } from '@/services/api';
+import { getConversationById, updateConversation } from '@/services/api';
 import { toast } from 'sonner';
 import { ArrowLeft } from 'lucide-react';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 
 interface Message {
   role: string;
   content: string;
   timestamp?: string;
+  feedback?: number;
 }
 
 interface Conversation {
@@ -17,6 +19,8 @@ interface Conversation {
   visitorId: string;
   startedAt: string;
   status: string;
+  rating?: number;
+  leadInfo?: { name?: string; email?: string; phone?: string };
   messages: Message[];
   metadata?: { pageUrl?: string; userAgent?: string };
 }
@@ -48,13 +52,40 @@ export default function ConversationDetail() {
       </Link>
       <Card>
         <CardHeader>
-          <CardTitle>Conversation</CardTitle>
-          <p className="text-sm text-muted-foreground">
-            Visitor {conv.visitorId} · Started {formatDate(conv.startedAt)} · {conv.status || 'active'}
-          </p>
-          {conv.metadata?.pageUrl && (
-            <p className="text-xs text-muted-foreground">Page: {conv.metadata.pageUrl}</p>
-          )}
+          <div className="flex justify-between items-start">
+            <div>
+              <CardTitle>Conversation</CardTitle>
+              <p className="text-sm text-muted-foreground">
+                Visitor {conv.visitorId} · Started {formatDate(conv.startedAt)}
+              </p>
+              {(conv.leadInfo?.name || conv.leadInfo?.email || conv.leadInfo?.phone) && (
+                <p className="text-sm text-muted-foreground mt-1">
+                  Lead: {[conv.leadInfo.name, conv.leadInfo.email, conv.leadInfo.phone].filter(Boolean).join(' · ')}
+                </p>
+              )}
+              {conv.metadata?.pageUrl && (
+                <p className="text-xs text-muted-foreground">Page: {conv.metadata.pageUrl}</p>
+              )}
+            </div>
+            <div className="flex items-center gap-2">
+              <Select
+                value={conv.status || 'active'}
+                onValueChange={(v) => {
+                  updateConversation(conv._id, { status: v }).then(setConv).catch(() => toast.error('Update failed'));
+                }}
+              >
+                <SelectTrigger className="w-32">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="active">Active</SelectItem>
+                  <SelectItem value="ended">Ended</SelectItem>
+                  <SelectItem value="escalated">Escalated</SelectItem>
+                </SelectContent>
+              </Select>
+              {conv.rating != null && <span className="text-sm">Rating: {conv.rating}★</span>}
+            </div>
+          </div>
         </CardHeader>
         <CardContent>
           <div className="space-y-4">
@@ -67,9 +98,16 @@ export default function ConversationDetail() {
               >
                 <p className="text-xs font-medium text-muted-foreground uppercase mb-1">{m.role}</p>
                 <p className="text-sm whitespace-pre-wrap">{m.content}</p>
-                {m.timestamp && (
-                  <p className="text-xs text-muted-foreground mt-1">{formatDate(m.timestamp)}</p>
-                )}
+                <div className="flex items-center gap-2 mt-1">
+                  {m.timestamp && (
+                    <p className="text-xs text-muted-foreground">{formatDate(m.timestamp)}</p>
+                  )}
+                  {m.role === 'assistant' && m.feedback != null && (
+                    <span className="text-xs">
+                      {m.feedback === 1 ? '👍' : '👎'}
+                    </span>
+                  )}
+                </div>
               </div>
             ))}
           </div>

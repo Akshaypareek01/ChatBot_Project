@@ -3,6 +3,7 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { MessageSquare, Users, BarChart2, AlertTriangle, Wallet, Code, Globe, Zap, History, ArrowRight, Shield } from 'lucide-react';
 import { getUserProfile, getUserChatbotData, getUsageHistory } from '@/services/api';
 import ScriptGenerator from '../chatbot/ScriptGenerator';
+import { useBot } from '@/context/BotContext';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '../ui/button';
 import IntegrationGuide from './IntegrationGuide';
@@ -17,6 +18,7 @@ interface UsageRecord {
 }
 
 const UserDashboardHome = () => {
+  const { currentBot } = useBot() || {};
   const [userData, setUserData] = useState<any>(null);
   const [chatbotData, setChatbotData] = useState<any>(null);
   const [usageHistory, setUsageHistory] = useState<UsageRecord[]>([]);
@@ -193,7 +195,13 @@ const UserDashboardHome = () => {
                 <span className="w-8 h-8 rounded-full bg-primary text-primary-foreground flex items-center justify-center text-sm">1</span>
                 Quick Copy Script
               </h3>
-              <ScriptGenerator userId={userData?._id} websiteDomain={userData?.website} />
+              {userData?.lastWidgetPingAt && (Date.now() - new Date(userData.lastWidgetPingAt).getTime() < 24 * 60 * 60 * 1000) && (
+                <p className="text-xs text-green-600 dark:text-green-400 font-medium mb-2 flex items-center gap-1">
+                  <span className="inline-block w-2 h-2 rounded-full bg-green-500 animate-pulse" />
+                  Installation verified {userData?.lastWidgetPingOrigin ? `from ${userData.lastWidgetPingOrigin}` : 'recently'}
+                </p>
+              )}
+              <ScriptGenerator userId={userData?._id} websiteDomain={userData?.website} botSlug={currentBot?.slug} />
             </div>
 
             <div className="space-y-6">

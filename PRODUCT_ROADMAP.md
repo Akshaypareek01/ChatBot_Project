@@ -100,20 +100,20 @@ Complete Phase 1 before moving to Phase 2. Track progress by marking items `[x]`
 - [x] Replace current request-response chat with Server-Sent Events (SSE)
 - [x] Stream OpenAI responses token-by-token to the widget
 - [x] Add typing indicator animation in widget while streaming
-- [ ] Handle stream interruption and reconnection gracefully
+- [x] Handle stream interruption and reconnection gracefully
 - [x] Update token counting to work with streamed responses
 
 ### 2.2 Chatbot Widget Customization
 
 - [x] Add customization options saved per user:
   - [x] Primary color / accent color
-  - [ ] Bot avatar / logo upload
+  - [x] Bot avatar / logo upload
   - [x] Chat bubble position (bottom-left / bottom-right)
   - [x] Welcome message (customizable text)
   - [x] Bot name / display name
   - [x] Chat window size (compact / standard / large)
   - [x] Auto-open delay (open chat after X seconds)
-  - [ ] Custom CSS injection option
+  - [x] Custom CSS injection option
 - [x] Build customization UI in user dashboard with live preview
 - [x] Update `chatbot.js` to load and apply user's customization config
 - [x] Add "Powered by [YourBrand]" badge (removable on paid plans)
@@ -126,54 +126,54 @@ Complete Phase 1 before moving to Phase 2. Track progress by marking items `[x]`
   - [x] `messages[]` (role, content, timestamp)
   - [x] `metadata` (page URL, browser, location, duration)
   - [x] `status` (active / ended / escalated)
-  - [ ] `rating` (visitor feedback)
-  - [ ] `leadInfo` (email, phone if captured)
+  - [x] `rating` (visitor feedback)
+  - [x] `leadInfo` (email, phone if captured)
 - [x] Build conversation list view in user dashboard
 - [x] Add conversation detail view with full message history
-- [ ] Add search and filter (by date, status, rating, keyword)
+- [x] Add search and filter (by date, status, rating, keyword)
 - [x] Add export to CSV functionality
 
 ### 2.4 Lead Capture System
 
-- [ ] Add pre-chat form configuration:
-  - [ ] Enable/disable per user
-  - [ ] Configurable fields (name, email, phone — each optional/required)
-  - [ ] Custom welcome message before form
-- [ ] Store captured leads linked to conversations
-- [ ] Build leads management page in user dashboard
-- [ ] Add lead export (CSV, JSON)
-- [ ] Send email notification to user when new lead is captured
-- [ ] Add webhook trigger on new lead capture
+- [x] Add pre-chat form configuration:
+  - [x] Enable/disable per user
+  - [x] Configurable fields (name, email, phone — each optional/required)
+  - [x] Custom welcome message before form
+- [x] Store captured leads linked to conversations
+- [x] Build leads management page in user dashboard
+- [x] Add lead export (CSV, JSON)
+- [x] Send email notification to user when new lead is captured
+- [x] Add webhook trigger on new lead capture
 
 ### 2.5 Suggested Questions / Quick Replies
 
-- [ ] Auto-generate starter questions from knowledge base (top 3-5 common topics)
-- [ ] Allow users to manually set starter questions in dashboard
-- [ ] Display as clickable buttons in chat widget on first open
-- [ ] Add in-chat quick reply buttons for follow-up suggestions
+- [x] Auto-generate starter questions from knowledge base (top 3-5 common topics)
+- [x] Allow users to manually set starter questions in dashboard
+- [x] Display as clickable buttons in chat widget on first open
+- [x] Add in-chat quick reply buttons for follow-up suggestions
 
 ### 2.6 Chat Feedback System
 
-- [ ] Add thumbs up/down buttons on each bot response in widget
-- [ ] Store feedback linked to conversation and message
-- [ ] Show feedback analytics in user dashboard (% positive, common negative responses)
-- [ ] Flag low-rated responses for user to review and improve knowledge base
+- [x] Add thumbs up/down buttons on each bot response in widget
+- [x] Store feedback linked to conversation and message
+- [x] Show feedback analytics in user dashboard (% positive, common negative responses)
+- [x] Flag low-rated responses for user to review and improve knowledge base
 
 ### 2.7 Knowledge Base Improvements
 
-- [ ] Multi-page website scraping (crawl entire site via sitemap.xml or link following)
-- [ ] Set crawl depth limit (1-3 levels)
-- [ ] Show scraping progress in real-time (pages found, pages scraped, pages indexed)
-- [ ] Support more file types: CSV, Excel, plain text, markdown
-- [ ] Add manual text/paste-in knowledge source
-- [ ] Add scheduled re-scraping (daily/weekly) to keep knowledge fresh
-- [ ] Show knowledge base health — how many chunks, coverage, last updated
+- [x] Multi-page website scraping (crawl entire site via sitemap.xml or link following)
+- [x] Set crawl depth limit (1-3 levels)
+- [x] Show scraping progress in real-time (pages found, pages scraped, pages indexed) — jobId + polling
+- [x] Support more file types: CSV, Excel, plain text, markdown
+- [x] Add manual text/paste-in knowledge source
+- [x] Add scheduled re-scraping (daily/weekly) to keep knowledge fresh
+- [x] Show knowledge base health — how many chunks, coverage, last updated
 
 ### 2.8 API Versioning
 
-- [ ] Add `/api/v1/` prefix to all routes
-- [ ] Keep backward compatibility on old routes for 3 months
-- [ ] Document API version policy
+- [x] Add `/api/v1/` prefix to all routes
+- [x] Keep backward compatibility on old routes for 3 months
+- [x] Document API version policy
 
 ---
 
@@ -186,55 +186,55 @@ Complete Phase 1 before moving to Phase 2. Track progress by marking items `[x]`
 
 ### 3.1 Analytics Dashboard for Users
 
-- [ ] Chat volume over time (daily/weekly/monthly chart)
-- [ ] Total conversations, messages, unique visitors
-- [ ] Average response time
-- [ ] Most asked questions (word cloud or ranked list)
-- [ ] Unanswered / escalated questions list
-- [ ] Lead capture conversion rate
-- [ ] Token usage breakdown (chat vs upload vs scrape)
-- [ ] Peak hours heatmap
-- [ ] Chat satisfaction score (from feedback)
+- [x] Chat volume over time (daily/weekly/monthly chart)
+- [x] Total conversations, messages, unique visitors
+- [x] Average response time
+- [x] Most asked questions (word cloud or ranked list)
+- [x] Unanswered / escalated questions list
+- [x] Lead capture conversion rate
+- [x] Token usage breakdown (chat vs upload vs scrape)
+- [x] Peak hours heatmap
+- [x] Chat satisfaction score (from feedback)
 
 ### 3.2 Improved Onboarding Flow
 
-- [ ] Step-by-step setup wizard after registration:
-  - [ ] Step 1: Enter website URL
-  - [ ] Step 2: Auto-scrape and show preview
-  - [ ] Step 3: Customize appearance
-  - [ ] Step 4: Test the chatbot live
-  - [ ] Step 5: Copy embed code
-- [ ] Add progress indicator
-- [ ] Add "skip" option for experienced users
-- [ ] Send onboarding email sequence (Day 1, 3, 7)
+- [x] Step-by-step setup wizard after registration:
+  - [x] Step 1: Enter website URL
+  - [x] Step 2: Auto-scrape and show preview
+  - [x] Step 3: Customize appearance
+  - [x] Step 4: Test the chatbot live
+  - [x] Step 5: Copy embed code
+- [x] Add progress indicator
+- [x] Add "skip" option for experienced users
+- [x] Send onboarding email sequence (Day 1, 3, 7)
 
 ### 3.3 Embed Code & Installation
 
-- [ ] Generate clean embed snippet in dashboard
-- [ ] One-click copy button
-- [ ] Platform-specific instructions (WordPress, Shopify, Wix, Squarespace, HTML)
-- [ ] Add installation verification — detect if widget is successfully installed on user's site
-- [ ] Provide WordPress plugin for one-click install
+- [x] Generate clean embed snippet in dashboard
+- [x] One-click copy button
+- [x] Platform-specific instructions (WordPress, Shopify, Wix, Squarespace, HTML)
+- [x] Add installation verification — detect if widget is successfully installed on user's site
+- [x] Provide WordPress plugin for one-click install
 
 ### 3.4 Notification System
 
-- [ ] In-app notifications (new leads, low balance, support replies)
-- [ ] Email notification preferences (toggle per event type)
-- [ ] Daily/weekly summary email (chat stats, leads captured)
-- [ ] Low balance warnings with one-click recharge
+- [x] In-app notifications (new leads, low balance, support replies)
+- [x] Email notification preferences (toggle per event type)
+- [x] Daily/weekly summary email (chat stats, leads captured)
+- [x] Low balance warnings with one-click recharge
 
 ### 3.5 Multi-Bot Support
 
-- [ ] Allow users to create multiple chatbots per account
-- [ ] Each bot has its own knowledge base, customization, and embed code
-- [ ] Separate analytics per bot
-- [ ] Bot switching in dashboard
+- [x] Allow users to create multiple chatbots per account
+- [x] Each bot has its own knowledge base, customization, and embed code
+- [x] Separate analytics per bot
+- [x] Bot switching in dashboard
 
 ### 3.6 Mobile Responsive Dashboard
 
-- [ ] Ensure all dashboard pages work on mobile
-- [ ] Responsive tables, charts, and forms
-- [ ] Mobile-friendly conversation viewer
+- [x] Ensure all dashboard pages work on mobile
+- [x] Responsive tables, charts, and forms
+- [x] Mobile-friendly conversation viewer
 
 ---
 

@@ -6,10 +6,13 @@ import { Form, FormField, FormItem, FormLabel, FormControl, FormDescription, For
 import { Input } from '@/components/ui/input';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
-import { getUserProfile, updateUserProfile, updateUserPassword } from '@/services/api';
+import { getUserProfile, updateUserProfile, updateUserPassword, getNotificationPrefs, updateNotificationPrefs } from '@/services/api';
 import { toast } from 'sonner';
 import { z } from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
+import { Switch } from '@/components/ui/switch';
+import { Label } from '@/components/ui/label';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 
 const profileSchema = z.object({
   name: z.string().min(2, { message: 'Name must be at least 2 characters' }),
@@ -35,6 +38,8 @@ const UserProfile = () => {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isPasswordSubmitting, setIsPasswordSubmitting] = useState(false);
   const [user, setUser] = useState<any>(null);
+  const [notifPrefs, setNotifPrefs] = useState<{ emailOnNewLead: boolean; emailOnLowBalance: boolean; emailSummary: string } | null>(null);
+  const [notifSaving, setNotifSaving] = useState(false);
 
   const profileForm = useForm<ProfileFormValues>({
     resolver: zodResolver(profileSchema),
@@ -76,6 +81,7 @@ const UserProfile = () => {
     };
 
     fetchProfile();
+    getNotificationPrefs().then(setNotifPrefs).catch(() => setNotifPrefs(null));
   }, [profileForm]);
 
   const onSubmitProfile = async (data: ProfileFormValues) => {
@@ -305,6 +311,77 @@ const UserProfile = () => {
                 </Button>
               </form>
             </Form>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>Notification preferences</CardTitle>
+            <CardDescription>Choose when to get email and in-app notifications</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-6">
+            {notifPrefs && (
+              <>
+                <div className="flex items-center justify-between">
+                  <Label htmlFor="email-new-lead">Email when new lead is captured</Label>
+                  <Switch
+                    id="email-new-lead"
+                    checked={notifPrefs.emailOnNewLead}
+                    onCheckedChange={async (v) => {
+                      setNotifPrefs((p) => (p ? { ...p, emailOnNewLead: v } : null));
+                      setNotifSaving(true);
+                      try {
+                        await updateNotificationPrefs({ emailOnNewLead: v });
+                      } finally {
+                        setNotifSaving(false);
+                      }
+                    }}
+                  />
+                </div>
+                <div className="flex items-center justify-between">
+                  <Label htmlFor="email-low-balance">Email on low balance</Label>
+                  <Switch
+                    id="email-low-balance"
+                    checked={notifPrefs.emailOnLowBalance}
+                    onCheckedChange={async (v) => {
+                      setNotifPrefs((p) => (p ? { ...p, emailOnLowBalance: v } : null));
+                      setNotifSaving(true);
+                      try {
+                        await updateNotificationPrefs({ emailOnLowBalance: v });
+                      } finally {
+                        setNotifSaving(false);
+                      }
+                    }}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>Summary email</Label>
+                  <Select
+                    value={notifPrefs.emailSummary}
+                    onValueChange={async (v: 'none' | 'daily' | 'weekly') => {
+                      setNotifPrefs((p) => (p ? { ...p, emailSummary: v } : null));
+                      setNotifSaving(true);
+                      try {
+                        await updateNotificationPrefs({ emailSummary: v });
+                      } finally {
+                        setNotifSaving(false);
+                      }
+                    }}
+                  >
+                    <SelectTrigger className="w-[180px]">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="none">None</SelectItem>
+                      <SelectItem value="daily">Daily</SelectItem>
+                      <SelectItem value="weekly">Weekly</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <p className="text-xs text-muted-foreground">Chat stats and leads summary (when enabled)</p>
+                </div>
+                {notifSaving && <p className="text-xs text-muted-foreground">Saving…</p>}
+              </>
+            )}
           </CardContent>
         </Card>
 

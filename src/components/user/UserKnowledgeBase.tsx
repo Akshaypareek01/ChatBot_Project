@@ -7,12 +7,12 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Plus, Search, Edit, Trash2, Save, X, MessageSquare, Filter, FileUp, Globe, Loader2, Database, File, ExternalLink, Wallet } from 'lucide-react';
+import { Plus, Search, Edit, Trash2, Save, X, MessageSquare, Filter, FileUp, Globe, Loader2, Database, File, ExternalLink, Wallet, FileText, RefreshCw } from 'lucide-react';
 import { toast } from 'sonner';
 import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { getCurrentUserQAs, createUserQA, updateUserQA, deleteUserQA, uploadFile, scrapeWebsite, getUserSources } from '@/services/api';
+import { getCurrentUserQAs, createUserQA, updateUserQA, deleteUserQA, uploadFile, scrapeWebsite, getScrapeStatus, addPasteSource, updateSource, getUserSources, getSourcesHealth } from '@/services/api';
 
 interface QA {
   _id: string;
@@ -26,13 +26,24 @@ interface QA {
 
 interface Source {
   _id: string;
-  type: 'file' | 'website';
+  type: 'file' | 'website' | 'paste';
   fileName?: string;
   fileSize?: number;
   url?: string;
+  pasteTitle?: string;
+  scrapeSchedule?: string;
+  lastScrapedAt?: string | null;
+  pageCount?: number;
   status: string;
   createdAt: string;
   updatedAt: string;
+}
+
+interface KBHealth {
+  totalChunks: number;
+  totalSources: number;
+  lastUpdated: string | null;
+  byType?: Record<string, number>;
 }
 
 const UserKnowledgeBase = () => {
@@ -54,10 +65,19 @@ const UserKnowledgeBase = () => {
 
   // Scrape State
   const [scrapeUrl, setScrapeUrl] = useState('');
+  const [scrapeMaxDepth, setScrapeMaxDepth] = useState<number>(1);
   const [isScraping, setIsScraping] = useState(false);
+  const [scrapeJobId, setScrapeJobId] = useState<string | null>(null);
+  const [scrapeProgress, setScrapeProgress] = useState<string | null>(null);
 
-  // Sources State
+  // Paste State
+  const [pasteTitle, setPasteTitle] = useState('');
+  const [pasteContent, setPasteContent] = useState('');
+  const [isPasting, setIsPasting] = useState(false);
+
+  // Sources & KB Health
   const [sources, setSources] = useState<Source[]>([]);
+  const [kbHealth, setKbHealth] = useState<KBHealth | null>(null);
   const [isLoadingSources, setIsLoadingSources] = useState(false);
   const [activeTab, setActiveTab] = useState('qa');
 
@@ -90,8 +110,12 @@ const UserKnowledgeBase = () => {
   const fetchSources = async () => {
     setIsLoadingSources(true);
     try {
-      const data = await getUserSources();
-      setSources(data.sources || []);
+      const [sourcesRes, healthRes] = await Promise.all([
+        getUserSources(),
+        getSourcesHealth().catch(() => null)
+      ]);
+      setSources(sourcesRes.sources || []);
+      setKbHealth(healthRes || null);
     } catch (error) {
       console.error('Error fetching sources:', error);
       toast.error('Failed to load sources');
@@ -240,17 +264,86 @@ const UserKnowledgeBase = () => {
     }
 
     setIsScraping(true);
+    setScrapeJobId(null);
+    setScrapeProgress(null);
     try {
-      await scrapeWebsite(scrapeUrl);
-      toast.success('Website scraped and processed successfully');
-      setScrapeUrl('');
-      // Refresh sources list
-      fetchSources();
+      const res = await scrapeWebsite(scrapeUrl, { maxDepth: scrapeMaxDepth });
+      if (res.jobId) {
+        setScrapeJobId(res.jobId);
+        setScrapeProgress('Discovering pages...');
+        const poll = async () => {
+          try {
+            const status = await getScrapeStatus(res.jobId);
+            if (status.status === 'done') {
+              setScrapeProgress(null);
+              setScrapeJobId(null);
+              setIsScraping(false);
+              toast.success('Website scraped and processed successfully');
+              setScrapeUrl('');
+              fetchSources();
+              return;
+            }
+            if (status.status === 'failed') {
+              setScrapeProgress(null);
+              setScrapeJobId(null);
+              setIsScraping(false);
+              toast.error(status.error || 'Scraping failed');
+              return;
+            }
+            const msg = status.pagesFound != null
+              ? `Pages: ${status.pagesScraped ?? 0} / ${status.pagesFound}${status.status === 'indexing' ? ' (indexing...)' : ''}`
+              : 'Discovering pages...';
+            setScrapeProgress(msg);
+            setTimeout(poll, 2000);
+          } catch (e) {
+            setScrapeProgress(null);
+            setScrapeJobId(null);
+            setIsScraping(false);
+            toast.error('Failed to check scrape status');
+          }
+        };
+        poll();
+      } else {
+        toast.success('Website scraped and processed successfully');
+        setScrapeUrl('');
+        fetchSources();
+      }
     } catch (error: any) {
       console.error('Error scraping website:', error);
       toast.error(error.message || 'Failed to scrape website');
     } finally {
-      setIsScraping(false);
+      if (!res?.jobId) setIsScraping(false);
+    }
+  };
+
+  const handlePasteSubmit = async () => {
+    if (!pasteContent.trim()) {
+      toast.error('Please enter some text');
+      return;
+    }
+    setIsPasting(true);
+    try {
+      await addPasteSource(pasteTitle.trim() || 'Pasted text', pasteContent.trim());
+      toast.success('Pasted text added to knowledge base');
+      setPasteTitle('');
+      setPasteContent('');
+      fetchSources();
+    } catch (error: any) {
+      toast.error(error.message || 'Failed to add pasted text');
+    } finally {
+      setIsPasting(false);
+    }
+  };
+
+  const handleScrapeScheduleChange = async (sourceId: string, schedule: string) => {
+    try {
+      await updateSource(sourceId, { scrapeSchedule: schedule });
+      setSources((prev) =>
+        prev.map((s) => (s._id === sourceId ? { ...s, scrapeSchedule: schedule } : s))
+      );
+      toast.success('Schedule updated');
+    } catch (error: any) {
+      toast.error(error.message || 'Failed to update schedule');
     }
   };
 
@@ -315,6 +408,10 @@ const UserKnowledgeBase = () => {
           <TabsTrigger value="scrape">
             <Globe className="h-4 w-4 mr-2" />
             Website Scraping
+          </TabsTrigger>
+          <TabsTrigger value="paste">
+            <FileText className="h-4 w-4 mr-2" />
+            Paste Text
           </TabsTrigger>
           <TabsTrigger value="sources">
             <Database className="h-4 w-4 mr-2" />
@@ -425,7 +522,7 @@ const UserKnowledgeBase = () => {
 
           {/* QA Table */}
           <Card className="shadow-soft">
-            <CardContent className="p-0">
+            <CardContent className="p-0 overflow-x-auto">
               <Table>
                 <TableHeader>
                   <TableRow>
@@ -545,13 +642,13 @@ const UserKnowledgeBase = () => {
             <CardHeader>
               <CardTitle>Data Upload</CardTitle>
               <CardDescription>
-                Upload documents (PDF, Docx, TXT) to train your chatbot. Max 10MB per file.
+                Upload documents (PDF, DOCX, TXT, CSV, MD, XLSX) to train your chatbot. Max 10MB per file.
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="grid w-full max-w-sm items-center gap-1.5">
                 <Label htmlFor="file-upload">Document</Label>
-                <Input id="file-upload" type="file" onChange={handleFileChange} accept=".pdf,.doc,.docx,.txt" />
+                <Input id="file-upload" type="file" onChange={handleFileChange} accept=".pdf,.doc,.docx,.txt,.csv,.md,.xlsx" />
               </div>
               <Button onClick={handleUploadFile} disabled={!file || isUploading}>
                 {isUploading ? (
@@ -575,7 +672,7 @@ const UserKnowledgeBase = () => {
             <CardHeader>
               <CardTitle>Website Scraping</CardTitle>
               <CardDescription>
-                Enter a URL to scrape content from. The chatbot will learn from this page.
+                Enter a URL to scrape. Depth 1 = single page; 2–3 = follow same-origin links (more pages).
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
@@ -589,11 +686,30 @@ const UserKnowledgeBase = () => {
                   onChange={(e) => setScrapeUrl(e.target.value)}
                 />
               </div>
+              <div className="grid w-full max-w-xs items-center gap-1.5">
+                <Label>Depth (pages)</Label>
+                <Select value={String(scrapeMaxDepth)} onValueChange={(v) => setScrapeMaxDepth(Number(v))}>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="1">1 – Single page</SelectItem>
+                    <SelectItem value="2">2 – Up to ~10 pages</SelectItem>
+                    <SelectItem value="3">3 – Up to ~30 pages</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              {scrapeProgress && (
+                <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  {scrapeProgress}
+                </div>
+              )}
               <Button onClick={handleScrapeWebsite} disabled={!scrapeUrl || isScraping}>
-                {isScraping ? (
+                {isScraping || scrapeJobId ? (
                   <>
                     <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    Scraping...
+                    {scrapeJobId ? 'Processing...' : 'Scraping...'}
                   </>
                 ) : (
                   <>
@@ -606,12 +722,89 @@ const UserKnowledgeBase = () => {
           </Card>
         </TabsContent>
 
+        <TabsContent value="paste" className="mt-6">
+          <Card>
+            <CardHeader>
+              <CardTitle>Paste Text</CardTitle>
+              <CardDescription>
+                Add raw text to your knowledge base (e.g. FAQs, policies). No file upload needed.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="grid w-full max-w-md items-center gap-1.5">
+                <Label htmlFor="paste-title">Title (optional)</Label>
+                <Input
+                  id="paste-title"
+                  placeholder="e.g. FAQ 2024"
+                  value={pasteTitle}
+                  onChange={(e) => setPasteTitle(e.target.value)}
+                />
+              </div>
+              <div className="grid w-full gap-1.5">
+                <Label htmlFor="paste-content">Content</Label>
+                <Textarea
+                  id="paste-content"
+                  placeholder="Paste or type your content here..."
+                  value={pasteContent}
+                  onChange={(e) => setPasteContent(e.target.value)}
+                  rows={8}
+                  className="resize-y"
+                />
+              </div>
+              <Button onClick={handlePasteSubmit} disabled={!pasteContent.trim() || isPasting}>
+                {isPasting ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Adding...
+                  </>
+                ) : (
+                  <>
+                    <FileText className="mr-2 h-4 w-4" />
+                    Add to Knowledge Base
+                  </>
+                )}
+              </Button>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
         <TabsContent value="sources" className="mt-6">
+          {kbHealth != null && (
+            <Card className="mb-6 border-primary/20 bg-primary/5">
+              <CardHeader>
+                <CardTitle className="text-lg flex items-center gap-2">
+                  <RefreshCw className="h-5 w-5 text-primary" />
+                  Knowledge Base Health
+                </CardTitle>
+                <CardDescription>Chunks and sources used for answers</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <div className="p-3 rounded-lg bg-background/50">
+                    <p className="text-sm text-muted-foreground">Total chunks</p>
+                    <p className="text-2xl font-bold">{kbHealth.totalChunks ?? 0}</p>
+                  </div>
+                  <div className="p-3 rounded-lg bg-background/50">
+                    <p className="text-sm text-muted-foreground">Total sources</p>
+                    <p className="text-2xl font-bold">{kbHealth.totalSources ?? 0}</p>
+                  </div>
+                  <div className="p-3 rounded-lg bg-background/50">
+                    <p className="text-sm text-muted-foreground">Last updated</p>
+                    <p className="text-lg font-medium">
+                      {kbHealth.lastUpdated
+                        ? new Date(kbHealth.lastUpdated).toLocaleString()
+                        : 'Never'}
+                    </p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          )}
           <Card>
             <CardHeader>
               <CardTitle>Your Data Sources</CardTitle>
               <CardDescription>
-                View all files and websites you've added to train your chatbot.
+                View all files, websites, and pasted text. Set re-scrape schedule for websites.
               </CardDescription>
             </CardHeader>
             <CardContent>
@@ -623,7 +816,7 @@ const UserKnowledgeBase = () => {
                 <div className="text-center py-12 text-muted-foreground">
                   <Database className="h-12 w-12 mx-auto mb-4 opacity-50" />
                   <p className="text-lg font-medium">No data sources yet</p>
-                  <p className="text-sm">Upload files or scrape websites to get started</p>
+                  <p className="text-sm">Upload files, scrape websites, or paste text to get started</p>
                 </div>
               ) : (
                 <div className="space-y-4">
@@ -637,14 +830,20 @@ const UserKnowledgeBase = () => {
                           <div className="mt-1">
                             {source.type === 'file' ? (
                               <File className="h-5 w-5 text-blue-500" />
+                            ) : source.type === 'paste' ? (
+                              <FileText className="h-5 w-5 text-amber-500" />
                             ) : (
                               <Globe className="h-5 w-5 text-green-500" />
                             )}
                           </div>
                           <div className="flex-1 min-w-0">
-                            <div className="flex items-center gap-2 mb-1">
+                            <div className="flex items-center gap-2 mb-1 flex-wrap">
                               <h4 className="font-medium truncate">
-                                {source.type === 'file' ? source.fileName : source.url}
+                                {source.type === 'file'
+                                  ? source.fileName
+                                  : source.type === 'paste'
+                                    ? source.pasteTitle || 'Pasted text'
+                                    : source.url}
                               </h4>
                               <Badge variant={
                                 source.status === 'indexed' || source.status === 'processed_and_deleted'
@@ -656,23 +855,46 @@ const UserKnowledgeBase = () => {
                                 {source.status}
                               </Badge>
                             </div>
-                            <div className="flex items-center gap-4 text-sm text-muted-foreground">
+                            <div className="flex items-center gap-4 text-sm text-muted-foreground flex-wrap">
                               <span className="capitalize">{source.type}</span>
-                              {source.fileSize && (
+                              {source.fileSize != null && (
                                 <span>{(source.fileSize / 1024).toFixed(2)} KB</span>
+                              )}
+                              {source.type === 'website' && source.pageCount != null && (
+                                <span>{source.pageCount} page(s)</span>
                               )}
                               <span>{new Date(source.createdAt).toLocaleDateString()}</span>
                             </div>
-                            {source.type === 'website' && source.url && (
-                              <a
-                                href={source.url}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="text-sm text-primary hover:underline flex items-center gap-1 mt-2"
-                              >
-                                Visit website
-                                <ExternalLink className="h-3 w-3" />
-                              </a>
+                            {source.type === 'website' && (
+                              <>
+                                {source.url && (
+                                  <a
+                                    href={source.url}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="text-sm text-primary hover:underline flex items-center gap-1 mt-2"
+                                  >
+                                    Visit website
+                                    <ExternalLink className="h-3 w-3" />
+                                  </a>
+                                )}
+                                <div className="mt-2 flex items-center gap-2">
+                                  <Label className="text-xs text-muted-foreground">Re-scrape</Label>
+                                  <Select
+                                    value={source.scrapeSchedule || 'none'}
+                                    onValueChange={(v) => handleScrapeScheduleChange(source._id, v)}
+                                  >
+                                    <SelectTrigger className="w-[130px] h-8">
+                                      <SelectValue />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                      <SelectItem value="none">None</SelectItem>
+                                      <SelectItem value="daily">Daily</SelectItem>
+                                      <SelectItem value="weekly">Weekly</SelectItem>
+                                    </SelectContent>
+                                  </Select>
+                                </div>
+                              </>
                             )}
                           </div>
                         </div>
