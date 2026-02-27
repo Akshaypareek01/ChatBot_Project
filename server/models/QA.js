@@ -6,6 +6,7 @@ const qaSchema = new mongoose.Schema({
         ref: 'User',
         required: true
     },
+    botId: { type: mongoose.Schema.Types.ObjectId, ref: 'Bot', default: null, index: true },
     question: {
         type: String,
         required: true,

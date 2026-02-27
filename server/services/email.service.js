@@ -251,11 +251,175 @@ const sendPasswordResetEmail = async (userEmail, userName, otp) => {
     }
 };
 
+/**
+ * Notify chatbot owner when a new lead is captured via pre-chat form.
+ */
+const sendNewLeadEmail = async (ownerEmail, ownerName, lead) => {
+    if (!ownerEmail) return;
+    try {
+        const parts = [];
+        if (lead.name) parts.push(`<strong>Name:</strong> ${lead.name}`);
+        if (lead.email) parts.push(`<strong>Email:</strong> ${lead.email}`);
+        if (lead.phone) parts.push(`<strong>Phone:</strong> ${lead.phone}`);
+        if (parts.length === 0) return;
+        const mailOptions = {
+            from: safeFrom,
+            to: ownerEmail,
+            subject: 'New lead captured from your chatbot',
+            html: `
+                <div style="font-family: sans-serif; padding: 20px;">
+                    <h2 style="color: #2563eb;">New lead</h2>
+                    <p>Hello ${ownerName || 'there'},</p>
+                    <p>A visitor just submitted their details on your chatbot:</p>
+                    <div style="background: #f8fafc; padding: 16px; border-radius: 8px; margin: 16px 0;">
+                        ${parts.join('<br/>')}
+                    </div>
+                    <p style="color: #64748b; font-size: 14px;">Check your Conversations in the dashboard to view the full chat.</p>
+                </div>
+            `
+        };
+        await transporter.sendMail(mailOptions);
+        console.log(`✅ New lead email sent to ${ownerEmail}`);
+    } catch (error) {
+        console.error('❌ New lead email error:', error.message);
+    }
+};
+
+const dashboardUrl = () => (process.env.Web_url || 'https://app.example.com').replace(/\/$/, '') + '/user';
+const loginUrl = () => (process.env.Web_url || 'https://app.example.com').replace(/\/$/, '') + '/login';
+
+/**
+ * Phase 3.2: Onboarding email sequence — Day 1 (welcome + first steps).
+ */
+const sendOnboardingDay1Email = async (userEmail, userName) => {
+    if (!userEmail) return;
+    try {
+        await transporter.sendMail({
+            from: safeFrom,
+            to: userEmail,
+            subject: 'Welcome! Here\'s how to get your chatbot live in 5 minutes',
+            html: `
+                <div style="font-family: sans-serif; padding: 20px; max-width: 560px;">
+                    <h2 style="color: #2563eb;">Welcome, ${userName || 'there'}!</h2>
+                    <p>Thanks for signing up. Your AI chatbot is ready — here’s how to get it on your site:</p>
+                    <ol style="line-height: 1.8;">
+                        <li><strong>Add your content</strong> — Scrape your website or upload a PDF in the Knowledge Base.</li>
+                        <li><strong>Customize</strong> — Set your brand name, colors, and welcome message in Widget settings.</li>
+                        <li><strong>Embed</strong> — Copy the script from your dashboard and paste it before &lt;/body&gt; on your site.</li>
+                    </ol>
+                    <p><a href="${dashboardUrl()}" style="background: #2563eb; color: white; padding: 12px 24px; text-decoration: none; border-radius: 8px; display: inline-block;">Open dashboard</a></p>
+                    <p style="color: #64748b; font-size: 14px; margin-top: 24px;">If you need help, reply to this email.</p>
+                </div>
+            `
+        });
+        console.log(`✅ Onboarding Day 1 email sent to ${userEmail}`);
+    } catch (error) {
+        console.error('❌ Onboarding Day 1 email error:', error.message);
+    }
+};
+
+/**
+ * Phase 3.2: Onboarding Day 3 — tips and best practices.
+ */
+const sendOnboardingDay3Email = async (userEmail, userName) => {
+    if (!userEmail) return;
+    try {
+        await transporter.sendMail({
+            from: safeFrom,
+            to: userEmail,
+            subject: '3 tips to get more from your chatbot',
+            html: `
+                <div style="font-family: sans-serif; padding: 20px; max-width: 560px;">
+                    <h2 style="color: #2563eb;">Hi ${userName || 'there'},</h2>
+                    <p>Quick tips to make your chatbot more useful:</p>
+                    <ul style="line-height: 1.8;">
+                        <li><strong>Add suggested questions</strong> — In Widget settings, add 3–5 starter questions so visitors know what to ask.</li>
+                        <li><strong>Turn on lead capture</strong> — Enable the pre-chat form to collect name and email before the conversation.</li>
+                        <li><strong>Check Analytics</strong> — See chat volume, satisfaction, and top questions in the Analytics page.</li>
+                    </ul>
+                    <p><a href="${dashboardUrl()}" style="background: #2563eb; color: white; padding: 12px 24px; text-decoration: none; border-radius: 8px; display: inline-block;">Go to dashboard</a></p>
+                </div>
+            `
+        });
+        console.log(`✅ Onboarding Day 3 email sent to ${userEmail}`);
+    } catch (error) {
+        console.error('❌ Onboarding Day 3 email error:', error.message);
+    }
+};
+
+/**
+ * Phase 3.2: Onboarding Day 7 — check-in and support.
+ */
+const sendOnboardingDay7Email = async (userEmail, userName) => {
+    if (!userEmail) return;
+    try {
+        await transporter.sendMail({
+            from: safeFrom,
+            to: userEmail,
+            subject: 'How\'s your chatbot doing? We\'re here to help',
+            html: `
+                <div style="font-family: sans-serif; padding: 20px; max-width: 560px;">
+                    <h2 style="color: #2563eb;">Hi ${userName || 'there'},</h2>
+                    <p>You’ve been with us for a week. Here’s a quick checklist:</p>
+                    <ul style="line-height: 1.8;">
+                        <li>Is the widget live on your site? Check <strong>Domain Security</strong> if you restricted domains.</li>
+                        <li>Review <strong>Conversations</strong> and <strong>Analytics</strong> to see how visitors are using the bot.</li>
+                        <li>Need more credits? Top up anytime from <strong>Transactions</strong>.</li>
+                    </ul>
+                    <p><a href="${dashboardUrl()}" style="background: #2563eb; color: white; padding: 12px 24px; text-decoration: none; border-radius: 8px; display: inline-block;">Open dashboard</a></p>
+                    <p style="color: #64748b; font-size: 14px; margin-top: 24px;">Reply to this email if you have questions — we’re happy to help.</p>
+                </div>
+            `
+        });
+        console.log(`✅ Onboarding Day 7 email sent to ${userEmail}`);
+    } catch (error) {
+        console.error('❌ Onboarding Day 7 email error:', error.message);
+    }
+};
+
+/**
+ * Phase 3.4: Daily/weekly summary email (chat stats, leads).
+ */
+const sendSummaryEmail = async (userEmail, userName, summary) => {
+    if (!userEmail || !summary) return;
+    try {
+        const { period, conversations, messages, uniqueVisitors, leadsCaptured, satisfactionPercent } = summary;
+        await transporter.sendMail({
+            from: safeFrom,
+            to: userEmail,
+            subject: `Your chatbot summary (${period})`,
+            html: `
+                <div style="font-family: sans-serif; padding: 20px; max-width: 560px;">
+                    <h2 style="color: #2563eb;">${period} summary</h2>
+                    <p>Hello ${userName || 'there'},</p>
+                    <p>Here’s how your chatbot performed:</p>
+                    <table style="width: 100%; border-collapse: collapse; margin: 16px 0;">
+                        <tr style="border-bottom: 1px solid #e2e8f0;"><td style="padding: 8px 0;">Conversations</td><td style="text-align: right; font-weight: 600;">${conversations ?? 0}</td></tr>
+                        <tr style="border-bottom: 1px solid #e2e8f0;"><td style="padding: 8px 0;">Messages</td><td style="text-align: right; font-weight: 600;">${messages ?? 0}</td></tr>
+                        <tr style="border-bottom: 1px solid #e2e8f0;"><td style="padding: 8px 0;">Unique visitors</td><td style="text-align: right; font-weight: 600;">${uniqueVisitors ?? 0}</td></tr>
+                        <tr style="border-bottom: 1px solid #e2e8f0;"><td style="padding: 8px 0;">Leads captured</td><td style="text-align: right; font-weight: 600;">${leadsCaptured ?? 0}</td></tr>
+                        ${satisfactionPercent != null ? `<tr><td style="padding: 8px 0;">Satisfaction</td><td style="text-align: right; font-weight: 600;">${satisfactionPercent}%</td></tr>` : ''}
+                    </table>
+                    <p><a href="${dashboardUrl()}/analytics" style="background: #2563eb; color: white; padding: 12px 24px; text-decoration: none; border-radius: 8px; display: inline-block;">View analytics</a></p>
+                </div>
+            `
+        });
+        console.log(`✅ Summary email sent to ${userEmail}`);
+    } catch (error) {
+        console.error('❌ Summary email error:', error.message);
+    }
+};
+
 module.exports = {
     sendLowBalanceEmail,
     sendEmptyBalanceEmail,
     sendPaymentSuccessEmail,
     sendPaymentFailureEmail,
     sendVerificationEmail,
-    sendPasswordResetEmail
+    sendPasswordResetEmail,
+    sendNewLeadEmail,
+    sendOnboardingDay1Email,
+    sendOnboardingDay3Email,
+    sendOnboardingDay7Email,
+    sendSummaryEmail
 };

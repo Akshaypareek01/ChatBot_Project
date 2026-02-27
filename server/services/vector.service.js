@@ -132,7 +132,17 @@ const searchVectors = async (userId, queryEmbedding, limit = 5) => {
     }
 };
 
+/**
+ * Delete all vectors for a source (e.g. before re-scraping).
+ * @param {string} sourceId
+ */
+const deleteVectorsBySourceId = async (sourceId) => {
+    const result = await Vector.deleteMany({ sourceId });
+    return result.deletedCount;
+};
+
 module.exports = {
     storeVectors,
-    searchVectors
+    searchVectors,
+    deleteVectorsBySourceId
 };

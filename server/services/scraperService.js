@@ -7,6 +7,7 @@ const vectorService = require('./vector.service');
 const planGuard = require('./planGuard.service');
 const usageTracker = require('./usageTracker.service');
 const Source = require('../models/Source');
+const { discoverUrls } = require('./crawl.service');
 
 /**
  * Scrape content from a URL
@@ -85,7 +86,8 @@ const processWebsite = async (userId, url) => {
             url,
             pageCount,
             r2TextKey,
-            status: 'indexed'
+            status: 'indexed',
+            lastScrapedAt: new Date()
         });
 
         // 7. Store Vectors
@@ -117,4 +119,103 @@ const processWebsite = async (userId, url) => {
     }
 };
 
-module.exports = { processWebsite, scrapeContent };
+/**
+ * Multi-page crawl: discover URLs (sitemap + link following) up to maxDepth, scrape each, combine and index.
+ * @param {string} userId
+ * @param {string} entryUrl
+ * @param {number} maxDepth - 1 to 3
+ * @param {(data: { pagesFound: number, pagesScraped: number, status: string }) => void} [onProgress]
+ */
+const processWebsiteMulti = async (userId, entryUrl, maxDepth = 1, onProgress) => {
+    await planGuard.canAddWebsite(userId);
+    const depth = Math.min(3, Math.max(1, parseInt(maxDepth, 10) || 1));
+    const urls = await discoverUrls(entryUrl, depth, true);
+    if (onProgress) onProgress({ pagesFound: urls.length, pagesScraped: 0, status: 'scraping' });
+
+    const allTexts = [];
+    let scraped = 0;
+    for (const url of urls) {
+        try {
+            const { text } = await scrapeContent(url);
+            if (text && text.length >= 50) {
+                allTexts.push(`[Source: ${url}]\n${text}`);
+                scraped++;
+                if (onProgress) onProgress({ pagesFound: urls.length, pagesScraped: scraped, status: 'scraping' });
+            }
+        } catch (e) {
+            // skip failed page
+        }
+    }
+
+    if (allTexts.length === 0) {
+        throw new Error('No content could be scraped from the given URL(s).');
+    }
+
+    const combined = allTexts.join('\n\n---\n\n');
+    const urlSafe = entryUrl.replace(/[^a-z0-9]/gi, '_').substring(0, 50);
+    const r2TextKey = `chatbot-data/${userId}/website/${urlSafe}_${Date.now()}.txt`;
+
+    if (onProgress) onProgress({ pagesFound: urls.length, pagesScraped: scraped, status: 'indexing' });
+
+    await r2Storage.uploadToR2(r2TextKey, combined, 'text/plain');
+    const chunks = await embeddingService.chunkText(combined);
+    const embeddings = [];
+    for (const chunk of chunks) {
+        const vec = await embeddingService.generateEmbedding(chunk);
+        embeddings.push(vec);
+    }
+
+    const source = await Source.create({
+        userId,
+        type: 'website',
+        url: entryUrl,
+        pageCount: scraped,
+        r2TextKey,
+        status: 'indexed',
+        lastScrapedAt: new Date()
+    });
+
+    await vectorService.storeVectors({
+        userId,
+        sourceId: source._id,
+        sourceType: 'website',
+        r2TextKey,
+        chunks,
+        embeddings
+    });
+
+    await usageTracker.trackWebsiteScrape(userId);
+    if (onProgress) onProgress({ pagesFound: urls.length, pagesScraped: scraped, status: 'done' });
+    return source;
+};
+
+/**
+ * Re-scrape a website source and replace its vectors (for scheduled refresh).
+ * @param {Object} source - Source document with url, userId, _id
+ */
+const reScrapeSource = async (source) => {
+    if (source.type !== 'website' || !source.url) throw new Error('Invalid source for re-scrape.');
+    const { url, userId, _id: sourceId } = source;
+    const { text } = await scrapeContent(url);
+    if (!text || text.length < 50) throw new Error('Re-scrape produced no content.');
+    const r2TextKey = `chatbot-data/${userId}/website/${sourceId}_${Date.now()}.txt`;
+    await r2Storage.uploadToR2(r2TextKey, text, 'text/plain');
+    const chunks = await embeddingService.chunkText(text);
+    const embeddings = [];
+    for (const chunk of chunks) {
+        const vec = await embeddingService.generateEmbedding(chunk);
+        embeddings.push(vec);
+    }
+    await vectorService.deleteVectorsBySourceId(sourceId);
+    await vectorService.storeVectors({
+        userId: source.userId,
+        sourceId,
+        sourceType: 'website',
+        r2TextKey,
+        chunks,
+        embeddings
+    });
+    return { chunks: chunks.length };
+};
+
+module.exports = { processWebsite, processWebsiteMulti, scrapeContent, reScrapeSource };

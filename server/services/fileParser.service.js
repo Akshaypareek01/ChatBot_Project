@@ -11,7 +11,12 @@ const Source = require('../models/Source');
 const ALLOWED_MIMES = new Set([
     'application/pdf',
     'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-    'text/plain'
+    'text/plain',
+    'text/csv',
+    'application/csv',
+    'text/markdown',
+    'text/x-markdown',
+    'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
 ]);
 const DANGEROUS_MIMES = new Set([
     'application/x-msdownload', 'application/x-msdos-program', 'application/x-executable',
@@ -39,13 +44,26 @@ const extractText = async (buffer, mimeType) => {
     } else if (mimeType === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document') { // docx
         const result = await mammoth.extractRawText({ buffer });
         text = result.value;
-    } else if (mimeType === 'text/plain') {
+    } else if (mimeType === 'text/plain' || mimeType === 'text/markdown' || mimeType === 'text/x-markdown') {
         text = buffer.toString('utf-8');
+    } else if (mimeType === 'text/csv' || mimeType === 'application/csv') {
+        text = buffer.toString('utf-8');
+        // Normalize CSV into readable lines (replace commas with space for embedding context)
+        text = text.split(/\r?\n/).map((line) => line.replace(/,/g, ' ')).join('\n');
+    } else if (mimeType === 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet') { // xlsx
+        const XLSX = require('xlsx');
+        const wb = XLSX.read(buffer, { type: 'buffer' });
+        const parts = [];
+        wb.SheetNames.forEach((name) => {
+            const sheet = wb.Sheets[name];
+            const csv = XLSX.utils.sheet_to_csv(sheet);
+            if (csv) parts.push(csv);
+        });
+        text = parts.join('\n\n');
     } else {
         throw new Error(`Unsupported file type: ${mimeType}`);
     }
 
-    // Basic cleaning
     return text.replace(/\s+/g, ' ').trim();
 };
 
@@ -57,7 +75,7 @@ const extractText = async (buffer, mimeType) => {
 const processFile = async (userId, file) => {
     if (!file || !file.mimetype) throw new Error('Invalid file.');
     if (DANGEROUS_MIMES.has(file.mimetype)) throw new Error('Executables and binaries are not allowed.');
-    if (!ALLOWED_MIMES.has(file.mimetype)) throw new Error(`Unsupported file type: ${file.mimetype}. Allowed: PDF, DOCX, TXT.`);
+    if (!ALLOWED_MIMES.has(file.mimetype)) throw new Error(`Unsupported file type: ${file.mimetype}. Allowed: PDF, DOCX, TXT, CSV, MD, XLSX.`);
 
     await planGuard.canUploadFile(userId);
 
@@ -144,7 +162,52 @@ const processFile = async (userId, file) => {
     }
 };
 
+/**
+ * Process pasted text as a knowledge source (no file upload).
+ * @param {string} userId
+ * @param {string} title - Optional title for the source
+ * @param {string} content - Raw text content
+ */
+const processPaste = async (userId, title, content) => {
+    const trimmed = (content || '').trim();
+    if (trimmed.length < 30) throw new Error('Pasted text is too short (min 30 characters).');
+    await planGuard.canUploadFile(userId); // reuse file limit for "sources"
+
+    const fileId = uuidv4();
+    const r2TextKey = `chatbot-data/${userId}/paste/${fileId}.txt`;
+
+    await r2Storage.uploadToR2(r2TextKey, trimmed, 'text/plain');
+    const chunks = await embeddingService.chunkText(trimmed);
+    const embeddings = [];
+    for (const chunk of chunks) {
+        const vec = await embeddingService.generateEmbedding(chunk);
+        embeddings.push(vec);
+    }
+
+    const source = await Source.create({
+        userId,
+        type: 'paste',
+        pasteTitle: (title || 'Pasted text').slice(0, 200),
+        r2TextKey,
+        status: 'processed_and_deleted'
+    });
+
+    await vectorService.storeVectors({
+        userId,
+        sourceId: source._id,
+        sourceType: 'paste',
+        r2TextKey,
+        chunks,
+        embeddings
+    });
+
+    await usageTracker.trackFileUpload(userId);
+    await r2Storage.deleteFromR2(r2TextKey);
+    return source;
+};
+
 module.exports = {
     processFile,
-    extractText
+    extractText,
+    processPaste
 };

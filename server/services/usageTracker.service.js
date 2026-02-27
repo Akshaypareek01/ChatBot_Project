@@ -1,6 +1,7 @@
 const User = require('../models/User');
 const Usage = require('../models/Usage');
 const emailService = require('./email.service');
+const notificationService = require('./notification.service');
 
 // Constants
 const TOKENS_PER_INR = 2500; // Updated: 1 INR = 2500 Tokens (Strategic Profitability)
@@ -26,19 +27,23 @@ const deductTokens = async (userId, tokensToDeduct, type = 'chat', description =
     const benchmark = Math.max(250000, user.tokenBalance + tokensToDeduct);
     const percentage = (user.tokenBalance / benchmark) * 100;
 
-    // Trigger Emails
+    // Trigger Emails + in-app notifications (Phase 3.4)
     if (user.tokenBalance === 0 && oldBalance > 0) {
         await emailService.sendEmptyBalanceEmail(user.email, user.name);
         user.lastAlertThreshold = 0;
+        notificationService.create(userId, 'low_balance', 'Token balance empty', 'Your chatbot has stopped. Recharge to reactivate.', { balance: 0 }).catch(() => {});
     } else if (percentage <= 5 && user.lastAlertThreshold > 5) {
         await emailService.sendLowBalanceEmail(user.email, user.name, user.tokenBalance);
         user.lastAlertThreshold = 5;
+        notificationService.create(userId, 'low_balance', 'Low token balance', `${user.tokenBalance.toLocaleString()} tokens left (~${Math.floor(user.tokenBalance / 1800)} chats).`, { balance: user.tokenBalance }).catch(() => {});
     } else if (percentage <= 10 && user.lastAlertThreshold > 10) {
         await emailService.sendLowBalanceEmail(user.email, user.name, user.tokenBalance);
         user.lastAlertThreshold = 10;
+        notificationService.create(userId, 'low_balance', 'Low token balance', `${user.tokenBalance.toLocaleString()} tokens remaining.`, { balance: user.tokenBalance }).catch(() => {});
     } else if (percentage <= 25 && user.lastAlertThreshold > 25) {
         await emailService.sendLowBalanceEmail(user.email, user.name, user.tokenBalance);
         user.lastAlertThreshold = 25;
+        notificationService.create(userId, 'low_balance', 'Token balance alert', `You have ${user.tokenBalance.toLocaleString()} tokens left. Consider recharging.`, { balance: user.tokenBalance }).catch(() => {});
     }
 
     await user.save();

@@ -80,7 +80,7 @@ app.get('/health', (req, res) => {
   res.status(200).json({ status: 'ok', timestamp: new Date().toISOString() });
 });
 
-// Mount API routes
+// Mount API routes (current)
 app.use('/api', authRoutes);
 app.use('/api', paymentRoutes); // This must be before userRoutes/adminRoutes to prevent auth logic conflicts
 app.use('/api', chatbotRoutes);
@@ -88,9 +88,30 @@ app.use('/api', userRoutes);
 app.use('/api', adminRoutes);
 app.use('/api', supportRoutes);
 
-// Cron Job for Subscription Expiration (Removed - Token System)
-// checkSubscriptionExpiration();
-// setInterval(checkSubscriptionExpiration, 60 * 60 * 1000);
+// Mount same routes under /api/v1 for versioned API (backward compat: keep /api for 3+ months)
+app.use('/api/v1', authRoutes);
+app.use('/api/v1', paymentRoutes);
+app.use('/api/v1', chatbotRoutes);
+app.use('/api/v1', userRoutes);
+app.use('/api/v1', adminRoutes);
+app.use('/api/v1', supportRoutes);
+
+// Scheduled re-scrape for website sources (daily/weekly)
+const { runScheduledScrapes } = require('./jobs/scheduledScrape');
+runScheduledScrapes().catch((e) => console.error('Scheduled scrape error:', e));
+setInterval(() => {
+    runScheduledScrapes().catch((e) => console.error('Scheduled scrape error:', e));
+}, 60 * 60 * 1000);
+
+// Phase 3.2: Onboarding email sequence (Day 1, 3, 7) — run once per day
+const { runOnboardingEmails } = require('./jobs/onboardingEmails');
+runOnboardingEmails().catch((e) => console.error('Onboarding emails error:', e));
+setInterval(() => runOnboardingEmails().catch((e) => console.error('Onboarding emails error:', e)), 24 * 60 * 60 * 1000);
+
+// Phase 3.4: Daily/weekly summary emails — run once per day
+const { runSummaryEmails } = require('./jobs/summaryEmails');
+runSummaryEmails().catch((e) => console.error('Summary emails error:', e));
+setInterval(() => runSummaryEmails().catch((e) => console.error('Summary emails error:', e)), 24 * 60 * 60 * 1000);
 
 if (process.env.SENTRY_DSN) {
   const Sentry = require('@sentry/node');

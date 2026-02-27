@@ -92,7 +92,22 @@ const userSchema = new mongoose.Schema({
     },
     // Brute force protection: lock after 5 failed attempts for 15 min
     loginAttempts: { type: Number, default: 0 },
-    lockUntil: { type: Date, default: null }
+    lockUntil: { type: Date, default: null },
+    // Phase 3.2: onboarding wizard completed
+    onboardingCompletedAt: { type: Date, default: null },
+    // Phase 3.3: widget installation verification (last ping from widget)
+    lastWidgetPingAt: { type: Date, default: null },
+    lastWidgetPingOrigin: { type: String, default: null },
+    // Phase 3.4: notification preferences
+    emailOnNewLead: { type: Boolean, default: true },
+    emailOnLowBalance: { type: Boolean, default: true },
+    emailSummary: { type: String, enum: ['none', 'daily', 'weekly'], default: 'weekly' },
+    // Phase 3.2: onboarding email sequence (Day 1, 3, 7)
+    onboardingEmailSent: {
+        day1: { type: Date, default: null },
+        day3: { type: Date, default: null },
+        day7: { type: Date, default: null }
+    }
 });
 
 module.exports = mongoose.model('User', userSchema);

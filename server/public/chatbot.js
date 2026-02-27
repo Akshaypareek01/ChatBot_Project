@@ -6,11 +6,22 @@
   const API_URL = `${baseUrl}/api`;
 
   const userId = document.currentScript.getAttribute('data-user-id');
+  const botSlug = document.currentScript.getAttribute('data-bot-id') || document.currentScript.getAttribute('data-bot');
 
   if (!userId) {
     console.error('Chatbot Error: No user ID provided');
     return;
   }
+
+  // Phase 3.3: Installation verification — ping so dashboard can show "Widget detected"
+  try {
+    fetch(`${baseUrl}/api/chatbot/widget-ping`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ userId, origin: window.location.origin }),
+      keepalive: true
+    }).catch(function () {});
+  } catch (_) {}
 
   // Inject Custom Font (Inter)
   const fontLink = document.createElement('link');
@@ -208,9 +219,13 @@
     });
 
     const headerTitleContainer = document.createElement('div');
+    const avatarUrl = (cfg.botAvatarUrl && cfg.botAvatarUrl.trim()) || '';
+    const safeAvatarUrl = avatarUrl ? avatarUrl.replace(/[<>"']/g, '') : '';
     headerTitleContainer.innerHTML = `
       <div style="display: flex; align-items: center; gap: 10px;">
-        <div style="width: 8px; height: 8px; border-radius: 50%; background: ${accentColor}; box-shadow: 0 0 10px ${accentColor};"></div>
+        ${safeAvatarUrl
+          ? '<img src="' + safeAvatarUrl + '" alt="" style="width: 36px; height: 36px; border-radius: 50%; object-fit: cover; border: 2px solid ' + accentColor + ';">'
+          : '<div style="width: 8px; height: 8px; border-radius: 50%; background: ' + accentColor + '; box-shadow: 0 0 10px ' + accentColor + ';"></div>'}
         <h3 style="margin:0; font-size: 14px; color: white; font-weight: 700; text-transform: uppercase; letter-spacing: 0.1em;">${brandName}</h3>
       </div>
     `;
@@ -730,7 +745,8 @@
   const init = async () => {
     try {
       // Fetch Brand Info / Status
-      const res = await fetch(`${API_URL}/chatbot/${userId}`);
+      const botQuery = botSlug ? '?bot=' + encodeURIComponent(botSlug) : '';
+      const res = await fetch(`${API_URL}/chatbot/${userId}${botQuery}`);
       const data = await res.json();
 
       if (!res.ok) {
@@ -741,6 +757,13 @@
       const { chatBody, input, sendBtn, openChat } = createChatbotUI(data);
       const autoOpenDelay = data.widgetConfig?.autoOpenDelay;
       if (autoOpenDelay > 0) setTimeout(openChat, autoOpenDelay * 1000);
+
+      if (data.widgetConfig && data.widgetConfig.customCss && typeof data.widgetConfig.customCss === 'string') {
+        var customStyle = document.createElement('style');
+        customStyle.id = 'chatbot-custom-css';
+        customStyle.textContent = data.widgetConfig.customCss.trim();
+        document.head.appendChild(customStyle);
+      }
 
       // Initialize translation engine
       injectTranslateScript();
@@ -796,12 +819,15 @@
         } catch (e) {}
       };
 
-      const handleSend = async () => {
-        const text = input.value.trim();
+      var lastSentMessage = null;
+
+      const handleSend = async (optionalText) => {
+        const text = (optionalText != null ? String(optionalText).trim() : input.value.trim());
         if (!text) return;
 
         input.value = '';
         addMessage(chatBody, 'user', text);
+        lastSentMessage = text;
 
         const loader = addTyping(chatBody);
         const payload = {
@@ -810,9 +836,12 @@
           visitorId: getVisitorId(),
           conversationId: getConversationId()
         };
+        if (botSlug) payload.botId = botSlug;
         const bodyString = JSON.stringify(payload);
         const pathStream = '/api/chat/stream';
         const { timestamp, signature } = await signRequest('POST', pathStream, bodyString, data.widgetToken);
+
+        var controller = new AbortController();
 
         try {
           const apiRes = await fetch(`${API_URL}/chat/stream`, {
@@ -822,7 +851,8 @@
               'X-Widget-Timestamp': timestamp,
               'X-Widget-Signature': signature
             },
-            body: bodyString
+            body: bodyString,
+            signal: controller.signal
           });
 
           if (!apiRes.ok) {
@@ -856,6 +886,38 @@
               if (obj.type === 'conversationId' && obj.conversationId) {
                 setConversationId(obj.conversationId);
               }
+              if (obj.type === 'messageIndex' && typeof obj.messageIndex === 'number' && streamEl) {
+                var cid = getConversationId();
+                if (cid) {
+                  var thumbsWrap = document.createElement('div');
+                  thumbsWrap.style.cssText = 'display:flex;gap:8px;margin-top:8px;';
+                  var up = document.createElement('button');
+                  up.title = 'Good response';
+                  up.innerHTML = '&#128077;';
+                  up.style.cssText = 'background:none;border:none;cursor:pointer;font-size:16px;opacity:0.7;';
+                  var down = document.createElement('button');
+                  down.title = 'Bad response';
+                  down.innerHTML = '&#128078;';
+                  down.style.cssText = 'background:none;border:none;cursor:pointer;font-size:16px;opacity:0.7;';
+                  var sendFeedback = function (val) {
+                    up.disabled = down.disabled = true;
+                    var bodyString = JSON.stringify({ widgetToken: data.widgetToken, conversationId: cid, messageIndex: obj.messageIndex, feedback: val });
+                    signRequest('POST', '/api/chat/feedback', bodyString, data.widgetToken).then(function (sig) {
+                      fetch(API_URL + '/chat/feedback', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json', 'X-Widget-Timestamp': sig.timestamp, 'X-Widget-Signature': sig.signature },
+                        body: bodyString
+                      }).catch(function () {});
+                    });
+                  };
+                  up.onclick = function () { sendFeedback(1); };
+                  down.onclick = function () { sendFeedback(-1); };
+                  thumbsWrap.appendChild(up);
+                  thumbsWrap.appendChild(down);
+                  streamEl.container.appendChild(thumbsWrap);
+                }
+                streamEl = null;
+              }
               if (obj.type === 'token' && obj.content != null) {
                 if (!streamStarted) {
                   loader.remove();
@@ -873,7 +935,21 @@
                   }
                 }
                 if (streamEl) streamEl.finish();
-                streamEl = null;
+                var sug = data.widgetConfig?.suggestedQuestions;
+                if (Array.isArray(sug) && sug.length > 0) {
+                  var qWrap = document.createElement('div');
+                  qWrap.style.cssText = 'display:flex;flex-wrap:wrap;gap:8px;margin-top:12px;';
+                  sug.slice(0, 5).forEach(function (q) {
+                    if (!q || typeof q !== 'string') return;
+                    var qBtn = document.createElement('button');
+                    qBtn.textContent = q;
+                    qBtn.style.cssText = 'padding:8px 14px;border:1px solid rgba(34,211,238,0.3);background:rgba(34,211,238,0.08);color:#22D3EE;border-radius:8px;font-size:13px;cursor:pointer;';
+                    qBtn.onclick = function () { handleSend(q); qWrap.remove(); };
+                    qWrap.appendChild(qBtn);
+                  });
+                  chatBody.appendChild(qWrap);
+                  chatBody.scrollTop = chatBody.scrollHeight;
+                }
               }
             }
           }
@@ -886,19 +962,138 @@
         } catch (err) {
           console.error(err);
           loader.remove();
-          addMessage(chatBody, 'bot', 'Network error. Please try again.');
+          if (err.name === 'AbortError') {
+            var retryWrap = document.createElement('div');
+            retryWrap.style.cssText = 'margin-top:8px;';
+            retryWrap.innerHTML = '<span style="color:#94A3B8;font-size:13px;">Connection interrupted. </span>';
+            var retryBtn = document.createElement('button');
+            retryBtn.textContent = 'Retry';
+            retryBtn.style.cssText = 'background:rgba(34,211,238,0.2);color:#22D3EE;border:1px solid rgba(34,211,238,0.5);padding:6px 12px;border-radius:8px;cursor:pointer;font-size:13px;margin-left:8px;';
+            retryBtn.onclick = function () {
+              retryWrap.remove();
+              if (lastSentMessage) handleSend(lastSentMessage);
+            };
+            retryWrap.appendChild(retryBtn);
+            chatBody.appendChild(retryWrap);
+            chatBody.scrollTop = chatBody.scrollHeight;
+          } else {
+            var errWrap = document.createElement('div');
+            errWrap.innerHTML = '<span style="color:#94A3B8;">Network error. </span>';
+            var againBtn = document.createElement('button');
+            againBtn.textContent = 'Retry';
+            againBtn.style.cssText = 'background:rgba(34,211,238,0.2);color:#22D3EE;border:1px solid rgba(34,211,238,0.5);padding:6px 12px;border-radius:8px;cursor:pointer;font-size:13px;margin-left:8px;';
+            againBtn.onclick = function () {
+              errWrap.remove();
+              if (lastSentMessage) handleSend(lastSentMessage);
+            };
+            errWrap.appendChild(againBtn);
+            chatBody.appendChild(errWrap);
+            chatBody.scrollTop = chatBody.scrollHeight;
+          }
         }
       };
 
       sendBtn.onclick = handleSend;
       input.onkeypress = (e) => { if (e.key === 'Enter') handleSend(); };
 
-      // Welcome Message (custom or default)
       const welcomeText = data.widgetConfig?.welcomeMessage ||
         `Hello! Welcome to ${data.name || 'our support'}. How can I help you today?`;
-      setTimeout(() => {
-        addMessage(chatBody, 'bot', welcomeText);
-      }, 800);
+      const preChat = data.widgetConfig?.preChatForm;
+      const needPreChat = preChat && preChat.enabled && preChat.fields && preChat.fields.length && !getConversationId();
+
+      if (needPreChat) {
+        const formWrap = document.createElement('div');
+        formWrap.id = 'chatbot-preachat-form';
+        formWrap.style.cssText = 'padding: 16px;';
+        const msg = (preChat.welcomeMessage || 'Please share your details to start.').trim();
+        formWrap.innerHTML = '<p style="color:#94A3B8;font-size:14px;margin-bottom:16px;">' + escapeHtml(msg) + '</p>';
+        const form = document.createElement('form');
+        form.style.cssText = 'display:flex;flex-direction:column;gap:12px;';
+        preChat.fields.forEach(function (f) {
+          const key = f.key || 'name';
+          const lab = document.createElement('label');
+          lab.textContent = f.label || key.charAt(0).toUpperCase() + key.slice(1);
+          lab.style.cssText = 'color:#94A3B8;font-size:12px;';
+          const inp = document.createElement('input');
+          inp.name = key;
+          inp.type = key === 'email' ? 'email' : key === 'phone' ? 'tel' : 'text';
+          inp.placeholder = key === 'email' ? 'you@example.com' : key === 'phone' ? 'Phone' : 'Name';
+          inp.required = !!f.required;
+          inp.style.cssText = 'padding:10px 12px;border:1px solid rgba(255,255,255,0.1);background:rgba(255,255,255,0.03);border-radius:8px;color:#fff;font-size:14px;';
+          form.appendChild(lab);
+          form.appendChild(inp);
+        });
+        const subBtn = document.createElement('button');
+        subBtn.type = 'submit';
+        subBtn.textContent = 'Start chat';
+        subBtn.style.cssText = 'padding:10px 16px;background:#22D3EE;color:#0B0F17;border:none;border-radius:8px;cursor:pointer;font-weight:600;';
+        form.appendChild(subBtn);
+        formWrap.appendChild(form);
+        chatBody.appendChild(formWrap);
+        form.onsubmit = async function (e) {
+          e.preventDefault();
+          const leadInfo = {};
+          preChat.fields.forEach(function (f) {
+            const key = f.key || 'name';
+            const val = (form.querySelector('[name="' + key + '"]') || {}).value;
+            if (val) leadInfo[key] = val;
+          });
+          const body = { widgetToken: data.widgetToken, visitorId: getVisitorId(), leadInfo: leadInfo };
+            if (botSlug) body.botId = botSlug;
+            const bodyString = JSON.stringify(body);
+          const path = '/api/chat/start';
+          const { timestamp, signature } = await signRequest('POST', path, bodyString, data.widgetToken);
+          try {
+            const res = await fetch(API_URL + '/chat/start', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json', 'X-Widget-Timestamp': timestamp, 'X-Widget-Signature': signature },
+              body: bodyString
+            });
+            const json = await res.json();
+            if (res.ok && json.conversationId) {
+              setConversationId(json.conversationId);
+              formWrap.remove();
+              addMessage(chatBody, 'bot', welcomeText);
+              var sug = data.widgetConfig?.suggestedQuestions;
+              if (Array.isArray(sug) && sug.length > 0) {
+                var w = document.createElement('div');
+                w.style.cssText = 'display:flex;flex-wrap:wrap;gap:8px;margin-top:12px;';
+                sug.slice(0, 5).forEach(function (q) {
+                  if (!q || typeof q !== 'string') return;
+                  var b = document.createElement('button');
+                  b.textContent = q;
+                  b.style.cssText = 'padding:8px 14px;border:1px solid rgba(34,211,238,0.3);background:rgba(34,211,238,0.08);color:#22D3EE;border-radius:8px;font-size:13px;cursor:pointer;';
+                  b.onclick = function () { handleSend(q); w.remove(); };
+                  w.appendChild(b);
+                });
+                chatBody.appendChild(w);
+              }
+            } else {
+              addMessage(chatBody, 'bot', json.message || 'Could not start chat.');
+            }
+          } catch (err) {
+            addMessage(chatBody, 'bot', 'Network error. Please try again.');
+          }
+        };
+      } else {
+        setTimeout(function () {
+          addMessage(chatBody, 'bot', welcomeText);
+          var suggested = data.widgetConfig?.suggestedQuestions;
+          if (Array.isArray(suggested) && suggested.length > 0) {
+            var wrap = document.createElement('div');
+            wrap.style.cssText = 'display:flex;flex-wrap:wrap;gap:8px;margin-top:12px;';
+            suggested.slice(0, 5).forEach(function (q) {
+              if (!q || typeof q !== 'string') return;
+              var btn = document.createElement('button');
+              btn.textContent = q;
+              btn.style.cssText = 'padding:8px 14px;border:1px solid rgba(34,211,238,0.3);background:rgba(34,211,238,0.08);color:#22D3EE;border-radius:8px;font-size:13px;cursor:pointer;';
+              btn.onclick = function () { handleSend(q); wrap.remove(); };
+              wrap.appendChild(btn);
+            });
+            chatBody.appendChild(wrap);
+          }
+        }, 800);
+      }
 
     } catch (e) {
       console.error('Chatbot init failed:', e);

@@ -7,9 +7,10 @@ const SourceSchema = new mongoose.Schema({
         required: true,
         index: true
     },
+    botId: { type: mongoose.Schema.Types.ObjectId, ref: 'Bot', default: null, index: true },
     type: {
         type: String,
-        enum: ['website', 'file'],
+        enum: ['website', 'file', 'paste'],
         required: true
     },
     // Common fields
@@ -28,6 +29,11 @@ const SourceSchema = new mongoose.Schema({
     // Website specific
     url: String,
     pageCount: Number,
+    scrapeSchedule: { type: String, enum: ['none', 'daily', 'weekly'], default: 'none' },
+    lastScrapedAt: Date,
+
+    // Paste specific
+    pasteTitle: String,
 
     // Both
     r2TextKey: String, // Path to cleaned text in R2
