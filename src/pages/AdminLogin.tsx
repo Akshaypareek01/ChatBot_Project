@@ -39,9 +39,10 @@ const AdminLogin = () => {
       const data = await adminLogin(email, password);
       if (data.token) {
         localStorage.setItem('token', data.token);
+        if (data.refreshToken) localStorage.setItem('refreshToken', data.refreshToken);
         localStorage.setItem('isAdmin', 'true');
         toast.success('Login successful');
-        navigate('/admin'); // Use navigate instead of window.location for SPA feel, unless explicit reload needed
+        navigate('/admin');
       } else {
         throw new Error("Invalid response from server");
       }

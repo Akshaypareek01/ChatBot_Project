@@ -35,10 +35,11 @@ const Login = () => {
     try {
       const data = await login(email, password);
       localStorage.setItem('token', data.token);
-      localStorage.setItem('isAdmin', data.isAdmin ? 'true' : 'false');
+      if (data.refreshToken) localStorage.setItem('refreshToken', data.refreshToken);
+      localStorage.setItem('isAdmin', data.user?.role === 'admin' ? 'true' : 'false');
       toast.success('Login successful');
 
-      if (data.isAdmin) {
+      if (data.user?.role === 'admin') {
         navigate('/admin');
       } else {
         navigate('/user');

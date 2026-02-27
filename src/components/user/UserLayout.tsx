@@ -1,7 +1,7 @@
 
 import React from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import { LayoutDashboard, MessageSquareText, User, LogOut, CreditCard, DollarSign, HelpCircle, Shield } from 'lucide-react';
+import { LayoutDashboard, MessageSquareText, User, LogOut, DollarSign, HelpCircle, Shield, Palette, MessagesSquare } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
 import { cn } from '@/lib/utils';
@@ -19,6 +19,8 @@ const UserLayout: React.FC<UserLayoutProps> = ({ children, onLogout, user }) => 
   const navItems = [
     { icon: LayoutDashboard, label: 'Dashboard', path: '/user' },
     { icon: MessageSquareText, label: 'Knowledge Base', path: '/user/qa' },
+    { icon: Palette, label: 'Widget', path: '/user/widget' },
+    { icon: MessagesSquare, label: 'Conversations', path: '/user/conversations' },
     { icon: Shield, label: 'Domain Security', path: '/user/security' },
     { icon: User, label: 'Profile', path: '/user/profile' },
     { icon: DollarSign, label: 'Transactions', path: '/user/transactions' },

@@ -10,6 +10,7 @@ const api = axios.create({
   baseURL: API_URL,
   headers: {
     'Content-Type': 'application/json',
+    'X-Requested-With': 'XMLHttpRequest',
   },
 });
 
@@ -23,6 +24,51 @@ api.interceptors.request.use(
     return config;
   },
   (error) => Promise.reject(error)
+);
+
+// On 401, try refresh token and retry once
+let refreshing = false;
+let failedQueue: Array<{ resolve: (v: any) => void; reject: (e: any) => void }> = [];
+
+const processQueue = (err: any, newToken: string | null = null) => {
+  failedQueue.forEach((p) => (newToken ? p.resolve(newToken) : p.reject(err)));
+  failedQueue = [];
+};
+
+api.interceptors.response.use(
+  (res) => res,
+  async (err) => {
+    const original = err.config;
+    if (err.response?.status !== 401 || original._retry) {
+      return Promise.reject(err);
+    }
+    const refresh = localStorage.getItem('refreshToken');
+    if (!refresh) return Promise.reject(err);
+
+    if (refreshing) {
+      return new Promise((resolve, reject) => {
+        failedQueue.push({ resolve: (t) => { original.headers.Authorization = `Bearer ${t}`; api(original).then(resolve).catch(reject); }, reject });
+      });
+    }
+    original._retry = true;
+    refreshing = true;
+    try {
+      const { data } = await api.post('/users/refresh-token', { refreshToken: refresh });
+      const newToken = data.token;
+      localStorage.setItem('token', newToken);
+      if (data.refreshToken) localStorage.setItem('refreshToken', data.refreshToken);
+      processQueue(null, newToken);
+      original.headers.Authorization = `Bearer ${newToken}`;
+      return api(original);
+    } catch (e) {
+      processQueue(e, null);
+      localStorage.removeItem('token');
+      localStorage.removeItem('refreshToken');
+      return Promise.reject(e);
+    } finally {
+      refreshing = false;
+    }
+  }
 );
 
 // --- Error Handler ---
@@ -61,7 +107,7 @@ export const adminLogin = async (email: string, password: string) => {
   }
 };
 
-export const registerUser = async (userData: { name: string; email: string; password: string; website: string; brandName?: string }) => {
+export const registerUser = async (userData: { name: string; email: string; password: string; website: string; brandName?: string; acceptTos?: boolean; acceptPrivacy?: boolean }) => {
   try {
     const response = await api.post('/users/register', userData);
     return response.data;
@@ -345,6 +391,31 @@ export const getUserChatbotData = async () => {
   } catch (error: any) {
     return handleApiError(error, 'Error fetching chatbot data');
   }
+};
+
+export const getWidgetConfig = async () => {
+  const response = await api.get('/users/chatbot/config');
+  return response.data;
+};
+
+export const updateWidgetConfig = async (config: Record<string, unknown>) => {
+  const response = await api.put('/users/chatbot/config', config);
+  return response.data;
+};
+
+export const getConversations = async (params?: { page?: number; limit?: number; status?: string }) => {
+  const response = await api.get('/users/conversations', { params });
+  return response.data;
+};
+
+export const getConversationById = async (id: string) => {
+  const response = await api.get(`/users/conversations/${id}`);
+  return response.data;
+};
+
+export const exportConversationsCsv = async () => {
+  const response = await api.get('/users/conversations/export', { responseType: 'blob' });
+  return response.data;
 };
 
 export const logUnansweredQuestion = async (userId: string, question: string) => {

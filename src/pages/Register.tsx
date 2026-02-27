@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
+import { Checkbox } from '@/components/ui/checkbox';
 import { registerUser, verifyOTP, resendVerificationOTP } from '@/services/api';
 import { toast } from 'sonner';
 
@@ -15,6 +16,8 @@ interface RegisterFormData {
   confirmPassword: string;
   website: string;
   brandName: string;
+  acceptTos: boolean;
+  acceptPrivacy: boolean;
 }
 
 const Register = () => {
@@ -31,7 +34,9 @@ const Register = () => {
       password: '',
       confirmPassword: '',
       website: '',
-      brandName: ''
+      brandName: '',
+      acceptTos: false,
+      acceptPrivacy: false
     }
   });
 
@@ -43,12 +48,18 @@ const Register = () => {
 
     setIsLoading(true);
     try {
+      if (!data.acceptTos || !data.acceptPrivacy) {
+        toast.error('You must accept the Terms of Service and Privacy Policy');
+        return;
+      }
       const response = await registerUser({
         name: data.name,
         email: data.email,
         password: data.password,
         website: data.website,
-        brandName: data.brandName
+        brandName: data.brandName,
+        acceptTos: true,
+        acceptPrivacy: true
       });
 
       if (response.requiresVerification) {
@@ -247,6 +258,37 @@ const Register = () => {
                   )}
                 />
               </div>
+
+              <FormField
+                control={form.control}
+                name="acceptTos"
+                render={({ field }) => (
+                  <FormItem className="flex items-start gap-2 space-y-0">
+                    <FormControl>
+                      <Checkbox checked={field.value} onCheckedChange={field.onChange} />
+                    </FormControl>
+                    <FormLabel className="text-sm font-normal">
+                      I accept the <Link to="/terms" className="underline">Terms of Service</Link>
+                    </FormLabel>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="acceptPrivacy"
+                render={({ field }) => (
+                  <FormItem className="flex items-start gap-2 space-y-0">
+                    <FormControl>
+                      <Checkbox checked={field.value} onCheckedChange={field.onChange} />
+                    </FormControl>
+                    <FormLabel className="text-sm font-normal">
+                      I accept the <Link to="/privacy" className="underline">Privacy Policy</Link>
+                    </FormLabel>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
 
               <Button type="submit" className="w-full py-6 mt-2" disabled={isLoading}>
                 {isLoading ? 'Processing...' : 'Register Account'}

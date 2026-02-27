@@ -10,6 +10,9 @@ import { toast } from 'sonner';
 import UserTransactions from '@/components/user/UserTransactions';
 import SupportSystem from '@/components/user/SupportSystem';
 import DomainSecurityPage from '@/components/user/DomainSecurityPage';
+import WidgetCustomization from '@/components/user/WidgetCustomization';
+import ConversationsList from '@/components/user/ConversationsList';
+import ConversationDetail from '@/components/user/ConversationDetail';
 
 const UserDashboard = () => {
   const location = useLocation();
@@ -81,6 +84,9 @@ const UserDashboard = () => {
           <Route path="/profile" element={<UserProfile />} />
           <Route path="/transactions" element={<UserTransactions />} />
           <Route path="/security" element={<DomainSecurityPage />} />
+          <Route path="/widget" element={<WidgetCustomization />} />
+          <Route path="/conversations" element={<ConversationsList />} />
+          <Route path="/conversations/:id" element={<ConversationDetail />} />
           <Route path="/support" element={<SupportSystem />} />
           <Route path="*" element={<Navigate to="/user" replace />} />
         </Routes>
