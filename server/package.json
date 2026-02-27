@@ -5,12 +5,14 @@
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
-    "dev": "nodemon server.js"
+    "dev": "nodemon server.js",
+    "audit:security": "npm audit --audit-level=high"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.965.0",
     "@aws-sdk/s3-request-presigner": "^3.965.0",
     "@langchain/textsplitters": "^1.0.1",
+    "@sentry/node": "^10.40.0",
     "axios": "^1.13.2",
     "bcrypt": "^5.1.1",
     "cashfree-pg": "^4.3.10",
@@ -20,6 +22,7 @@
     "express": "^4.18.2",
     "express-rate-limit": "^8.2.1",
     "helmet": "^8.1.0",
+    "joi": "^18.0.2",
     "jsonwebtoken": "^9.0.2",
     "langchain": "^1.2.7",
     "mammoth": "^1.11.0",
@@ -28,6 +31,9 @@
     "nodemailer": "^7.0.12",
     "openai": "^4.88.0",
     "pdf-parse-new": "^2.0.0",
+    "qrcode": "^1.5.4",
+    "sanitize-html": "^2.17.1",
+    "speakeasy": "^2.0.0",
     "uuid": "^13.0.0"
   },
   "devDependencies": {

@@ -1,6 +1,7 @@
 const User = require('../models/User');
 const QA = require('../models/QA');
 const bcrypt = require('bcrypt');
+const audit = require('../services/audit.service');
 
 const getUsers = async (req, res) => {
     try {
@@ -104,6 +105,7 @@ const createUser = async (req, res) => {
         });
 
         await newUser.save();
+        audit.log('admin_user_create', { actorId: req.userId, targetId: newUser._id, targetType: 'User', meta: { email: newUser.email }, ...audit.getReqMeta(req) });
 
         return res.status(201).json({
             user: {
@@ -142,6 +144,7 @@ const updateUser = async (req, res) => {
         if (!updatedUser) {
             return res.status(404).json({ message: 'User not found' });
         }
+        audit.log('admin_user_update', { actorId: req.userId, targetId: updatedUser._id, targetType: 'User', meta: { email: updatedUser.email }, ...audit.getReqMeta(req) });
 
         return res.status(200).json(updatedUser);
     } catch (error) {
@@ -160,6 +163,7 @@ const deleteUser = async (req, res) => {
         if (!deletedUser) {
             return res.status(404).json({ message: 'User not found' });
         }
+        audit.log('admin_user_delete', { actorId: req.userId, targetId: deletedUser._id, targetType: 'User', meta: { email: deletedUser.email }, ...audit.getReqMeta(req) });
 
         await QA.deleteMany({ userId: req.params.id });
 

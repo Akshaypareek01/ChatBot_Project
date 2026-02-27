@@ -62,8 +62,14 @@ const userSchema = new mongoose.Schema({
     },
     verificationOTP: String,
     verificationOTPExpires: Date,
+    verificationOTPAttempts: { type: Number, default: 0 },
     resetOTP: String,
     resetOTPExpires: Date,
+    resetOTPAttempts: { type: Number, default: 0 },
+    tosAcceptedAt: Date,
+    privacyAcceptedAt: Date,
+    totpSecret: String,
+    totpEnabled: { type: Boolean, default: false },
     lastAlertThreshold: {
         type: Number,
         default: 100
@@ -83,7 +89,10 @@ const userSchema = new mongoose.Schema({
     knowledgeVersion: {
         type: Number,
         default: 1
-    }
+    },
+    // Brute force protection: lock after 5 failed attempts for 15 min
+    loginAttempts: { type: Number, default: 0 },
+    lockUntil: { type: Date, default: null }
 });
 
 module.exports = mongoose.model('User', userSchema);

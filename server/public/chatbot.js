@@ -91,40 +91,48 @@
     }
   };
 
-  // 2. Create Chatbot UI with Premium Styles
-  const createChatbotUI = (brandName) => {
-    // Container
+  // 2. Create Chatbot UI with Premium Styles (data = { name, widgetConfig? })
+  const createChatbotUI = (data) => {
+    const brandName = data.widgetConfig?.botName || data.name || 'AI Agent';
+    const cfg = data.widgetConfig || {};
+    const primaryColor = cfg.primaryColor || '#2563EB';
+    const accentColor = cfg.accentColor || '#22D3EE';
+    const isLeft = cfg.position === 'bottom-left';
+    const widthMap = { compact: '320px', standard: '400px', large: '480px' };
+    const chatWidth = widthMap[cfg.size] || '400px';
+
+    // Container (position: bottom-left or bottom-right)
     const container = document.createElement('div');
     container.id = 'chatbot-widget-container';
     Object.assign(container.style, {
       position: 'fixed',
       bottom: '24px',
-      right: '24px',
-      zIndex: '2147483647', // Max z-index
+      [isLeft ? 'left' : 'right']: '24px',
+      zIndex: '2147483647',
       fontFamily: '"Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
       display: 'flex',
       flexDirection: 'column',
-      alignItems: 'flex-end',
+      alignItems: isLeft ? 'flex-start' : 'flex-end',
       gap: '16px'
     });
     document.body.appendChild(container);
 
-    // Toggle Button
+    // Toggle Button (primary color)
     const button = document.createElement('button');
     Object.assign(button.style, {
       width: '60px',
       height: '60px',
       borderRadius: '50%',
-      backgroundColor: '#2563EB', // Vibrant Blue
+      backgroundColor: primaryColor,
       color: 'white',
       border: 'none',
-      boxShadow: '0 8px 24px rgba(37, 99, 235, 0.35)',
+      boxShadow: `0 8px 24px ${primaryColor}59`,
       cursor: 'pointer',
       display: 'flex',
       alignItems: 'center',
       justifyContent: 'center',
       transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
-      transform: 'scale(0)', // Start hidden for animation
+      transform: 'scale(0)',
       opacity: '0'
     });
     button.innerHTML = `
@@ -133,17 +141,16 @@
       </svg>
     `;
 
-    // Add hover effects
     button.onmouseenter = () => {
       if (!isOpen) {
         button.style.transform = 'scale(1.1)';
-        button.style.boxShadow = '0 10px 30px rgba(37, 99, 235, 0.45)';
+        button.style.boxShadow = `0 10px 30px ${primaryColor}73`;
       }
     };
     button.onmouseleave = () => {
       if (!isOpen) {
         button.style.transform = 'scale(1)';
-        button.style.boxShadow = '0 8px 24px rgba(37, 99, 235, 0.35)';
+        button.style.boxShadow = `0 8px 24px ${primaryColor}59`;
       }
     };
 
@@ -167,22 +174,24 @@
     });
     document.body.appendChild(backdrop);
 
-    // 3. Main Chat Drawer
+    // 3. Main Chat Drawer (slide from left or right by position)
     const chatWindow = document.createElement('div');
     chatWindow.className = 'notranslate';
+    const slideKey = isLeft ? 'left' : 'right';
+    const slideHidden = isLeft ? '-420px' : '-420px';
     Object.assign(chatWindow.style, {
       position: 'fixed',
       top: '0',
-      right: '-420px', // Start hidden
-      width: '400px',
+      [slideKey]: slideHidden,
+      width: chatWidth,
       maxWidth: '90vw',
       height: '100%',
-      backgroundColor: '#0B0F17', // Neural Dark
+      backgroundColor: '#0B0F17',
       zIndex: '2147483649',
-      boxShadow: '-8px 0 32px rgba(0,0,0,0.5)',
+      boxShadow: '0 0 32px rgba(0,0,0,0.5)',
       display: 'flex',
       flexDirection: 'column',
-      transition: 'right 0.4s cubic-bezier(0.4, 0, 0.2, 1)',
+      transition: `${slideKey} 0.4s cubic-bezier(0.4, 0, 0.2, 1)`,
       fontFamily: '"Inter", "JetBrains Mono", monospace'
     });
 
@@ -201,8 +210,8 @@
     const headerTitleContainer = document.createElement('div');
     headerTitleContainer.innerHTML = `
       <div style="display: flex; align-items: center; gap: 10px;">
-        <div style="width: 8px; height: 8px; border-radius: 50%; background: #22D3EE; box-shadow: 0 0 10px #22D3EE;"></div>
-        <h3 style="margin:0; font-size: 14px; color: white; font-weight: 700; text-transform: uppercase; letter-spacing: 0.1em;">${brandName || 'AI Agent'}</h3>
+        <div style="width: 8px; height: 8px; border-radius: 50%; background: ${accentColor}; box-shadow: 0 0 10px ${accentColor};"></div>
+        <h3 style="margin:0; font-size: 14px; color: white; font-weight: 700; text-transform: uppercase; letter-spacing: 0.1em;">${brandName}</h3>
       </div>
     `;
 
@@ -316,17 +325,16 @@
     inputWrapper.appendChild(sendBtn);
     inputArea.appendChild(inputWrapper);
 
-    // Branding Footer
-    const branding = document.createElement('div');
-    Object.assign(branding.style, {
-      textAlign: 'center',
-      marginTop: '4px'
-    });
-    branding.innerHTML = `
-      <p style="margin:0; font-size: 9px; color: #475569; text-transform: uppercase; letter-spacing: 0.1em;">Powered By</p>
-      <p style="margin:2px 0 0; font-size: 11px; color: #64748B; font-weight: 600;">Nvhotech Private Limited</p>
-    `;
-    inputArea.appendChild(branding);
+    // Branding Footer (hide if showPoweredBy false)
+    if (cfg.showPoweredBy !== false) {
+      const branding = document.createElement('div');
+      Object.assign(branding.style, { textAlign: 'center', marginTop: '4px' });
+      branding.innerHTML = `
+        <p style="margin:0; font-size: 9px; color: #475569; text-transform: uppercase; letter-spacing: 0.1em;">Powered By</p>
+        <p style="margin:2px 0 0; font-size: 11px; color: #64748B; font-weight: 600;">Nvhotech Private Limited</p>
+      `;
+      inputArea.appendChild(branding);
+    }
 
     chatWindow.appendChild(inputArea);
     document.body.appendChild(chatWindow);
@@ -338,12 +346,12 @@
         backdrop.style.display = 'block';
         setTimeout(() => {
           backdrop.style.opacity = '1';
-          chatWindow.style.right = '0';
+          chatWindow.style[slideKey] = '0';
         }, 10);
         document.body.style.overflow = 'hidden';
       } else {
         backdrop.style.opacity = '0';
-        chatWindow.style.right = '-420px';
+        chatWindow.style[slideKey] = slideHidden;
         setTimeout(() => {
           backdrop.style.display = 'none';
           document.body.style.overflow = '';
@@ -358,13 +366,20 @@
     setTimeout(() => {
       button.style.opacity = '1';
       button.style.transform = 'scale(1)';
-      button.style.transition = 'all 0.5s cubic-bezier(0.34, 1.56, 0.64, 1)'; // Bouncy entrance
+      button.style.transition = 'all 0.5s cubic-bezier(0.34, 1.56, 0.64, 1)';
     }, 500);
 
-    return { chatBody, input, sendBtn };
+    const openChat = () => { if (!isOpen) toggleChat(); };
+    return { chatBody, input, sendBtn, openChat };
   };
 
   // Helper: Neural Message Bubbles
+  const escapeHtml = (str) => {
+    const div = document.createElement('div');
+    div.textContent = str;
+    return div.innerHTML;
+  };
+
   const addMessage = (target, type, text) => {
     const container = document.createElement('div');
     Object.assign(container.style, {
@@ -383,7 +398,7 @@
           <span style="font-size: 10px; color: #475569;">${timeStr}</span>
         </div>
         <div style="padding: 16px; background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.08); border-radius: 12px; color: #94A3B8; font-size: 14px; line-height: 1.6; font-family: 'JetBrains Mono', monospace;">
-          ${text}
+          ${escapeHtml(text)}
         </div>
       `;
     } else {
@@ -393,13 +408,50 @@
           <span style="font-size: 10px; color: #475569;">${timeStr}</span>
         </div>
         <div style="padding: 18px; background: rgba(34, 211, 238, 0.03); border: 1px solid rgba(34, 211, 238, 0.15); border-radius: 12px; color: white; font-size: 14px; line-height: 1.6; box-shadow: 0 4px 20px rgba(0,0,0,0.2);">
-          ${text}
+          ${escapeHtml(text)}
         </div>
       `;
     }
 
     target.appendChild(container);
     target.scrollTop = target.scrollHeight;
+  };
+
+  /** Creates a bot message container for streaming; returns { container, contentEl, append(text), finish() }. */
+  const addStreamingBotMessage = (target) => {
+    const outer = document.createElement('div');
+    Object.assign(outer.style, {
+      display: 'flex',
+      flexDirection: 'column',
+      gap: '8px',
+      animation: 'fadeIn 0.3s ease-out'
+    });
+    const timeStr = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false });
+    outer.innerHTML = `
+      <div style="display: flex; justify-content: space-between; align-items: baseline;">
+        <span style="font-size: 11px; font-weight: 700; color: #22D3EE; letter-spacing: 0.1em;">AGENT</span>
+        <span style="font-size: 10px; color: #475569;">${timeStr}</span>
+      </div>
+      <div class="neural-stream-content" style="padding: 18px; background: rgba(34, 211, 238, 0.03); border: 1px solid rgba(34, 211, 238, 0.15); border-radius: 12px; color: white; font-size: 14px; line-height: 1.6; box-shadow: 0 4px 20px rgba(0,0,0,0.2); min-height: 24px;"></div>
+    `;
+    const contentEl = outer.querySelector('.neural-stream-content');
+    target.appendChild(outer);
+    target.scrollTop = target.scrollHeight;
+    return {
+      container: outer,
+      contentEl,
+      append: (text) => {
+        contentEl.appendChild(document.createTextNode(text));
+        target.scrollTop = target.scrollHeight;
+      },
+      finish: (finalText) => {
+        if (finalText != null) {
+          contentEl.textContent = '';
+          contentEl.appendChild(document.createTextNode(finalText));
+        }
+        target.scrollTop = target.scrollHeight;
+      }
+    };
   };
 
   // Helper: Neural Typing Indicator
@@ -686,7 +738,9 @@
         return;
       }
 
-      const { chatBody, input, sendBtn } = createChatbotUI(data.name);
+      const { chatBody, input, sendBtn, openChat } = createChatbotUI(data);
+      const autoOpenDelay = data.widgetConfig?.autoOpenDelay;
+      if (autoOpenDelay > 0) setTimeout(openChat, autoOpenDelay * 1000);
 
       // Initialize translation engine
       injectTranslateScript();
@@ -706,6 +760,42 @@
         return;
       }
 
+      // Request signing: HMAC-SHA256(timestamp + method + path + body, widgetToken) for replay/tamper protection
+      const signRequest = async (method, path, bodyString, widgetToken) => {
+        const timestamp = String(Date.now());
+        const payload = timestamp + '\n' + method + '\n' + path + '\n' + bodyString;
+        const key = await crypto.subtle.importKey('raw', new TextEncoder().encode(widgetToken), { name: 'HMAC', hash: 'SHA-256' }, false, ['sign']);
+        const sig = await crypto.subtle.sign('HMAC', key, new TextEncoder().encode(payload));
+        const signature = Array.from(new Uint8Array(sig)).map(function (b) { return b.toString(16).padStart(2, '0'); }).join('');
+        return { timestamp, signature };
+      };
+
+      const getVisitorId = () => {
+        const key = 'chatbot_visitor_id';
+        try {
+          let v = sessionStorage.getItem(key);
+          if (!v) {
+            v = 'v_' + Math.random().toString(36).slice(2) + '_' + Date.now().toString(36);
+            sessionStorage.setItem(key, v);
+          }
+          return v;
+        } catch (e) {
+          return 'v_' + Date.now();
+        }
+      };
+      const getConversationId = () => {
+        try {
+          return sessionStorage.getItem('chatbot_conversation_id') || undefined;
+        } catch (e) {
+          return undefined;
+        }
+      };
+      const setConversationId = (id) => {
+        try {
+          if (id) sessionStorage.setItem('chatbot_conversation_id', id);
+        } catch (e) {}
+      };
+
       const handleSend = async () => {
         const text = input.value.trim();
         if (!text) return;
@@ -714,36 +804,100 @@
         addMessage(chatBody, 'user', text);
 
         const loader = addTyping(chatBody);
+        const payload = {
+          widgetToken: data.widgetToken,
+          message: text,
+          visitorId: getVisitorId(),
+          conversationId: getConversationId()
+        };
+        const bodyString = JSON.stringify(payload);
+        const pathStream = '/api/chat/stream';
+        const { timestamp, signature } = await signRequest('POST', pathStream, bodyString, data.widgetToken);
 
         try {
-          const apiRes = await fetch(`${API_URL}/chat`, {
+          const apiRes = await fetch(`${API_URL}/chat/stream`, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ userId, message: text })
+            headers: {
+              'Content-Type': 'application/json',
+              'X-Widget-Timestamp': timestamp,
+              'X-Widget-Signature': signature
+            },
+            body: bodyString
           });
-          const apiData = await apiRes.json();
 
-          loader.remove(); // Remove typing
-
-          if (apiRes.ok) {
-            addMessage(chatBody, 'bot', apiData.answer);
-          } else {
-            addMessage(chatBody, 'bot', apiData.message || "Something went wrong.");
+          if (!apiRes.ok) {
+            const errData = await apiRes.json().catch(() => ({}));
+            loader.remove();
+            addMessage(chatBody, 'bot', errData.message || 'Something went wrong.');
+            return;
           }
 
+          const reader = apiRes.body.getReader();
+          const decoder = new TextDecoder();
+          let buffer = '';
+          let streamStarted = false;
+          let streamEl = null;
+
+          while (true) {
+            const { done, value } = await reader.read();
+            if (done) break;
+            buffer += decoder.decode(value, { stream: true });
+            const lines = buffer.split('\n');
+            buffer = lines.pop() || '';
+            for (const line of lines) {
+              const trimmed = line.trim();
+              if (!trimmed) continue;
+              let obj;
+              try {
+                obj = JSON.parse(trimmed);
+              } catch (e) {
+                continue;
+              }
+              if (obj.type === 'conversationId' && obj.conversationId) {
+                setConversationId(obj.conversationId);
+              }
+              if (obj.type === 'token' && obj.content != null) {
+                if (!streamStarted) {
+                  loader.remove();
+                  streamStarted = true;
+                  streamEl = addStreamingBotMessage(chatBody);
+                }
+                streamEl.append(obj.content);
+              } else if (obj.type === 'done') {
+                if (obj.error) {
+                  if (!streamStarted) {
+                    loader.remove();
+                    addMessage(chatBody, 'bot', obj.error);
+                  } else {
+                    streamEl.append(' ' + obj.error);
+                  }
+                }
+                if (streamEl) streamEl.finish();
+                streamEl = null;
+              }
+            }
+          }
+          if (!streamStarted) {
+            loader.remove();
+            addMessage(chatBody, 'bot', 'No response received. Please try again.');
+          } else if (streamEl) {
+            streamEl.finish();
+          }
         } catch (err) {
           console.error(err);
           loader.remove();
-          addMessage(chatBody, 'bot', "Network error. Please try again.");
+          addMessage(chatBody, 'bot', 'Network error. Please try again.');
         }
       };
 
       sendBtn.onclick = handleSend;
       input.onkeypress = (e) => { if (e.key === 'Enter') handleSend(); };
 
-      // Welcome Message (Optional: delay slightly)
+      // Welcome Message (custom or default)
+      const welcomeText = data.widgetConfig?.welcomeMessage ||
+        `Hello! Welcome to ${data.name || 'our support'}. How can I help you today?`;
       setTimeout(() => {
-        addMessage(chatBody, 'bot', `Hello! Welcome to ${data.name || 'our support'}. How can I help you today?`);
+        addMessage(chatBody, 'bot', welcomeText);
       }, 800);
 
     } catch (e) {

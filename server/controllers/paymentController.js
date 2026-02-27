@@ -3,6 +3,17 @@ const Transaction = require('../models/Transaction');
 const { createOrder: createCashfreeOrder, fetchPayments } = require('../services/cashfreeService');
 const usageTracker = require('../services/usageTracker.service');
 const emailService = require('../services/email.service');
+const audit = require('../services/audit.service');
+const { encrypt, decrypt } = require('../utils/encryption');
+
+function decryptTransactionPayload(t) {
+    if (!t) return t;
+    const obj = t.toObject ? t.toObject() : { ...t };
+    if (obj.paymentMethod && typeof obj.paymentMethod === 'string') {
+        obj.paymentMethod = decrypt(obj.paymentMethod);
+    }
+    return obj;
+}
 
 const createOrder = async (req, res) => {
     try {
@@ -29,6 +40,7 @@ const createOrder = async (req, res) => {
         });
 
         await transaction.save();
+        audit.log('payment_order_created', { actorId: user._id, targetId: transaction._id, targetType: 'Transaction', meta: { orderId, amount }, ...audit.getReqMeta(req) });
 
         const baseUrl = process.env.BASE_URL.endsWith('/')
             ? process.env.BASE_URL.slice(0, -1)
@@ -107,7 +119,7 @@ const saveTransaction = async (paymentData) => {
             transaction.paymentCompletionTime = payment_completion_time ? new Date(payment_completion_time) : transaction.paymentCompletionTime;
             transaction.updatedAt = Date.now();
             transaction.cfPaymentId = cf_payment_id;
-            transaction.paymentMethod = payment_method;
+            transaction.paymentMethod = payment_method ? encrypt(payment_method) : transaction.paymentMethod;
 
             await transaction.save();
             return payment_status; // Return the status string
@@ -167,11 +179,13 @@ const callback = async (req, res) => {
                     );
                 }
 
+                audit.log('payment_success', { actorId: transaction.userId?._id, targetId: transaction._id, targetType: 'Transaction', meta: { orderId, amount: transaction.amount }, ...audit.getReqMeta(req) });
                 console.log(`✅ Success: Recharged tokens and sent email for user ${transaction.userId?._id}`);
                 return res.redirect(`${WEB_URL}/payment/success?orderId=${orderId}`);
             }
 
             if (paymentStatus.toUpperCase() === "FAILED" || paymentStatus.toUpperCase() === "CANCELLED") {
+                audit.log('payment_failed', { actorId: transaction.userId?._id, targetId: transaction._id, targetType: 'Transaction', meta: { orderId, status: paymentStatus }, ...audit.getReqMeta(req) });
                 console.log(`❌ Payment ${paymentStatus} for ${orderId}`);
                 transaction.status = paymentStatus.toLowerCase();
                 await transaction.save();
@@ -237,8 +251,8 @@ const getUserTransactions = async (req, res) => {
     try {
         const transactions = await Transaction.find({ userId: req.userId })
             .sort({ createdAt: -1 });
-
-        return res.status(200).json(transactions);
+        const payload = transactions.map(decryptTransactionPayload);
+        return res.status(200).json(payload);
     } catch (error) {
         return res.status(500).json({ message: 'Error fetching transactions', error: error.message });
     }
@@ -246,7 +260,7 @@ const getUserTransactions = async (req, res) => {
 
 const getTransactionByOrderId = async (req, res) => {
     const transaction = await Transaction.findOne({ orderId: req.params.orderId });
-    res.json(transaction);
+    res.json(transaction ? decryptTransactionPayload(transaction) : null);
 };
 
 // Admin Routes (Simplified for now)
@@ -258,7 +272,7 @@ const adminGetTransactions = async (req, res) => {
         const transactions = await Transaction.find()
             .populate('userId', 'name email')
             .sort({ createdAt: -1 });
-        return res.status(200).json(transactions);
+        return res.status(200).json(transactions.map(decryptTransactionPayload));
     } catch (error) {
         return res.status(500).json({ message: 'Error fetching transactions', error: error.message });
     }

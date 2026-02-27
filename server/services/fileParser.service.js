@@ -8,6 +8,22 @@ const planGuard = require('./planGuard.service');
 const usageTracker = require('./usageTracker.service');
 const Source = require('../models/Source');
 
+const ALLOWED_MIMES = new Set([
+    'application/pdf',
+    'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+    'text/plain'
+]);
+const DANGEROUS_MIMES = new Set([
+    'application/x-msdownload', 'application/x-msdos-program', 'application/x-executable',
+    'application/x-sh', 'application/x-shellscript', 'application/bat', 'application/x-bat',
+    'application/vnd.microsoft.portable-executable', 'application/octet-stream'
+]);
+
+function sanitizeFilename(name) {
+    if (!name || typeof name !== 'string') return 'unnamed';
+    return name.replace(/[^a-zA-Z0-9._-]/g, '_').replace(/_{2,}/g, '_').slice(0, 200) || 'unnamed';
+}
+
 /**
  * Extract text from file buffer
  * @param {Buffer} buffer 
@@ -39,11 +55,15 @@ const extractText = async (buffer, mimeType) => {
  * @param {Object} file - { buffer, originalname, mimetype, size }
  */
 const processFile = async (userId, file) => {
-    // 1. Validate Plan
+    if (!file || !file.mimetype) throw new Error('Invalid file.');
+    if (DANGEROUS_MIMES.has(file.mimetype)) throw new Error('Executables and binaries are not allowed.');
+    if (!ALLOWED_MIMES.has(file.mimetype)) throw new Error(`Unsupported file type: ${file.mimetype}. Allowed: PDF, DOCX, TXT.`);
+
     await planGuard.canUploadFile(userId);
 
+    const safeName = sanitizeFilename(file.originalname);
     const fileId = uuidv4();
-    const fileExtension = file.originalname.split('.').pop();
+    const fileExtension = safeName.split('.').pop() || 'bin';
 
     // R2 Keys
     const r2FileKey = `chatbot-data/${userId}/uploads/${fileId}.${fileExtension}`;
@@ -80,7 +100,7 @@ const processFile = async (userId, file) => {
         const source = await Source.create({
             userId,
             type: 'file',
-            fileName: file.originalname,
+            fileName: safeName,
             fileSize: file.size,
             r2FileKey: r2FileKey, // Reference to what WAS used
             r2TextKey: r2TextKey, // Reference to what WAS used
@@ -116,7 +136,7 @@ const processFile = async (userId, file) => {
         await Source.create({
             userId,
             type: 'file',
-            fileName: file.originalname,
+            fileName: safeName,
             status: 'failed',
             error: error.message
         });

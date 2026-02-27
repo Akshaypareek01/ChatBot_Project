@@ -5,8 +5,15 @@ const chatService = require('../services/chat.service');
 const scraperService = require('../services/scraperService');
 const fileParserService = require('../services/fileParser.service');
 const usageTracker = require('../services/usageTracker.service');
+const { sanitizeInput } = require('../utils/sanitize');
+const widgetTokenService = require('../services/widgetToken.service');
 
 const Source = require('../models/Source');
+const WidgetConfig = require('../models/WidgetConfig');
+const Conversation = require('../models/Conversation');
+const mongoose = require('mongoose');
+
+const CHAT_MESSAGE_MAX_LENGTH = 1000;
 
 // Legacy Handlers
 const getAnswer = async (req, res) => {
@@ -42,12 +49,11 @@ const getAIResponseController = async (req, res) => {
     }
 };
 
+/** Prefer Origin header (set by browser, harder to spoof) over Referer for domain allowlist. */
 const isDomainAllowed = (user, req) => {
     if (!user.allowedDomains || user.allowedDomains.length === 0) return true;
-
     const origin = req.headers.origin || req.headers.referer;
     if (!origin) return false;
-
     try {
         const domain = new URL(origin).hostname;
         return user.allowedDomains.some(d => {
@@ -74,14 +80,31 @@ const getChatbotData = async (req, res) => {
         }
 
         const isOffline = !user.isActive || user.tokenBalance <= 0;
+        const widgetToken = widgetTokenService.issueWidgetToken(userId);
+
+        const widgetConfig = await WidgetConfig.findOne({ userId }).lean();
+        const widget = widgetConfig ? {
+            primaryColor: widgetConfig.primaryColor,
+            accentColor: widgetConfig.accentColor,
+            botAvatarUrl: widgetConfig.botAvatarUrl || '',
+            position: widgetConfig.position,
+            welcomeMessage: widgetConfig.welcomeMessage || '',
+            botName: widgetConfig.botName || '',
+            size: widgetConfig.size,
+            autoOpenDelay: widgetConfig.autoOpenDelay,
+            customCss: widgetConfig.customCss || '',
+            showPoweredBy: widgetConfig.showPoweredBy
+        } : null;
 
         return res.status(200).json({
             userId,
+            widgetToken,
             name: user.brandName || user.name,
-            email: user.email, // For support contact
+            email: user.email,
             isOffline,
             isActive: user.isActive,
-            tokenBalance: user.tokenBalance
+            tokenBalance: user.tokenBalance,
+            widgetConfig: widget
         });
     } catch (error) {
         return res.status(500).json({ message: 'Server error', error: error.message });
@@ -205,13 +228,23 @@ const getUserSources = async (req, res) => {
 };
 
 /**
- * Chat with RAG
+ * Chat with RAG. Ownership validated via widget token (no userId from body).
  */
 const chatWithBot = async (req, res) => {
     try {
-        const { userId, message } = req.body;
-        if (!userId || !message) {
-            return res.status(400).json({ message: 'User ID and message are required.' });
+        const { message } = req.body;
+        const userId = req.chatUserId; // Set by verifyChatWidgetToken middleware
+        if (!message) {
+            return res.status(400).json({ message: 'Message is required.' });
+        }
+
+        const rawMessage = typeof message === 'string' ? message : String(message);
+        const sanitized = sanitizeInput(rawMessage);
+        if (!sanitized) {
+            return res.status(400).json({ message: 'Message cannot be empty.' });
+        }
+        if (sanitized.length > CHAT_MESSAGE_MAX_LENGTH) {
+            return res.status(400).json({ message: `Message must be at most ${CHAT_MESSAGE_MAX_LENGTH} characters.` });
         }
 
         // --- SECURITY: Domain Allow-List Check ---
@@ -226,7 +259,7 @@ const chatWithBot = async (req, res) => {
         }
         // --- END SECURITY CHECK ---
 
-        const response = await chatService.handleChat(userId, message);
+        const response = await chatService.handleChat(userId, sanitized);
         return res.json({ answer: response, source: 'RAG' });
 
     } catch (error) {
@@ -236,6 +269,78 @@ const chatWithBot = async (req, res) => {
         }
         return res.status(500).json({ message: error.message });
     }
+};
+
+/**
+ * Stream chat response over SSE (NDJSON). Optionally persist to Conversation when visitorId is present.
+ */
+const chatWithBotStream = async (req, res) => {
+    const { message, visitorId, conversationId } = req.body;
+    const userId = req.chatUserId;
+    if (!message) {
+        return res.status(400).json({ message: 'Message is required.' });
+    }
+
+    const rawMessage = typeof message === 'string' ? message : String(message);
+    const sanitized = sanitizeInput(rawMessage);
+    if (!sanitized) {
+        return res.status(400).json({ message: 'Message cannot be empty.' });
+    }
+    if (sanitized.length > CHAT_MESSAGE_MAX_LENGTH) {
+        return res.status(400).json({ message: `Message must be at most ${CHAT_MESSAGE_MAX_LENGTH} characters.` });
+    }
+
+    const user = await User.findById(userId).select('allowedDomains isActive');
+    if (!user || !user.isActive) {
+        return res.status(404).json({ message: 'Chatbot not available' });
+    }
+    if (!isDomainAllowed(user, req)) {
+        return res.status(403).json({ message: 'Domain not authorized' });
+    }
+
+    res.setHeader('Content-Type', 'application/x-ndjson');
+    res.setHeader('Cache-Control', 'no-cache');
+    res.setHeader('Connection', 'keep-alive');
+    res.setHeader('X-Accel-Buffering', 'no');
+    res.flushHeaders && res.flushHeaders();
+
+    const sendLine = (obj) => {
+        res.write(JSON.stringify(obj) + '\n');
+        if (typeof res.flush === 'function') res.flush();
+    };
+
+    const onComplete = async (err, fullContent, usage) => {
+        if (!visitorId) return;
+        const userMsg = { role: 'user', content: sanitized };
+        const assistantMsg = { role: 'assistant', content: err ? '(Error)' : fullContent };
+        try {
+            if (conversationId && mongoose.Types.ObjectId.isValid(conversationId)) {
+                const conv = await Conversation.findOneAndUpdate(
+                    { _id: conversationId, userId },
+                    { $push: { messages: { $each: [userMsg, assistantMsg] } }, updatedAt: new Date() },
+                    { new: true }
+                );
+                if (conv) return;
+            }
+            const newConv = await Conversation.create({
+                visitorId,
+                userId,
+                messages: [userMsg, assistantMsg],
+                metadata: { pageUrl: req.headers.referer || '', userAgent: req.headers['user-agent'] || '' }
+            });
+            sendLine({ type: 'conversationId', conversationId: newConv._id.toString() });
+        } catch (e) {
+            console.error('Conversation save error:', e);
+        }
+    };
+
+    try {
+        await chatService.handleChatStream(userId, sanitized, (chunk) => sendLine(chunk), onComplete);
+    } catch (err) {
+        console.error('Stream error:', err);
+        sendLine({ type: 'done', error: err.message || 'Stream failed' });
+    }
+    res.end();
 };
 
 module.exports = {
@@ -248,5 +353,6 @@ module.exports = {
     uploadFile,
     scrapeWebsite,
     getUserSources,
-    chatWithBot
+    chatWithBot,
+    chatWithBotStream
 };
