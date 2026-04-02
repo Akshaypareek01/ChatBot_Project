@@ -561,7 +561,7 @@ const updateWidgetConfig = async (req, res) => {
         }
         const allowed = [
             'primaryColor', 'accentColor', 'botAvatarUrl', 'position', 'welcomeMessage',
-            'botName', 'size', 'autoOpenDelay', 'customCss', 'showPoweredBy', 'preChatForm', 'suggestedQuestions', 'leadCaptureWebhookUrl', 'preferredAiModel'
+            'botName', 'size', 'autoOpenDelay', 'customCss', 'showPoweredBy', 'allowTalkToHuman', 'preChatForm', 'suggestedQuestions', 'leadCaptureWebhookUrl', 'preferredAiModel'
         ];
         const updates = {};
         for (const key of allowed) {

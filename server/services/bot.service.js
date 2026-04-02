@@ -32,7 +32,8 @@ async function ensureDefaultBot(userId) {
                 accentColor: '#22D3EE',
                 position: 'bottom-right',
                 size: 'standard',
-                showPoweredBy: true
+                showPoweredBy: true,
+                allowTalkToHuman: false
             });
         }
     }
@@ -66,7 +67,8 @@ async function createBot(userId, name, slug) {
         accentColor: '#22D3EE',
         position: 'bottom-right',
         size: 'standard',
-        showPoweredBy: true
+        showPoweredBy: true,
+        allowTalkToHuman: false
     });
     return bot.toObject();
 }

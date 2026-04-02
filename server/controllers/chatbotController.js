@@ -121,6 +121,7 @@ const getChatbotData = async (req, res) => {
             autoOpenDelay: widgetConfig.autoOpenDelay,
             customCss: widgetConfig.customCss || '',
             showPoweredBy: forceNoBranding ? false : widgetConfig.showPoweredBy,
+            allowTalkToHuman: widgetConfig.allowTalkToHuman === true,
             preChatForm: widgetConfig.preChatForm || { enabled: false, welcomeMessage: '', fields: [] },
             suggestedQuestions: Array.isArray(widgetConfig.suggestedQuestions) ? widgetConfig.suggestedQuestions.slice(0, 7) : []
         } : null;

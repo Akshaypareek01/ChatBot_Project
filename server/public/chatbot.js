@@ -518,6 +518,7 @@
     if (!widgetColumn) return;
     const isLeft = !!(opts && opts.isLeft);
     const primaryColor = (opts && opts.primaryColor) || '#2563EB';
+    const showPoweredBy = !opts || opts.showPoweredBy !== false;
 
     const langBtn = document.createElement('button');
     langBtn.type = 'button';
@@ -654,18 +655,20 @@
       backgroundColor: '#ffffff'
     });
 
-    // Drawer Footer (Branding)
+    // Drawer Footer (Branding) — respect showPoweredBy setting
     const drawerFooter = document.createElement('div');
-    Object.assign(drawerFooter.style, {
-      padding: '20px',
-      borderTop: '1px solid rgba(15,23,42,0.08)',
-      textAlign: 'center',
-      backgroundColor: '#ffffff'
-    });
-    drawerFooter.innerHTML = `
-      <p style="margin:0; font-size: 9px; color: #475569; text-transform: uppercase; letter-spacing: 0.1em;">Powered By</p>
-      <p style="margin:2px 0 0; font-size: 11px; color: #64748B; font-weight: 600;">Nvhotech Private Limited</p>
-    `;
+    if (showPoweredBy) {
+      Object.assign(drawerFooter.style, {
+        padding: '20px',
+        borderTop: '1px solid rgba(15,23,42,0.08)',
+        textAlign: 'center',
+        backgroundColor: '#ffffff'
+      });
+      drawerFooter.innerHTML = `
+        <p style="margin:0; font-size: 9px; color: #475569; text-transform: uppercase; letter-spacing: 0.1em;">Powered By</p>
+        <p style="margin:2px 0 0; font-size: 11px; color: #64748B; font-weight: 600;">Nvhotech Private Limited</p>
+      `;
+    }
 
     const languages = [
       { name: 'English', code: 'en' },
@@ -765,7 +768,7 @@
     drawerHeader.appendChild(closeDrawerBtn);
     drawer.appendChild(drawerHeader);
     drawer.appendChild(drawerBody);
-    drawer.appendChild(drawerFooter);
+    if (showPoweredBy) drawer.appendChild(drawerFooter);
 
     document.body.appendChild(backdrop);
     document.body.appendChild(drawer);
@@ -807,7 +810,8 @@
       const wc = data.widgetConfig || {};
       createGlobalLanguageSwitcher(widgetContainer, {
         isLeft: wc.position === 'bottom-left',
-        primaryColor: wc.primaryColor || '#2563EB'
+        primaryColor: wc.primaryColor || '#2563EB',
+        showPoweredBy: wc.showPoweredBy !== false
       });
 
       if (data.isOffline) {
@@ -1186,13 +1190,22 @@
         }, 800);
       }
 
-      // Phase 5.1: Talk to Human button
-      var humanWrap = document.createElement('div');
-      humanWrap.style.cssText = 'padding:6px 12px;text-align:center;border-top:1px solid rgba(255,255,255,0.06);';
-      var humanBtn = document.createElement('button');
-      humanBtn.textContent = 'Talk to Human';
-      humanBtn.style.cssText = 'background:transparent;border:1px solid rgba(34,211,238,0.4);color:#22D3EE;padding:6px 12px;border-radius:8px;cursor:pointer;font-size:12px;';
-      humanBtn.onclick = async function () {
+      // Phase 5.1: Talk to Human button (configurable)
+      // If widgetConfig.allowTalkToHuman !== true, do not show it.
+      var allowTalkToHuman = data.widgetConfig && data.widgetConfig.allowTalkToHuman === true;
+      if (allowTalkToHuman) {
+        var themePrimary = (chatBody && chatBody.dataset && chatBody.dataset.primaryColor) || '#2563EB';
+        var humanWrap = document.createElement('div');
+        humanWrap.style.cssText = 'padding:10px 12px;text-align:center;border-top:1px solid rgba(15,23,42,0.08);';
+        var humanBtn = document.createElement('button');
+        humanBtn.textContent = (data.agentOnline === false) ? 'Talk to Human (Offline)' : 'Talk to Human';
+        humanBtn.disabled = (data.agentOnline === false);
+        humanBtn.style.cssText =
+          'background:transparent;border:1px solid ' + themePrimary + '66;color:' + themePrimary +
+          ';padding:8px 12px;border-radius:10px;cursor:pointer;font-size:12px;font-weight:700;';
+        if (humanBtn.disabled) humanBtn.style.opacity = '0.5';
+
+        humanBtn.onclick = async function () {
         var cid = getConversationId();
         if (!cid) {
           addMessage(chatBody, 'bot', 'Please send a message first to start the conversation.');
@@ -1247,9 +1260,10 @@
           addMessage(chatBody, 'bot', 'Connection error. Please try again.');
         }
         humanBtn.disabled = false;
-      };
-      humanWrap.appendChild(humanBtn);
-      inputArea.insertBefore(humanWrap, inputArea.firstChild);
+        };
+        humanWrap.appendChild(humanBtn);
+        inputArea.insertBefore(humanWrap, inputArea.firstChild);
+      }
 
     } catch (e) {
       console.error('Chatbot init failed:', e);

@@ -23,6 +23,7 @@ const widgetConfigSchema = new mongoose.Schema({
     autoOpenDelay: { type: Number, default: 0 },
     customCss: { type: String, default: '' },
     showPoweredBy: { type: Boolean, default: true },
+    allowTalkToHuman: { type: Boolean, default: false },
     preChatForm: {
         enabled: { type: Boolean, default: false },
         welcomeMessage: { type: String, default: '' },
