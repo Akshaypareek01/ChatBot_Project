@@ -634,7 +634,7 @@ const chatWithBotStream = async (req, res) => {
     }
     const widgetConfig = await WidgetConfig.findOne(
         resolvedBotId ? { userId, botId: resolvedBotId } : { userId, botId: null }
-    ).select('preferredAiModel').lean();
+    ).select('preferredAiModel botName welcomeMessage').lean();
     if (widgetConfig?.preferredAiModel) preferredModel = widgetConfig.preferredAiModel;
 
     // Phase 5.6: Flow runtime (stream). If active flow exists, bypass RAG.
@@ -740,7 +740,13 @@ const chatWithBotStream = async (req, res) => {
             sanitized,
             (chunk) => sendLine(chunk),
             onComplete,
-            { previousMessages, model: preferredModel, conversationId }
+            {
+                previousMessages,
+                model: preferredModel,
+                conversationId,
+                greetingMessage: (widgetConfig?.welcomeMessage || '').trim() || undefined,
+                botName: (widgetConfig?.botName || '').trim() || undefined
+            }
         );
     } catch (err) {
         console.error('Stream error:', err);

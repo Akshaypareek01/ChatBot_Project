@@ -16,6 +16,22 @@ const openai = new OpenAI({
 });
 
 const CONFIDENCE_THRESHOLD = 0.72;
+
+function isGreetingMessage(text) {
+    if (!text || typeof text !== 'string') return false;
+    const t = text.trim().toLowerCase();
+    if (!t) return false;
+    // short greetings + common variants
+    return /^(hi|hello|hey|hii+|heya|yo|namaste|hola|good\s*(morning|afternoon|evening)|gm|ge|good\s*day)(\b|!|\.|,|\s)/i.test(t);
+}
+
+function buildGreetingReply(options = {}) {
+    const botName = options.botName ? String(options.botName).trim() : '';
+    const configured = options.greetingMessage ? String(options.greetingMessage).trim() : '';
+    if (configured) return configured;
+    if (botName) return `Hi! I'm ${botName}. How can I help you today?`;
+    return `Hi! How can I help you today?`;
+}
 const MEMORY_MESSAGES_LIMIT = 10;
 const DEFAULT_MODEL = 'gpt-4o-mini';
 
@@ -107,8 +123,11 @@ const handleChat = async (userId, message) => {
         // 3. Vector Search (Filter by userId)
         const similarDocs = await vectorService.searchVectors(userId, queryEmbedding, 5);
 
-        // 4. Check if we found context
+        // 4. Check if we found context. If not, allow greeting replies.
         if (!similarDocs || similarDocs.length === 0) {
+            if (isGreetingMessage(message)) {
+                return buildGreetingReply({});
+            }
             return "I don't have this information yet.";
         }
 
@@ -168,10 +187,10 @@ ${contextText}`;
  * @param {string} message
  * @param {Function} onChunk
  * @param {Function} [onComplete]
- * @param {{ previousMessages?: { role: string, content: string }[], model?: string, conversationId?: string }} [options]
+ * @param {{ previousMessages?: { role: string, content: string }[], model?: string, conversationId?: string, greetingMessage?: string, botName?: string }} [options]
  */
 const handleChatStream = async (userId, message, onChunk, onComplete, options = {}) => {
-    const { previousMessages = [], model: preferredModel, conversationId } = options;
+    const { previousMessages = [], model: preferredModel, conversationId, greetingMessage, botName } = options;
     const send = (payload) => {
         try {
             onChunk(payload);
@@ -241,6 +260,13 @@ const handleChatStream = async (userId, message, onChunk, onComplete, options = 
         const similarDocs = await vectorService.searchVectors(userId, queryEmbedding, 5);
 
         if (!similarDocs || similarDocs.length === 0) {
+            if (isGreetingMessage(message)) {
+                const greet = buildGreetingReply({ greetingMessage, botName });
+                for (const char of greet) send({ type: 'token', content: char });
+                send({ type: 'done', usage: 0 });
+                if (onComplete) await Promise.resolve(onComplete(null, greet, 0));
+                return;
+            }
             send({ type: 'confidence', low: true });
             const fallback = "I don't have this information yet.";
             for (const char of fallback) send({ type: 'token', content: char });
@@ -252,7 +278,17 @@ const handleChatStream = async (userId, message, onChunk, onComplete, options = 
 
         const maxScore = Math.max(...similarDocs.map(d => d.score != null ? d.score : 0));
         const lowConfidence = maxScore < CONFIDENCE_THRESHOLD;
-        if (lowConfidence) send({ type: 'confidence', low: true });
+        if (lowConfidence) {
+            // For pure greetings, don't waste tokens on low-confidence RAG — answer with a greeting.
+            if (isGreetingMessage(message)) {
+                const greet = buildGreetingReply({ greetingMessage, botName });
+                for (const char of greet) send({ type: 'token', content: char });
+                send({ type: 'done', usage: 0 });
+                if (onComplete) await Promise.resolve(onComplete(null, greet, 0));
+                return;
+            }
+            send({ type: 'confidence', low: true });
+        }
 
         classifyIntentAndSentiment(message).then(({ intent, sentiment }) => {
             send({ type: 'intent', value: intent });
