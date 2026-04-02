@@ -1,6 +1,6 @@
 /**
  * Phase 4: Plan limits and usage (chats per month, sources).
- * Free tier: 100 chats/month, 1 source. Others from Plan model.
+ * Free tier: 100 chats/month, 3 sources. Others from Plan model.
  */
 
 const User = require('../models/User');
@@ -9,7 +9,7 @@ const Conversation = require('../models/Conversation');
 const Source = require('../models/Source');
 
 const FREE_CHAT_LIMIT = 100;
-const FREE_SOURCES_LIMIT = 1;
+const FREE_SOURCES_LIMIT = 3;
 
 /** Start of current month UTC */
 function startOfCurrentMonth() {
