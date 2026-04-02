@@ -385,7 +385,7 @@
     }, 500);
 
     const openChat = () => { if (!isOpen) toggleChat(); };
-    return { chatBody, input, sendBtn, openChat, inputArea };
+    return { chatBody, input, sendBtn, openChat, inputArea, widgetContainer: container };
   };
 
   // Helper: Neural Message Bubbles
@@ -509,42 +509,56 @@
   };
 
 
-  // 3. Global Language Switcher (Side Drawer Version)
-  const createGlobalLanguageSwitcher = () => {
-    // 1. Trigger Button
-    const container = document.createElement('div');
-    container.id = 'global-lang-switcher';
-    container.className = 'notranslate';
-    Object.assign(container.style, {
-      position: 'fixed',
-      top: '20px',
-      right: '20px',
-      zIndex: '2147483646',
-      fontFamily: '"Inter", sans-serif'
-    });
+  // 3. Language switcher: globe FAB stacked above chat button (not page header)
+  const createGlobalLanguageSwitcher = (widgetColumn, opts) => {
+    if (!widgetColumn) return;
+    const isLeft = !!(opts && opts.isLeft);
+    const primaryColor = (opts && opts.primaryColor) || '#2563EB';
 
     const langBtn = document.createElement('button');
+    langBtn.type = 'button';
+    langBtn.setAttribute('aria-label', 'Choose language');
+    langBtn.className = 'notranslate';
+    langBtn.id = 'global-lang-trigger';
     langBtn.innerHTML = `
-      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
         <circle cx="12" cy="12" r="10"></circle>
         <line x1="2" y1="12" x2="22" y2="12"></line>
         <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"></path>
       </svg>
-      <span style="font-weight: 600; font-size: 13px;">Language</span>
     `;
     Object.assign(langBtn.style, {
-      backgroundColor: 'white',
-      border: '1px solid #E2E8F0',
-      borderRadius: '20px',
-      padding: '8px 16px',
+      width: '52px',
+      height: '52px',
+      borderRadius: '50%',
+      backgroundColor: '#ffffff',
+      color: primaryColor,
+      border: '1px solid rgba(15, 23, 42, 0.12)',
+      boxShadow: '0 6px 20px rgba(15, 23, 42, 0.12)',
+      cursor: 'pointer',
       display: 'flex',
       alignItems: 'center',
-      gap: '8px',
-      cursor: 'pointer',
-      boxShadow: '0 4px 12px rgba(0,0,0,0.08)',
-      color: '#1E293B',
-      transition: 'all 0.3s ease'
+      justifyContent: 'center',
+      flexShrink: '0',
+      transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+      transform: 'scale(0)',
+      opacity: '0',
+      fontFamily: '"Inter", sans-serif'
     });
+    langBtn.onmouseenter = () => {
+      langBtn.style.transform = 'scale(1.08)';
+      langBtn.style.boxShadow = '0 8px 24px rgba(15, 23, 42, 0.18)';
+    };
+    langBtn.onmouseleave = () => {
+      langBtn.style.transform = 'scale(1)';
+      langBtn.style.boxShadow = '0 6px 20px rgba(15, 23, 42, 0.12)';
+    };
+
+    if (widgetColumn && widgetColumn.firstChild) {
+      widgetColumn.insertBefore(langBtn, widgetColumn.firstChild);
+    } else if (widgetColumn) {
+      widgetColumn.appendChild(langBtn);
+    }
 
     // 2. Drawer Backdrop
     const backdrop = document.createElement('div');
@@ -562,22 +576,25 @@
       transition: 'opacity 0.3s ease'
     });
 
-    // 3. Side Drawer
+    // 3. Side Drawer (from same edge as widget: left bar for bottom-left, right otherwise)
     const drawer = document.createElement('div');
     drawer.className = 'notranslate';
     drawer.setAttribute('translate', 'no');
+    const drawerSlide = isLeft ? 'left' : 'right';
+    const drawerHidden = '-320px';
     Object.assign(drawer.style, {
       position: 'fixed',
       top: '0',
-      right: '-320px', // Start hidden
+      left: isLeft ? drawerHidden : 'auto',
+      right: isLeft ? 'auto' : drawerHidden,
       width: '280px',
       height: '100%',
-      backgroundColor: '#0B0F17', // Neural Dark
+      backgroundColor: '#0B0F17',
       zIndex: '2147483649',
-      boxShadow: '-8px 0 32px rgba(0,0,0,0.5)',
+      boxShadow: isLeft ? '8px 0 32px rgba(0,0,0,0.5)' : '-8px 0 32px rgba(0,0,0,0.5)',
       display: 'flex',
       flexDirection: 'column',
-      transition: 'right 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+      transition: `${drawerSlide} 0.3s cubic-bezier(0.4, 0, 0.2, 1)`,
       fontFamily: '"Inter", "JetBrains Mono", monospace'
     });
 
@@ -712,21 +729,32 @@
       backdrop.style.display = 'block';
       setTimeout(() => {
         backdrop.style.opacity = '1';
-        drawer.style.right = '0';
+        if (isLeft) {
+          drawer.style.left = '0';
+        } else {
+          drawer.style.right = '0';
+        }
       }, 10);
-      document.body.style.overflow = 'hidden'; // Prevent page scroll
+      document.body.style.overflow = 'hidden';
     };
 
     const closeDrawer = () => {
       backdrop.style.opacity = '0';
-      drawer.style.right = '-320px';
+      if (isLeft) {
+        drawer.style.left = drawerHidden;
+      } else {
+        drawer.style.right = drawerHidden;
+      }
       setTimeout(() => {
         backdrop.style.display = 'none';
         document.body.style.overflow = '';
       }, 300);
     };
 
-    langBtn.onclick = openDrawer;
+    langBtn.onclick = (e) => {
+      e.stopPropagation();
+      openDrawer();
+    };
     closeDrawerBtn.onclick = closeDrawer;
     backdrop.onclick = closeDrawer;
 
@@ -735,10 +763,14 @@
     drawer.appendChild(drawerBody);
     drawer.appendChild(drawerFooter);
 
-    container.appendChild(langBtn);
-    document.body.appendChild(container);
     document.body.appendChild(backdrop);
     document.body.appendChild(drawer);
+
+    setTimeout(() => {
+      langBtn.style.opacity = '1';
+      langBtn.style.transform = 'scale(1)';
+      langBtn.style.transition = 'all 0.5s cubic-bezier(0.34, 1.56, 0.64, 1)';
+    }, 350);
   };
 
   // Logic: Initialize
@@ -754,7 +786,7 @@
         return;
       }
 
-      const { chatBody, input, sendBtn, openChat, inputArea } = createChatbotUI(data);
+      const { chatBody, input, sendBtn, openChat, inputArea, widgetContainer } = createChatbotUI(data);
       const autoOpenDelay = data.widgetConfig?.autoOpenDelay;
       if (autoOpenDelay > 0) setTimeout(openChat, autoOpenDelay * 1000);
 
@@ -768,8 +800,11 @@
       // Initialize translation engine
       injectTranslateScript();
 
-      // Initialize Global Language Switcher
-      createGlobalLanguageSwitcher();
+      const wc = data.widgetConfig || {};
+      createGlobalLanguageSwitcher(widgetContainer, {
+        isLeft: wc.position === 'bottom-left',
+        primaryColor: wc.primaryColor || '#2563EB'
+      });
 
       if (data.isOffline) {
         input.disabled = true;
