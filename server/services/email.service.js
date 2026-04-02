@@ -13,6 +13,37 @@ const transporter = nodemailer.createTransport({
 // Zoho requires the 'from' email to ALWAYS match the authenticated 'user' email.
 const safeFrom = `"ChatBot Support" <${process.env.SMTP_USER}>`;
 
+const User = require('../models/User');
+const Plan = require('../models/Plan');
+
+/** Phase 5.5: Get sender options for whitelabel user (custom From name, Reply-To). */
+async function getSenderForUser(userId) {
+    if (!userId) return { from: safeFrom, replyTo: undefined };
+    const user = await User.findById(userId).select('planId customEmailFromName customEmailReplyTo').lean();
+    if (!user) return { from: safeFrom, replyTo: undefined };
+    let whitelabel = false;
+    if (user.planId) {
+        const plan = await Plan.findOne({ _id: user.planId, isActive: true }).select('whitelabel').lean();
+        whitelabel = !!plan?.whitelabel;
+    }
+    if (!whitelabel || !user.customEmailFromName) return { from: safeFrom, replyTo: user.customEmailReplyTo || undefined };
+    const fromName = user.customEmailFromName.trim();
+    return {
+        from: `"${fromName.replace(/"/g, '')}" <${process.env.SMTP_USER}>`,
+        replyTo: user.customEmailReplyTo ? user.customEmailReplyTo.trim() : undefined
+    };
+}
+
+/** Phase 5.5: Dashboard URL for user (custom domain if set). */
+async function dashboardUrlForUser(userId) {
+    const base = (process.env.Web_url || 'https://app.example.com').replace(/\/$/, '');
+    if (!userId) return base + '/user';
+    const user = await User.findById(userId).select('customDashboardDomain').lean();
+    if (!user?.customDashboardDomain) return base + '/user';
+    const domain = user.customDashboardDomain.trim().replace(/^https?:\/\//, '');
+    return `https://${domain}/user`;
+}
+
 // Verify connection configuration
 transporter.verify(function (error, success) {
     if (error) {
@@ -28,10 +59,13 @@ transporter.verify(function (error, success) {
  * @param {string} userName 
  * @param {number} currentBalance 
  */
-const sendLowBalanceEmail = async (userEmail, userName, currentBalance) => {
+const sendLowBalanceEmail = async (userEmail, userName, currentBalance, userId = null) => {
     try {
+        const sender = await getSenderForUser(userId);
+        const dashUrl = await dashboardUrlForUser(userId);
         const mailOptions = {
-            from: safeFrom,
+            from: sender.from,
+            replyTo: sender.replyTo,
             to: userEmail,
             subject: 'Low Token Balance Alert',
             html: `
@@ -41,7 +75,7 @@ const sendLowBalanceEmail = async (userEmail, userName, currentBalance) => {
                     <p>Your chatbot token balance is running low. You currently have <strong>${currentBalance.toLocaleString()}</strong> tokens remaining.</p>
                     <p>Please recharge soon to ensure your chatbot remains active without interruption.</p>
                     <div style="margin-top: 20px;">
-                        <a href="${process.env.Web_url}/user/transactions" style="background: #3498db; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px;">Recharge Now</a>
+                        <a href="${dashUrl}/transactions" style="background: #3498db; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px;">Recharge Now</a>
                     </div>
                 </div>
             `
@@ -59,10 +93,13 @@ const sendLowBalanceEmail = async (userEmail, userName, currentBalance) => {
  * @param {string} userEmail 
  * @param {string} userName 
  */
-const sendEmptyBalanceEmail = async (userEmail, userName) => {
+const sendEmptyBalanceEmail = async (userEmail, userName, userId = null) => {
     try {
+        const sender = await getSenderForUser(userId);
+        const dashUrl = await dashboardUrlForUser(userId);
         const mailOptions = {
-            from: safeFrom,
+            from: sender.from,
+            replyTo: sender.replyTo,
             to: userEmail,
             subject: 'URGENT: Token Balance Empty',
             html: `
@@ -72,7 +109,7 @@ const sendEmptyBalanceEmail = async (userEmail, userName) => {
                     <p>URGENT: Your chatbot tokens have expired. Your bot has <strong>stopped answering</strong>.</p>
                     <p>Please recharge immediately to reactivate your AI services.</p>
                     <div style="margin-top: 20px;">
-                        <a href="${process.env.Web_url}/user/transactions" style="background: #e74c3c; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px;">Recharge Immediately</a>
+                        <a href="${dashUrl}/transactions" style="background: #e74c3c; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px;">Recharge Immediately</a>
                     </div>
                 </div>
             `
@@ -88,8 +125,9 @@ const sendEmptyBalanceEmail = async (userEmail, userName) => {
 /**
  * Send Payment Success Email (Basic Invoice)
  */
-const sendPaymentSuccessEmail = async (userEmail, userName, amount, tokens, orderId) => {
+const sendPaymentSuccessEmail = async (userEmail, userName, amount, tokens, orderId, userId = null) => {
     try {
+        const sender = await getSenderForUser(userId);
         const currentDate = new Date().toLocaleDateString('en-IN', {
             day: '2-digit',
             month: 'long',
@@ -97,7 +135,8 @@ const sendPaymentSuccessEmail = async (userEmail, userName, amount, tokens, orde
         });
 
         const mailOptions = {
-            from: safeFrom,
+            from: sender.from,
+            replyTo: sender.replyTo,
             to: userEmail,
             subject: `Invoice for Order #${orderId} - Payment Successful`,
             html: `
@@ -291,11 +330,14 @@ const loginUrl = () => (process.env.Web_url || 'https://app.example.com').replac
 /**
  * Phase 3.2: Onboarding email sequence — Day 1 (welcome + first steps).
  */
-const sendOnboardingDay1Email = async (userEmail, userName) => {
+const sendOnboardingDay1Email = async (userEmail, userName, userId = null) => {
     if (!userEmail) return;
     try {
+        const sender = await getSenderForUser(userId);
+        const dashUrl = await dashboardUrlForUser(userId);
         await transporter.sendMail({
-            from: safeFrom,
+            from: sender.from,
+            replyTo: sender.replyTo,
             to: userEmail,
             subject: 'Welcome! Here\'s how to get your chatbot live in 5 minutes',
             html: `
@@ -307,7 +349,7 @@ const sendOnboardingDay1Email = async (userEmail, userName) => {
                         <li><strong>Customize</strong> — Set your brand name, colors, and welcome message in Widget settings.</li>
                         <li><strong>Embed</strong> — Copy the script from your dashboard and paste it before &lt;/body&gt; on your site.</li>
                     </ol>
-                    <p><a href="${dashboardUrl()}" style="background: #2563eb; color: white; padding: 12px 24px; text-decoration: none; border-radius: 8px; display: inline-block;">Open dashboard</a></p>
+                    <p><a href="${dashUrl}" style="background: #2563eb; color: white; padding: 12px 24px; text-decoration: none; border-radius: 8px; display: inline-block;">Open dashboard</a></p>
                     <p style="color: #64748b; font-size: 14px; margin-top: 24px;">If you need help, reply to this email.</p>
                 </div>
             `
@@ -321,11 +363,14 @@ const sendOnboardingDay1Email = async (userEmail, userName) => {
 /**
  * Phase 3.2: Onboarding Day 3 — tips and best practices.
  */
-const sendOnboardingDay3Email = async (userEmail, userName) => {
+const sendOnboardingDay3Email = async (userEmail, userName, userId = null) => {
     if (!userEmail) return;
     try {
+        const sender = await getSenderForUser(userId);
+        const dashUrl = await dashboardUrlForUser(userId);
         await transporter.sendMail({
-            from: safeFrom,
+            from: sender.from,
+            replyTo: sender.replyTo,
             to: userEmail,
             subject: '3 tips to get more from your chatbot',
             html: `
@@ -337,7 +382,7 @@ const sendOnboardingDay3Email = async (userEmail, userName) => {
                         <li><strong>Turn on lead capture</strong> — Enable the pre-chat form to collect name and email before the conversation.</li>
                         <li><strong>Check Analytics</strong> — See chat volume, satisfaction, and top questions in the Analytics page.</li>
                     </ul>
-                    <p><a href="${dashboardUrl()}" style="background: #2563eb; color: white; padding: 12px 24px; text-decoration: none; border-radius: 8px; display: inline-block;">Go to dashboard</a></p>
+                    <p><a href="${dashUrl}" style="background: #2563eb; color: white; padding: 12px 24px; text-decoration: none; border-radius: 8px; display: inline-block;">Go to dashboard</a></p>
                 </div>
             `
         });
@@ -350,11 +395,14 @@ const sendOnboardingDay3Email = async (userEmail, userName) => {
 /**
  * Phase 3.2: Onboarding Day 7 — check-in and support.
  */
-const sendOnboardingDay7Email = async (userEmail, userName) => {
+const sendOnboardingDay7Email = async (userEmail, userName, userId = null) => {
     if (!userEmail) return;
     try {
+        const sender = await getSenderForUser(userId);
+        const dashUrl = await dashboardUrlForUser(userId);
         await transporter.sendMail({
-            from: safeFrom,
+            from: sender.from,
+            replyTo: sender.replyTo,
             to: userEmail,
             subject: 'How\'s your chatbot doing? We\'re here to help',
             html: `
@@ -366,7 +414,7 @@ const sendOnboardingDay7Email = async (userEmail, userName) => {
                         <li>Review <strong>Conversations</strong> and <strong>Analytics</strong> to see how visitors are using the bot.</li>
                         <li>Need more credits? Top up anytime from <strong>Transactions</strong>.</li>
                     </ul>
-                    <p><a href="${dashboardUrl()}" style="background: #2563eb; color: white; padding: 12px 24px; text-decoration: none; border-radius: 8px; display: inline-block;">Open dashboard</a></p>
+                    <p><a href="${dashUrl}" style="background: #2563eb; color: white; padding: 12px 24px; text-decoration: none; border-radius: 8px; display: inline-block;">Open dashboard</a></p>
                     <p style="color: #64748b; font-size: 14px; margin-top: 24px;">Reply to this email if you have questions — we’re happy to help.</p>
                 </div>
             `
@@ -380,12 +428,15 @@ const sendOnboardingDay7Email = async (userEmail, userName) => {
 /**
  * Phase 3.4: Daily/weekly summary email (chat stats, leads).
  */
-const sendSummaryEmail = async (userEmail, userName, summary) => {
+const sendSummaryEmail = async (userEmail, userName, summary, userId = null) => {
     if (!userEmail || !summary) return;
     try {
+        const sender = await getSenderForUser(userId);
+        const dashUrl = await dashboardUrlForUser(userId);
         const { period, conversations, messages, uniqueVisitors, leadsCaptured, satisfactionPercent } = summary;
         await transporter.sendMail({
-            from: safeFrom,
+            from: sender.from,
+            replyTo: sender.replyTo,
             to: userEmail,
             subject: `Your chatbot summary (${period})`,
             html: `
@@ -400,7 +451,7 @@ const sendSummaryEmail = async (userEmail, userName, summary) => {
                         <tr style="border-bottom: 1px solid #e2e8f0;"><td style="padding: 8px 0;">Leads captured</td><td style="text-align: right; font-weight: 600;">${leadsCaptured ?? 0}</td></tr>
                         ${satisfactionPercent != null ? `<tr><td style="padding: 8px 0;">Satisfaction</td><td style="text-align: right; font-weight: 600;">${satisfactionPercent}%</td></tr>` : ''}
                     </table>
-                    <p><a href="${dashboardUrl()}/analytics" style="background: #2563eb; color: white; padding: 12px 24px; text-decoration: none; border-radius: 8px; display: inline-block;">View analytics</a></p>
+                    <p><a href="${dashUrl}/analytics" style="background: #2563eb; color: white; padding: 12px 24px; text-decoration: none; border-radius: 8px; display: inline-block;">View analytics</a></p>
                 </div>
             `
         });

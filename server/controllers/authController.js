@@ -6,6 +6,8 @@ const tokenService = require('../services/token.service');
 const totpService = require('../services/totp.service');
 const audit = require('../services/audit.service');
 const { validatePassword } = require('../utils/passwordPolicy');
+const googleAuth = require('../services/googleAuth.service');
+const crypto = require('crypto');
 
 const MAX_LOGIN_ATTEMPTS = 5;
 const LOCK_DURATION_MS = 15 * 60 * 1000; // 15 min
@@ -168,9 +170,13 @@ const adminLoginTotp = async (req, res) => {
     }
 };
 
+function generateReferralCode() {
+    return 'REF' + Date.now().toString(36).toUpperCase() + Math.random().toString(36).substring(2, 6).toUpperCase();
+}
+
 const register = async (req, res) => {
     try {
-        const { name, email, password, website, brandName } = req.body;
+        const { name, email, password, website, brandName, referralCode: refCode } = req.body;
         const pwdCheck = validatePassword(password);
         if (!pwdCheck.valid) {
             return res.status(400).json({ message: pwdCheck.message });
@@ -186,6 +192,11 @@ const register = async (req, res) => {
         const otpExpires = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes
 
         const now = new Date();
+        let referredBy = null;
+        if (refCode && typeof refCode === 'string') {
+            const referrer = await User.findOne({ referralCode: refCode.trim().toUpperCase() }).select('_id').lean();
+            if (referrer) referredBy = referrer._id;
+        }
         const newUser = new User({
             name,
             email,
@@ -197,7 +208,9 @@ const register = async (req, res) => {
             verificationOTP: otp,
             verificationOTPExpires: otpExpires,
             tosAcceptedAt: req.body.acceptTos ? now : undefined,
-            privacyAcceptedAt: req.body.acceptPrivacy ? now : undefined
+            privacyAcceptedAt: req.body.acceptPrivacy ? now : undefined,
+            referredBy,
+            referralCode: generateReferralCode()
         });
 
         await newUser.save();
@@ -439,6 +452,86 @@ const refreshToken = async (req, res) => {
     }
 };
 
+/** Phase 5.8: Redirect to Google OAuth consent. */
+const googleRedirect = async (req, res) => {
+    try {
+        const baseUrl = process.env.API_URL || `${req.protocol}://${req.get('host')}`;
+        const callbackUrl = `${baseUrl.replace(/\/$/, '')}/api/users/auth/google/callback`;
+        const state = crypto.randomBytes(16).toString('hex');
+        const url = googleAuth.getAuthUrl(callbackUrl, state);
+        res.redirect(url);
+    } catch (e) {
+        console.error('Google auth URL error:', e.message);
+        res.redirect(process.env.Web_url || '/');
+    }
+};
+
+/** Phase 5.8: Google OAuth callback — exchange code, find or create user, issue tokens, redirect to frontend. */
+const googleCallback = async (req, res) => {
+    const baseUrl = process.env.API_URL || `${req.protocol}://${req.get('host')}`;
+    const callbackUrl = `${baseUrl.replace(/\/$/, '')}/api/users/auth/google/callback`;
+    const frontendBase = (process.env.Web_url || '').replace(/\/$/, '') || `${req.protocol}://${req.get('host')}`;
+
+    try {
+        const { code, error } = req.query;
+        if (error) {
+            return res.redirect(`${frontendBase}/login?error=access_denied`);
+        }
+        if (!code) {
+            return res.redirect(`${frontendBase}/login?error=no_code`);
+        }
+
+        const profile = await googleAuth.getProfileFromCode(code, callbackUrl);
+        if (!profile.email) {
+            return res.redirect(`${frontendBase}/login?error=no_email`);
+        }
+
+        let user = await User.findOne({ googleId: profile.id });
+        if (!user) {
+            user = await User.findOne({ email: profile.email });
+            if (user) {
+                user.googleId = profile.id;
+                await user.save();
+                audit.log('google_account_linked', { actorId: user._id, actorEmail: user.email, ...audit.getReqMeta(req) });
+            } else {
+                const randomPassword = crypto.randomBytes(32).toString('hex');
+                const salt = await bcrypt.genSalt(10);
+                user = await User.create({
+                    name: profile.name,
+                    email: profile.email,
+                    password: await bcrypt.hash(randomPassword, salt),
+                    googleId: profile.id,
+                    isVerified: true,
+                    isActive: true,
+                    isApproved: true,
+                    referralCode: 'REF' + Date.now().toString(36).toUpperCase() + Math.random().toString(36).substring(2, 6).toUpperCase()
+                });
+                audit.log('register_google', { actorId: user._id, actorEmail: user.email, ...audit.getReqMeta(req) });
+            }
+        }
+
+        if (!user.isActive) {
+            return res.redirect(`${frontendBase}/login?error=account_deactivated`);
+        }
+        if (!user.isApproved) {
+            return res.redirect(`${frontendBase}/login?error=account_pending`);
+        }
+
+        user.lastActive = new Date();
+        await user.save();
+        audit.log('login', { actorId: user._id, actorEmail: user.email, meta: { provider: 'google' }, ...audit.getReqMeta(req) });
+
+        const { accessToken, refreshToken } = await tokenService.issueTokenPair(user._id, user.role === 'admin');
+        const redirectTo = user.role === 'admin' ? '/admin' : '/user';
+        const isAdmin = user.role === 'admin' ? 'true' : 'false';
+        const tokenUrl = `${frontendBase}/auth/callback?token=${encodeURIComponent(accessToken)}&refreshToken=${encodeURIComponent(refreshToken)}&redirect=${encodeURIComponent(redirectTo)}&isAdmin=${isAdmin}`;
+        res.redirect(tokenUrl);
+    } catch (e) {
+        console.error('Google callback error:', e.message);
+        res.redirect(`${frontendBase}/login?error=server_error`);
+    }
+};
+
 module.exports = {
     adminLogin,
     adminLoginTotp,
@@ -454,5 +547,7 @@ module.exports = {
     verifyOTP,
     resendVerificationOTP,
     forgotPassword,
-    resetPassword
+    resetPassword,
+    googleRedirect,
+    googleCallback
 };

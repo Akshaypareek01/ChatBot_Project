@@ -15,6 +15,11 @@ import WidgetCustomization from '@/components/user/WidgetCustomization';
 import ConversationsList from '@/components/user/ConversationsList';
 import ConversationDetail from '@/components/user/ConversationDetail';
 import UserAnalytics from '@/components/user/UserAnalytics';
+import UserPlan from '@/components/user/UserPlan';
+import UserWebhooks from '@/components/user/UserWebhooks';
+import UserLiveChat from '@/components/user/UserLiveChat';
+import ResellerClients from '@/components/user/ResellerClients';
+import ChatFlows from '@/components/user/ChatFlows';
 import OnboardingWizard from '@/components/user/OnboardingWizard';
 
 const UserDashboard = () => {
@@ -106,6 +111,11 @@ const UserDashboard = () => {
           <Route path="/conversations" element={<ConversationsList />} />
           <Route path="/conversations/:id" element={<ConversationDetail />} />
           <Route path="/support" element={<SupportSystem />} />
+          <Route path="/plan" element={<UserPlan />} />
+          <Route path="/webhooks" element={<UserWebhooks />} />
+          <Route path="/live-chat" element={<UserLiveChat />} />
+          <Route path="/flows" element={<ChatFlows />} />
+          <Route path="/clients" element={<ResellerClients />} />
           <Route path="*" element={<Navigate to="/user" replace />} />
         </Routes>
 </UserLayout>

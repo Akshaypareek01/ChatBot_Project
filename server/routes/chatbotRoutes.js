@@ -67,6 +67,8 @@ router.post('/chat/start', verifyChatWidgetToken, chatbotController.startConvers
 router.post('/chat/feedback', verifyChatWidgetToken, chatbotController.submitFeedback);
 // Streaming chat (SSE/NDJSON)
 router.post('/chat/stream', verifyChatWidgetToken, chatLimiter, validateRequest(chatValidator.chat), chatbotController.chatWithBotStream);
+// Phase 5.1: Escalate to human (widget token)
+router.post('/chat/escalate', verifyChatWidgetToken, chatbotController.escalateToHuman);
 
 // Upload File (PDF/DOC)
 router.post('/upload', authMiddleware, upload.single('file'), chatbotController.uploadFile);

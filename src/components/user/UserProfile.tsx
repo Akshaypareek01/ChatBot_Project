@@ -13,12 +13,17 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Copy, Gift } from 'lucide-react';
 
 const profileSchema = z.object({
   name: z.string().min(2, { message: 'Name must be at least 2 characters' }),
   email: z.string().email({ message: 'Please enter a valid email' }),
   website: z.string().optional(),
   brandName: z.string().optional(),
+  gstin: z.string().optional(),
+  customDashboardDomain: z.string().optional(),
+  customEmailFromName: z.string().optional(),
+  customEmailReplyTo: z.string().optional(),
 });
 
 const passwordSchema = z.object({
@@ -48,6 +53,10 @@ const UserProfile = () => {
       email: '',
       website: '',
       brandName: '',
+      gstin: '',
+      customDashboardDomain: '',
+      customEmailFromName: '',
+      customEmailReplyTo: '',
     }
   });
 
@@ -71,6 +80,10 @@ const UserProfile = () => {
           email: userData.email,
           website: userData.website || '',
           brandName: userData.brandName || '',
+          gstin: userData.gstin || '',
+          customDashboardDomain: userData.customDashboardDomain || '',
+          customEmailFromName: userData.customEmailFromName || '',
+          customEmailReplyTo: userData.customEmailReplyTo || '',
         });
       } catch (error) {
         console.error('Error fetching profile:', error);
@@ -87,17 +100,25 @@ const UserProfile = () => {
   const onSubmitProfile = async (data: ProfileFormValues) => {
     setIsSubmitting(true);
     try {
-      const result = await updateUserProfile({
+      await updateUserProfile({
         name: data.name,
         website: data.website || '',
         brandName: data.brandName || '',
+        gstin: data.gstin || undefined,
+        customDashboardDomain: data.customDashboardDomain || undefined,
+        customEmailFromName: data.customEmailFromName || undefined,
+        customEmailReplyTo: data.customEmailReplyTo || undefined,
       });
 
       setUser({
         ...user,
         name: data.name,
         website: data.website,
-        brandName: data.brandName
+        brandName: data.brandName,
+        gstin: data.gstin || null,
+        customDashboardDomain: data.customDashboardDomain || null,
+        customEmailFromName: data.customEmailFromName || null,
+        customEmailReplyTo: data.customEmailReplyTo || null,
       });
 
       toast.success('Profile updated successfully');
@@ -248,6 +269,76 @@ const UserProfile = () => {
                   )}
                 />
 
+                <FormField
+                  control={profileForm.control}
+                  name="gstin"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>GSTIN (optional)</FormLabel>
+                      <FormControl>
+                        <Input {...field} placeholder="e.g. 27AABCU9603R1ZM" />
+                      </FormControl>
+                      <FormDescription>
+                        For Indian businesses. Shown on tax invoices.
+                      </FormDescription>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                {user?.whitelabel && (
+                  <>
+                    <FormField
+                      control={profileForm.control}
+                      name="customDashboardDomain"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Custom dashboard domain (optional)</FormLabel>
+                          <FormControl>
+                            <Input {...field} placeholder="e.g. app.yourcompany.com" />
+                          </FormControl>
+                          <FormDescription>
+                            CNAME your domain to our app. Links in emails will use this.
+                          </FormDescription>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                    <FormField
+                      control={profileForm.control}
+                      name="customEmailFromName"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Email &quot;From&quot; name (optional)</FormLabel>
+                          <FormControl>
+                            <Input {...field} placeholder="e.g. Your Company Support" />
+                          </FormControl>
+                          <FormDescription>
+                            Name shown as sender in transactional emails.
+                          </FormDescription>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                    <FormField
+                      control={profileForm.control}
+                      name="customEmailReplyTo"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Email Reply-To (optional)</FormLabel>
+                          <FormControl>
+                            <Input {...field} type="email" placeholder="support@yourcompany.com" />
+                          </FormControl>
+                          <FormDescription>
+                            Replies from users will go to this address.
+                          </FormDescription>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  </>
+                )}
+
                 <Button type="submit" disabled={isSubmitting}>
                   {isSubmitting ? 'Updating...' : 'Update Profile'}
                 </Button>
@@ -313,6 +404,36 @@ const UserProfile = () => {
             </Form>
           </CardContent>
         </Card>
+
+        {user?.referralCode && (
+        <Card className="border-primary/20 bg-primary/5">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Gift className="h-5 w-5 text-primary" /> Referral program
+            </CardTitle>
+            <CardDescription>Share your link. You get 5,000 credits when a friend signs up and makes their first payment.</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="flex gap-2">
+              <Input
+                readOnly
+                value={typeof window !== 'undefined' ? `${window.location.origin}/register?ref=${user.referralCode}` : ''}
+                className="font-mono text-sm"
+              />
+              <Button
+                variant="outline"
+                size="icon"
+                onClick={() => {
+                  const url = `${window.location.origin}/register?ref=${user.referralCode}`;
+                  navigator.clipboard.writeText(url).then(() => toast.success('Link copied'));
+                }}
+              >
+                <Copy className="h-4 w-4" />
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
         <Card>
           <CardHeader>

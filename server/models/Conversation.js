@@ -19,10 +19,22 @@ const conversationSchema = new mongoose.Schema({
     },
     status: { type: String, enum: ['active', 'ended', 'escalated'], default: 'active' },
     rating: { type: Number, min: 0, max: 5 },
+    escalatedAt: { type: Date },
+    handoffMessages: [{
+        role: { type: String, enum: ['visitor', 'agent'], required: true },
+        content: { type: String, required: true },
+        timestamp: { type: Date, default: Date.now }
+    }],
+    agentOnline: { type: Boolean, default: false },
     leadInfo: {
         email: String,
         phone: String,
         name: String
+    },
+    // Phase 5.6: Chat flows / decision trees
+    flowState: {
+        flowId: { type: mongoose.Schema.Types.ObjectId, ref: 'ChatFlow', default: null },
+        nodeId: { type: String, default: null } // node.id within flow definition
     },
     startedAt: { type: Date, default: Date.now },
     endedAt: Date

@@ -9,10 +9,11 @@ import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import ScriptGenerator from '../chatbot/ScriptGenerator';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from '@/components/ui/dialog';
 import { Form, FormField, FormItem, FormLabel, FormControl, FormDescription, FormMessage } from '@/components/ui/form';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useForm } from 'react-hook-form';
 import { toast } from 'sonner';
 import { format } from 'date-fns';
-import { getUsers, createUser, updateUser, deleteUser } from '@/services/api';
+import { getUsers, createUser, updateUser, deleteUser, getResellers } from '@/services/api';
 import { useNavigate } from 'react-router-dom';
 
 interface UserFormData {
@@ -23,6 +24,8 @@ interface UserFormData {
   tokenBalance: number;
   isActive?: boolean;
   isApproved?: boolean;
+  role?: 'user' | 'admin' | 'reseller';
+  resellerId?: string | null;
 }
 
 interface User {
@@ -34,10 +37,18 @@ interface User {
   isActive: boolean;
   isApproved: boolean;
   tokenBalance: number;
+  role?: string;
+  resellerId?: string | null;
   createdAt?: string;
   lastActive?: string;
   qaCount?: number;
   totalChats?: number;
+}
+
+interface Reseller {
+  _id: string;
+  name: string;
+  email: string;
 }
 
 const UserManager = () => {
@@ -51,6 +62,7 @@ const UserManager = () => {
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   const [total, setTotal] = useState(0);
+  const [resellers, setResellers] = useState<Reseller[]>([]);
   const navigate = useNavigate();
 
   const addUserForm = useForm<UserFormData>({
@@ -70,7 +82,9 @@ const UserManager = () => {
       website: '',
       tokenBalance: 0,
       isActive: true,
-      isApproved: true
+      isApproved: true,
+      role: 'user',
+      resellerId: null
     }
   });
 
@@ -132,7 +146,7 @@ const UserManager = () => {
     }
   };
 
-  const handleEditClick = (user: User) => {
+  const handleEditClick = async (user: User) => {
     setSelectedUser(user);
     editUserForm.reset({
       name: user.name,
@@ -140,9 +154,12 @@ const UserManager = () => {
       website: user.website,
       tokenBalance: user.tokenBalance,
       isActive: user.isActive,
-      isApproved: user.isApproved
+      isApproved: user.isApproved,
+      role: (user.role as 'user' | 'admin' | 'reseller') || 'user',
+      resellerId: user.resellerId ?? null
     });
     setIsEditDialogOpen(true);
+    getResellers().then((d) => setResellers(d?.resellers ?? [])).catch(() => setResellers([]));
   };
 
   const handleEditUser = async (data: UserFormData) => {
@@ -155,7 +172,9 @@ const UserManager = () => {
         website: data.website,
         isActive: data.isActive ?? selectedUser.isActive,
         isApproved: data.isApproved ?? selectedUser.isApproved,
-        tokenBalance: data.tokenBalance
+        tokenBalance: data.tokenBalance,
+        role: data.role,
+        resellerId: data.resellerId ?? null
       });
 
       toast.success('User updated successfully');
@@ -535,6 +554,50 @@ const UserManager = () => {
                   )}
                 />
               </div>
+
+              <FormField
+                control={editUserForm.control}
+                name="role"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Role</FormLabel>
+                    <Select value={field.value ?? 'user'} onValueChange={field.onChange}>
+                      <SelectTrigger><SelectValue placeholder="Role" /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="user">User</SelectItem>
+                        <SelectItem value="reseller">Reseller</SelectItem>
+                        <SelectItem value="admin">Admin</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <FormDescription>Resellers can see their assigned clients.</FormDescription>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={editUserForm.control}
+                name="resellerId"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Assign to reseller</FormLabel>
+                    <Select
+                      value={field.value ?? 'none'}
+                      onValueChange={(v) => field.onChange(v === 'none' ? null : v)}
+                    >
+                      <SelectTrigger><SelectValue placeholder="No reseller" /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="none">None</SelectItem>
+                        {resellers.map((r) => (
+                          <SelectItem key={r._id} value={r._id}>{r.name} ({r.email})</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <FormDescription>Assign this user to a reseller (agency).</FormDescription>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
 
               <DialogFooter>
                 <Button type="button" variant="outline" onClick={() => setIsEditDialogOpen(false)}>Cancel</Button>

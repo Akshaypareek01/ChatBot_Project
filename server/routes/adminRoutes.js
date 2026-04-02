@@ -15,6 +15,7 @@ router.post('/admin/2fa/disable', authController.disable2FA);
 
 // Users
 router.get('/admin/users', adminController.getUsers);
+router.get('/admin/resellers', adminController.getResellers);
 router.post('/admin/users', adminController.createUser);
 router.put('/admin/users/:id', adminController.updateUser);
 router.delete('/admin/users/:id', adminController.deleteUser);

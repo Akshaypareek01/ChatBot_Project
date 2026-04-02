@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { MessageSquare, Users, BarChart2, AlertTriangle, Wallet, Code, Globe, Zap, History, ArrowRight, Shield } from 'lucide-react';
-import { getUserProfile, getUserChatbotData, getUsageHistory } from '@/services/api';
+import { getUserProfile, getUserChatbotData, getUsageHistory, getMyPlanUsage } from '@/services/api';
 import ScriptGenerator from '../chatbot/ScriptGenerator';
 import { useBot } from '@/context/BotContext';
 import { useNavigate } from 'react-router-dom';
@@ -22,21 +22,32 @@ const UserDashboardHome = () => {
   const [userData, setUserData] = useState<any>(null);
   const [chatbotData, setChatbotData] = useState<any>(null);
   const [usageHistory, setUsageHistory] = useState<UsageRecord[]>([]);
+  const [planUsage, setPlanUsage] = useState<{
+    plan?: { name: string; slug: string };
+    chatCountThisMonth: number;
+    chatLimit: number | null;
+    sourcesCount: number;
+    sourcesLimit: number;
+    isOverChatLimit?: boolean;
+    isOverSourcesLimit?: boolean;
+  } | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const navigate = useNavigate();
 
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const [userProfileData, chatbotDataResponse, usageData] = await Promise.all([
+        const [userProfileData, chatbotDataResponse, usageData, planUsageData] = await Promise.all([
           getUserProfile(),
           getUserChatbotData(),
-          getUsageHistory()
+          getUsageHistory(),
+          getMyPlanUsage().catch(() => null)
         ]);
 
         setUserData(userProfileData);
         setChatbotData(chatbotDataResponse);
-        setUsageHistory(usageData); // Grouping function will limit to 5
+        setUsageHistory(usageData);
+        setPlanUsage(planUsageData);
       } catch (error) {
         console.error('Error fetching dashboard data:', error);
       } finally {
@@ -167,14 +178,24 @@ const UserDashboardHome = () => {
           </CardContent>
         </Card>
 
-        <Card className="border-none bg-background/50 backdrop-blur-sm shadow-soft">
+        <Card
+          className={`border-none shadow-soft cursor-pointer transition-shadow hover:shadow-lg ${planUsage?.isOverChatLimit || planUsage?.isOverSourcesLimit ? 'bg-amber-50 dark:bg-amber-950/30 border-l-4 border-l-amber-500' : 'bg-background/50 backdrop-blur-sm'}`}
+          onClick={() => navigate('/user/plan')}
+        >
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-bold uppercase tracking-wider text-muted-foreground">Bot Status</CardTitle>
-            <Globe className="h-4 w-4 text-green-500" />
+            <CardTitle className="text-sm font-bold uppercase tracking-wider text-muted-foreground">Plan & usage</CardTitle>
+            <Zap className="h-4 w-4 text-primary" />
           </CardHeader>
           <CardContent>
-            <div className="text-3xl font-black text-green-500">Live</div>
-            <p className="text-xs text-muted-foreground mt-1">Your chatbot is ready</p>
+            <div className="text-2xl font-black">{planUsage?.plan?.name ?? 'Free'}</div>
+            <p className="text-xs text-muted-foreground mt-1">
+              Chats: {planUsage?.chatCountThisMonth ?? 0} / {planUsage?.chatLimit == null ? '∞' : planUsage?.chatLimit} · Sources: {planUsage?.sourcesCount ?? 0} / {planUsage?.sourcesLimit ?? 1}
+            </p>
+            {(planUsage?.isOverChatLimit || planUsage?.isOverSourcesLimit) && (
+              <p className="text-xs text-amber-600 dark:text-amber-400 font-medium mt-1 flex items-center gap-1">
+                <AlertTriangle className="h-3 w-3" /> Limit reached — Upgrade
+              </p>
+            )}
           </CardContent>
         </Card>
       </div>

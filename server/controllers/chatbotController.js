@@ -12,9 +12,12 @@ const widgetTokenService = require('../services/widgetToken.service');
 const Source = require('../models/Source');
 const WidgetConfig = require('../models/WidgetConfig');
 const Conversation = require('../models/Conversation');
+const ChatFlow = require('../models/ChatFlow');
 const mongoose = require('mongoose');
 const emailService = require('../services/email.service');
 const notificationService = require('../services/notification.service');
+const webhookService = require('../services/webhook.service');
+const flowRuntime = require('../services/chatFlowRuntime.service');
 const axios = require('axios');
 
 const CHAT_MESSAGE_MAX_LENGTH = 1000;
@@ -83,7 +86,13 @@ const getChatbotData = async (req, res) => {
             return res.status(403).json({ message: 'Domain not authorized' });
         }
 
-        const isOffline = !user.isActive || user.tokenBalance <= 0;
+        const planLimit = require('../services/planLimit.service');
+        let upgradeRequired = false;
+        try {
+            const usage = await planLimit.getUsageSummary(userId);
+            if (usage?.isOverChatLimit) upgradeRequired = true;
+        } catch (_) {}
+        const isOffline = !user.isActive || user.tokenBalance <= 0 || upgradeRequired;
         const widgetToken = widgetTokenService.issueWidgetToken(userId);
 
         const botSlug = req.query.bot || req.query.botId;
@@ -99,6 +108,8 @@ const getChatbotData = async (req, res) => {
             botId = defaultBot._id;
         }
         const widgetConfig = await WidgetConfig.findOne({ userId, botId }).lean();
+        const planInfo = await planLimit.getPlanForUser(userId);
+        const forceNoBranding = planInfo?.plan?.whitelabel === true;
         const widget = widgetConfig ? {
             primaryColor: widgetConfig.primaryColor,
             accentColor: widgetConfig.accentColor,
@@ -109,7 +120,7 @@ const getChatbotData = async (req, res) => {
             size: widgetConfig.size,
             autoOpenDelay: widgetConfig.autoOpenDelay,
             customCss: widgetConfig.customCss || '',
-            showPoweredBy: widgetConfig.showPoweredBy,
+            showPoweredBy: forceNoBranding ? false : widgetConfig.showPoweredBy,
             preChatForm: widgetConfig.preChatForm || { enabled: false, welcomeMessage: '', fields: [] },
             suggestedQuestions: Array.isArray(widgetConfig.suggestedQuestions) ? widgetConfig.suggestedQuestions.slice(0, 7) : []
         } : null;
@@ -120,6 +131,7 @@ const getChatbotData = async (req, res) => {
             name: user.brandName || user.name,
             email: user.email,
             isOffline,
+            upgradeRequired: upgradeRequired || false,
             isActive: user.isActive,
             tokenBalance: user.tokenBalance,
             widgetConfig: widget
@@ -353,6 +365,37 @@ const chatWithBot = async (req, res) => {
         }
         // --- END SECURITY CHECK ---
 
+        // Phase 5.6: If an active flow exists, use it instead of RAG.
+        const { conversationId, botId: bodyBotId } = req.body || {};
+        let conv = null;
+        if (conversationId && mongoose.Types.ObjectId.isValid(conversationId)) {
+            conv = await Conversation.findOne({ _id: conversationId, userId });
+        }
+        const activeFlow = await ChatFlow.findOne({ userId, botId: bodyBotId || null, isActive: true }).lean();
+        if (activeFlow) {
+            const currentNodeId = conv?.flowState?.flowId ? conv.flowState.nodeId : null;
+            const out = flowRuntime.handleFlowMessage({ flow: activeFlow, currentNodeId, visitorText: sanitized });
+
+            if (out?.node?.type === 'ai') {
+                const prompt = `${out.node.aiInstructions || ''}\n\nVisitor: ${sanitized}`.trim();
+                const ai = await chatService.handleChat(userId, prompt);
+                if (conv) {
+                    conv.flowState = out.endFlow ? { flowId: null, nodeId: null } : { flowId: activeFlow._id, nodeId: out.nextNodeId };
+                    conv.messages.push({ role: 'user', content: sanitized }, { role: 'assistant', content: ai });
+                    await conv.save();
+                }
+                return res.json({ answer: ai, source: 'FLOW_AI', buttons: out.buttons || [] });
+            }
+
+            const reply = out.replyText || '';
+            if (conv) {
+                conv.flowState = out.endFlow ? { flowId: null, nodeId: null } : { flowId: activeFlow._id, nodeId: out.nextNodeId };
+                conv.messages.push({ role: 'user', content: sanitized }, { role: 'assistant', content: reply });
+                await conv.save();
+            }
+            return res.json({ answer: reply, source: 'FLOW', buttons: out.buttons || [] });
+        }
+
         const response = await chatService.handleChat(userId, sanitized);
         return res.json({ answer: response, source: 'RAG' });
 
@@ -385,6 +428,11 @@ const submitFeedback = async (req, res) => {
         }
         conv.messages[messageIndex].feedback = feedback;
         await conv.save();
+        webhookService.triggerWebhooks(userId, 'feedback_received', {
+            conversationId,
+            messageIndex,
+            feedback: feedback === 1 ? 'positive' : 'negative'
+        }).catch((e) => console.error('Webhook feedback_received:', e.message));
         return res.json({ ok: true });
     } catch (error) {
         return res.status(500).json({ message: error.message || 'Server error' });
@@ -433,6 +481,12 @@ const startConversation = async (req, res) => {
             metadata: { pageUrl: req.headers.referer || '', userAgent: req.headers['user-agent'] || '' }
         });
 
+        webhookService.triggerWebhooks(userId, 'conversation_started', {
+            conversationId: conv._id.toString(),
+            visitorId,
+            leadInfo: (lead.name || lead.email || lead.phone) ? lead : undefined
+        }).catch((e) => console.error('Webhook conversation_started:', e.message));
+
         const hasLead = lead.name || lead.email || lead.phone;
         if (hasLead) {
             const owner = await User.findById(userId).select('email name').lean();
@@ -457,7 +511,59 @@ const startConversation = async (req, res) => {
                     capturedAt: new Date().toISOString()
                 }, { timeout: 5000 }).catch((e) => console.error('Lead webhook:', e.message));
             }
+            webhookService.triggerWebhooks(userId, 'lead_captured', {
+                conversationId: conv._id.toString(),
+                visitorId,
+                lead: { name: lead.name, email: lead.email, phone: lead.phone },
+                capturedAt: new Date().toISOString()
+            }).catch((e) => console.error('Webhook lead_captured:', e.message));
         }
+
+        return res.json({ conversationId: conv._id.toString() });
+    } catch (error) {
+        return res.status(500).json({ message: error.message || 'Server error' });
+    }
+};
+
+/**
+ * Phase 5.1: Escalate conversation to human. Widget token required.
+ */
+const escalateToHuman = async (req, res) => {
+    try {
+        const userId = req.chatUserId;
+        const { conversationId } = req.body;
+        if (!conversationId) {
+            return res.status(400).json({ message: 'conversationId is required.' });
+        }
+        const conv = await Conversation.findOne({ _id: conversationId, userId });
+        if (!conv) {
+            return res.status(404).json({ message: 'Conversation not found.' });
+        }
+        if (conv.status === 'escalated') {
+            return res.json({ conversationId: conv._id.toString(), alreadyEscalated: true });
+        }
+        conv.status = 'escalated';
+        conv.escalatedAt = new Date();
+        conv.handoffMessages = conv.handoffMessages || [];
+        await conv.save();
+
+        const io = req.app.get('io');
+        if (io) {
+            const payload = {
+                conversationId: conv._id.toString(),
+                visitorId: conv.visitorId,
+                leadInfo: conv.leadInfo,
+                messages: conv.messages,
+                handoffMessages: conv.handoffMessages,
+                escalatedAt: conv.escalatedAt
+            };
+            io.to(`user:${userId}`).emit('escalation', payload);
+        }
+
+        webhookService.triggerWebhooks(userId, 'chat_escalated', {
+            conversationId: conv._id.toString(),
+            visitorId: conv.visitorId
+        }).catch((e) => console.error('Webhook chat_escalated:', e.message));
 
         return res.json({ conversationId: conv._id.toString() });
     } catch (error) {
@@ -515,6 +621,87 @@ const chatWithBotStream = async (req, res) => {
         if (typeof res.flush === 'function') res.flush();
     };
 
+    let previousMessages = [];
+    let preferredModel = null;
+    let convDoc = null;
+    if (conversationId && mongoose.Types.ObjectId.isValid(conversationId)) {
+        convDoc = await Conversation.findOne({ _id: conversationId, userId }).select('messages flowState').lean();
+        if (convDoc && Array.isArray(convDoc.messages)) {
+            previousMessages = convDoc.messages.slice(-10);
+        }
+    }
+    const widgetConfig = await WidgetConfig.findOne(
+        resolvedBotId ? { userId, botId: resolvedBotId } : { userId, botId: null }
+    ).select('preferredAiModel').lean();
+    if (widgetConfig?.preferredAiModel) preferredModel = widgetConfig.preferredAiModel;
+
+    // Phase 5.6: Flow runtime (stream). If active flow exists, bypass RAG.
+    const activeFlow = await ChatFlow.findOne({ userId, botId: resolvedBotId || null, isActive: true }).lean();
+    if (activeFlow) {
+        const currentNodeId = convDoc?.flowState?.flowId ? convDoc.flowState.nodeId : null;
+        const out = flowRuntime.handleFlowMessage({ flow: activeFlow, currentNodeId, visitorText: sanitized });
+
+        const saveFlowState = async (assistantText) => {
+            if (!visitorId) return;
+            const userMsg = { role: 'user', content: sanitized };
+            const assistantMsg = { role: 'assistant', content: assistantText };
+            const nextState = out.endFlow ? { flowId: null, nodeId: null } : { flowId: activeFlow._id, nodeId: out.nextNodeId };
+            try {
+                if (conversationId && mongoose.Types.ObjectId.isValid(conversationId)) {
+                    const conv = await Conversation.findOneAndUpdate(
+                        { _id: conversationId, userId },
+                        { $set: { flowState: nextState }, $push: { messages: { $each: [userMsg, assistantMsg] } }, updatedAt: new Date() },
+                        { new: true }
+                    );
+                    if (conv) {
+                        sendLine({ type: 'messageIndex', messageIndex: conv.messages.length - 1 });
+                        return;
+                    }
+                }
+                const newConv = await Conversation.create({
+                    visitorId,
+                    userId,
+                    botId: resolvedBotId || undefined,
+                    flowState: nextState,
+                    messages: [userMsg, assistantMsg],
+                    metadata: { pageUrl: req.headers.referer || '', userAgent: req.headers['user-agent'] || '' }
+                });
+                sendLine({ type: 'conversationId', conversationId: newConv._id.toString() });
+            } catch (e) {
+                console.error('Flow conversation save error:', e);
+            }
+        };
+
+        if (out?.node?.type === 'ai') {
+            const prompt = `${out.node.aiInstructions || ''}\n\nVisitor: ${sanitized}`.trim();
+            try {
+                await chatService.handleChatStream(
+                    userId,
+                    prompt,
+                    (chunk) => sendLine(chunk),
+                    async (err, fullContent) => {
+                        if (out.buttons?.length) sendLine({ type: 'buttons', buttons: out.buttons });
+                        sendLine({ type: 'done' });
+                        await saveFlowState(err ? '(Error)' : fullContent);
+                    },
+                    { previousMessages, model: preferredModel, conversationId }
+                );
+            } catch (e) {
+                sendLine({ type: 'done', error: e.message || 'Flow AI stream failed' });
+            }
+            res.end();
+            return;
+        }
+
+        const reply = out.replyText || '';
+        if (reply) sendLine({ type: 'token', content: reply });
+        if (out.buttons?.length) sendLine({ type: 'buttons', buttons: out.buttons });
+        sendLine({ type: 'done' });
+        await saveFlowState(reply);
+        res.end();
+        return;
+    }
+
     const onComplete = async (err, fullContent, usage) => {
         if (!visitorId) return;
         const userMsg = { role: 'user', content: sanitized };
@@ -546,7 +733,13 @@ const chatWithBotStream = async (req, res) => {
     };
 
     try {
-        await chatService.handleChatStream(userId, sanitized, (chunk) => sendLine(chunk), onComplete);
+        await chatService.handleChatStream(
+            userId,
+            sanitized,
+            (chunk) => sendLine(chunk),
+            onComplete,
+            { previousMessages, model: preferredModel, conversationId }
+        );
     } catch (err) {
         console.error('Stream error:', err);
         sendLine({ type: 'done', error: err.message || 'Stream failed' });
@@ -586,6 +779,7 @@ module.exports = {
     chatWithBotStream,
     startConversation,
     submitFeedback,
+    escalateToHuman,
     getScrapeStatus,
     addPasteSource,
     updateSource,

@@ -7,12 +7,12 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Plus, Search, Edit, Trash2, Save, X, MessageSquare, Filter, FileUp, Globe, Loader2, Database, File, ExternalLink, Wallet, FileText, RefreshCw } from 'lucide-react';
+import { Plus, Search, Edit, Trash2, Save, X, MessageSquare, Filter, FileUp, Globe, Loader2, Database, File, ExternalLink, Wallet, FileText, RefreshCw, Sparkles } from 'lucide-react';
 import { toast } from 'sonner';
 import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { getCurrentUserQAs, createUserQA, updateUserQA, deleteUserQA, uploadFile, scrapeWebsite, getScrapeStatus, addPasteSource, updateSource, getUserSources, getSourcesHealth } from '@/services/api';
+import { getCurrentUserQAs, createUserQA, updateUserQA, deleteUserQA, getSuggestedQAs, addSuggestedQAToQA, dismissSuggestedQA, uploadFile, scrapeWebsite, getScrapeStatus, addPasteSource, updateSource, getUserSources, getSourcesHealth } from '@/services/api';
 
 interface QA {
   _id: string;
@@ -44,6 +44,14 @@ interface KBHealth {
   totalSources: number;
   lastUpdated: string | null;
   byType?: Record<string, number>;
+}
+
+interface SuggestedQAItem {
+  _id: string;
+  question: string;
+  source: 'no_context' | 'low_confidence' | 'manual';
+  conversationId?: string;
+  createdAt: string;
 }
 
 const UserKnowledgeBase = () => {
@@ -80,6 +88,10 @@ const UserKnowledgeBase = () => {
   const [kbHealth, setKbHealth] = useState<KBHealth | null>(null);
   const [isLoadingSources, setIsLoadingSources] = useState(false);
   const [activeTab, setActiveTab] = useState('qa');
+  const [suggestedList, setSuggestedList] = useState<SuggestedQAItem[]>([]);
+  const [isLoadingSuggested, setIsLoadingSuggested] = useState(false);
+  const [addToQAModalId, setAddToQAModalId] = useState<string | null>(null);
+  const [addToQAAnswer, setAddToQAAnswer] = useState('');
 
   const categories = ['General', 'Orders', 'Returns', 'Shipping', 'Support', 'Pricing', 'Technical'];
 
@@ -93,6 +105,24 @@ const UserKnowledgeBase = () => {
       fetchSources();
     }
   }, [activeTab]);
+
+  useEffect(() => {
+    if (activeTab === 'suggested') {
+      fetchSuggested();
+    }
+  }, [activeTab]);
+
+  const fetchSuggested = async () => {
+    setIsLoadingSuggested(true);
+    try {
+      const data = await getSuggestedQAs();
+      setSuggestedList(Array.isArray(data) ? data : []);
+    } catch {
+      setSuggestedList([]);
+    } finally {
+      setIsLoadingSuggested(false);
+    }
+  };
 
   const fetchQAs = async () => {
     setIsLoading(true);
@@ -416,6 +446,10 @@ const UserKnowledgeBase = () => {
           <TabsTrigger value="sources">
             <Database className="h-4 w-4 mr-2" />
             Data Sources
+          </TabsTrigger>
+          <TabsTrigger value="suggested">
+            <Sparkles className="h-4 w-4 mr-2" />
+            Suggested Q&A
           </TabsTrigger>
         </TabsList>
 
@@ -905,6 +939,116 @@ const UserKnowledgeBase = () => {
               )}
             </CardContent>
           </Card>
+        </TabsContent>
+
+        <TabsContent value="suggested" className="mt-6">
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Sparkles className="h-5 w-5" />
+                Suggested Q&A
+              </CardTitle>
+              <CardDescription>
+                Questions visitors asked that had no or low-confidence answers. Add an answer to turn them into Q&A pairs.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              {isLoadingSuggested ? (
+                <div className="flex items-center justify-center py-12">
+                  <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+                </div>
+              ) : suggestedList.length === 0 ? (
+                <div className="text-center py-12 text-muted-foreground">
+                  <Sparkles className="h-12 w-12 mx-auto mb-4 opacity-50" />
+                  <p className="text-lg font-medium">No suggestions yet</p>
+                  <p className="text-sm">When the bot gets questions it can&apos;t answer well, they&apos;ll appear here</p>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {suggestedList.map((s) => (
+                    <div
+                      key={s._id}
+                      className="border rounded-lg p-4 flex items-start justify-between gap-4"
+                    >
+                      <div className="flex-1 min-w-0">
+                        <p className="font-medium text-sm text-muted-foreground mb-1">
+                          {s.source === 'low_confidence' ? 'Low confidence' : s.source === 'no_context' ? 'No context' : 'Manual'}
+                        </p>
+                        <p className="break-words">{s.question}</p>
+                      </div>
+                      <div className="flex gap-2 shrink-0">
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => {
+                            setAddToQAModalId(s._id);
+                            setAddToQAAnswer('');
+                          }}
+                        >
+                          Add to Q&A
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={async () => {
+                            try {
+                              await dismissSuggestedQA(s._id);
+                              setSuggestedList((prev) => prev.filter((x) => x._id !== s._id));
+                              toast.success('Dismissed');
+                            } catch {
+                              toast.error('Failed to dismiss');
+                            }
+                          }}
+                        >
+                          Dismiss
+                        </Button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
+          <Dialog open={!!addToQAModalId} onOpenChange={(open) => !open && setAddToQAModalId(null)}>
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>Add to Q&A</DialogTitle>
+                <DialogDescription>Provide an answer. It will be added to your Q&A pairs.</DialogDescription>
+              </DialogHeader>
+              <div className="space-y-2">
+                <Label>Answer</Label>
+                <Textarea
+                  placeholder="Your answer..."
+                  value={addToQAAnswer}
+                  onChange={(e) => setAddToQAAnswer(e.target.value)}
+                  rows={4}
+                />
+              </div>
+              <DialogFooter>
+                <Button variant="outline" onClick={() => setAddToQAModalId(null)}>
+                  Cancel
+                </Button>
+                <Button
+                  onClick={async () => {
+                    if (!addToQAModalId) return;
+                    try {
+                      await addSuggestedQAToQA(addToQAModalId, addToQAAnswer.trim());
+                      setSuggestedList((prev) => prev.filter((x) => x._id !== addToQAModalId));
+                      setAddToQAModalId(null);
+                      setAddToQAAnswer('');
+                      fetchQAs();
+                      toast.success('Added to Q&A');
+                    } catch {
+                      toast.error('Failed to add');
+                    }
+                  }}
+                >
+                  Add
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
         </TabsContent>
       </Tabs>
     </div>

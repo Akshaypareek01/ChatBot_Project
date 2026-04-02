@@ -2,6 +2,7 @@ const express = require('express');
 const multer = require('multer');
 const router = express.Router();
 const userController = require('../controllers/userController');
+const flowController = require('../controllers/flowController');
 const qaController = require('../controllers/qaController');
 const paymentController = require('../controllers/paymentController');
 const authMiddleware = require('../middleware/authMiddleware');
@@ -34,6 +35,11 @@ router.get('/users/qa', qaController.getUserQAs);
 router.post('/users/qa', qaController.createUserQA);
 router.put('/users/qa/:id', qaController.updateUserQA);
 router.delete('/users/qa/:id', qaController.deleteUserQA);
+
+// Phase 5.4: Suggested Q&A (auto-learning)
+router.get('/users/suggested-qa', userController.getSuggestedQAs);
+router.post('/users/suggested-qa/:id/add-to-qa', validateObjectId('id'), userController.addSuggestedQAToQA);
+router.delete('/users/suggested-qa/:id', validateObjectId('id'), userController.dismissSuggestedQA);
 
 // Transactions
 router.get('/users/transactions', paymentController.getUserTransactions);
@@ -68,5 +74,16 @@ router.get('/users/conversations/leads/export', userController.exportLeads);
 router.get('/users/feedback-stats', userController.getFeedbackStats);
 router.get('/users/conversations/:id', validateObjectId('id'), userController.getConversationById);
 router.patch('/users/conversations/:id', validateObjectId('id'), userController.updateConversation);
+
+// Phase 5.6: Chat flows / decision trees
+router.get('/users/flows/templates', flowController.listTemplates);
+router.get('/users/flows', flowController.listFlows);
+router.post('/users/flows', flowController.createFlow);
+router.get('/users/flows/:id', validateObjectId('id'), flowController.getFlow);
+router.put('/users/flows/:id', validateObjectId('id'), flowController.updateFlow);
+router.delete('/users/flows/:id', validateObjectId('id'), flowController.deleteFlow);
+
+// Phase 5.5: Reseller — list my clients (reseller role only)
+router.get('/users/clients', userController.getResellerClients);
 
 module.exports = router;

@@ -96,7 +96,9 @@ const transactionSchema = new mongoose.Schema({
     },
     receiptUrl: {
         type: String
-    }
+    },
+    couponId: { type: mongoose.Schema.Types.ObjectId, ref: 'Coupon' },
+    discountAmount: { type: Number, default: 0 }
 }, { timestamps: true });
 
 module.exports = mongoose.model('Transaction', transactionSchema);

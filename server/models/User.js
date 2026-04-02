@@ -49,7 +49,7 @@ const userSchema = new mongoose.Schema({
     },
     role: {
         type: String,
-        enum: ['user', 'admin'],
+        enum: ['user', 'admin', 'reseller'],
         default: 'user'
     },
     isVerified: {
@@ -107,7 +107,22 @@ const userSchema = new mongoose.Schema({
         day1: { type: Date, default: null },
         day3: { type: Date, default: null },
         day7: { type: Date, default: null }
-    }
+    },
+    // Phase 4: subscription plan (ref Plan; null = free tier)
+    planId: { type: mongoose.Schema.Types.ObjectId, ref: 'Plan', default: null },
+    // Phase 4.2: GST for Indian businesses (optional; shown on invoice)
+    gstin: { type: String, trim: true, default: null },
+    // Phase 4.2: Referral program
+    referralCode: { type: String, trim: true, unique: true, sparse: true },
+    referredBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null },
+    referralCreditedAt: { type: Date, default: null }, // when referrer was credited for this user
+    // Phase 5.5: White-label
+    customDashboardDomain: { type: String, trim: true, default: null },
+    customEmailFromName: { type: String, trim: true, default: null },
+    customEmailReplyTo: { type: String, trim: true, default: null },
+    resellerId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null },
+    // Phase 5.8: Google OAuth
+    googleId: { type: String, trim: true, unique: true, sparse: true, default: null }
 });
 
 module.exports = mongoose.model('User', userSchema);

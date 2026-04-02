@@ -9,6 +9,8 @@ router.post('/admin/login', validateRequest(authValidator.login), authController
 router.post('/admin/login/totp', validateRequest(authValidator.adminLoginTotp), authController.adminLoginTotp);
 router.post('/users/register', validateRequest(authValidator.register), authController.register);
 router.post('/users/login', validateRequest(authValidator.login), authController.login);
+router.get('/users/auth/google', authController.googleRedirect);
+router.get('/users/auth/google/callback', authController.googleCallback);
 router.post('/users/refresh-token', validateRequest(authValidator.refreshToken), authController.refreshToken);
 router.get('/users/sessions', authMiddleware, authController.listSessions);
 router.delete('/users/sessions/:id', authMiddleware, authController.revokeSession);

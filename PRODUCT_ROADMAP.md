@@ -247,44 +247,44 @@ Complete Phase 1 before moving to Phase 2. Track progress by marking items `[x]`
 
 ### 4.1 Subscription Plans (Replace Pure Token Model)
 
-- [ ] Create `Plan` model:
-  - [ ] `name` (Free, Starter, Growth, Business, Enterprise)
-  - [ ] `price` (monthly/yearly)
-  - [ ] `chatLimit` (per month)
-  - [ ] `sourcesLimit`
-  - [ ] `features[]` (which features are included)
-  - [ ] `whitelabel` (boolean)
-  - [ ] `supportLevel` (email / priority / dedicated)
-- [ ] Build plan selection UI with feature comparison table
-- [ ] Implement plan upgrade/downgrade flow
-- [ ] Add usage tracking against plan limits
-- [ ] Show usage vs limit in dashboard (e.g., "1,245 / 5,000 chats used")
-- [ ] Keep token top-ups as add-on for overages
+- [x] Create `Plan` model:
+  - [x] `name` (Free, Starter, Growth, Business, Enterprise)
+  - [x] `price` (monthly/yearly)
+  - [x] `chatLimit` (per month)
+  - [x] `sourcesLimit`
+  - [x] `features[]` (which features are included)
+  - [x] `whitelabel` (boolean)
+  - [x] `supportLevel` (email / priority / dedicated)
+- [x] Build plan selection UI with feature comparison table (Plan page + dashboard usage card)
+- [x] Implement plan upgrade/downgrade flow (change plan without payment; payment TBD)
+- [x] Add usage tracking against plan limits (`planLimit.service`, `planGuard.service`)
+- [x] Show usage vs limit in dashboard (e.g., "1,245 / 5,000 chats used")
+- [x] Keep token top-ups as add-on for overages
 
 ### 4.2 Billing & Invoicing
 
-- [ ] Auto-generate invoices (PDF) on successful payment
-- [ ] Add GST/tax support for Indian businesses
-- [ ] Build billing history page
+- [x] Auto-generate invoices (PDF) on successful payment (`invoice.service.js`, download via GET /payments/invoice/:orderId)
+- [x] Add GST/tax support for Indian businesses (User.gstin, GSTIN on invoice; 18% CGST+SGST when GSTIN present)
+- [x] Build billing history page (Transactions tab with Invoice PDF download for success)
 - [ ] Add recurring subscription via Cashfree/Razorpay
 - [ ] Implement auto-renewal with failure handling
-- [ ] Add coupon/promo code system
-- [ ] Add referral program (give ₹X credit for each referral)
+- [x] Add coupon/promo code system (Coupon model, validate at create-order, apply discount; UI in Transactions)
+- [x] Add referral program (User.referralCode, referredBy; credit 5000 tokens to referrer on first payment)
 
 ### 4.3 Free Tier
 
-- [ ] Allow registration without payment
-- [ ] Free tier: 100 chats/month, 1 knowledge source, branded widget
-- [ ] Show upgrade prompts when nearing limits
-- [ ] Auto-disable chatbot when free limit is hit (show "upgrade" message in widget)
+- [x] Allow registration without payment
+- [x] Free tier: 100 chats/month, 1 knowledge source, branded widget
+- [x] Show upgrade prompts when nearing limits
+- [x] Auto-disable chatbot when free limit is hit (show "upgrade" message in widget)
 
 ### 4.4 Pricing Page
 
-- [ ] Build public pricing page with plan comparison
-- [ ] Add FAQ section
-- [ ] Add "Contact Sales" for enterprise
-- [ ] Add annual billing discount (2 months free)
-- [ ] Add trust badges and social proof
+- [x] Build public pricing page with plan comparison (`/pricing`, from API)
+- [x] Add FAQ section
+- [x] Add "Contact Sales" for enterprise
+- [x] Add annual billing discount (2 months free)
+- [x] Add trust badges and social proof (Secure payments, Cancel anytime, Trusted by 500+ businesses; social proof line)
 
 ---
 
@@ -297,26 +297,52 @@ Complete Phase 1 before moving to Phase 2. Track progress by marking items `[x]`
 
 ### 5.1 Live Chat Handoff
 
-- [ ] Add "Talk to Human" button in widget
-- [ ] Real-time notification to user/agent when escalated
-- [ ] Build simple live chat interface in dashboard
-- [ ] Agent can see full conversation history before taking over
-- [ ] Auto-switch back to AI when agent goes offline
-- [ ] Use WebSockets (Socket.io) for real-time messaging
+- [x] Add "Talk to Human" button in widget
+- [x] Real-time notification to user/agent when escalated (Socket.io room user:userId, escalation event)
+- [x] Build simple live chat interface in dashboard (/user/live-chat)
+- [x] Agent can see full conversation history before taking over (messages + handoffMessages)
+- [x] Auto-switch back to AI when agent goes offline (agent_left event; widget shows "Agent left. Continue with chatbot.")
+- [x] Use WebSockets (Socket.io) for real-time messaging
 
 ### 5.2 Webhook & Integration System
 
-- [ ] Allow users to configure webhook URLs in dashboard
-- [ ] Trigger webhooks on events:
-  - [ ] New conversation started
-  - [ ] Lead captured
-  - [ ] Chat escalated to human
-  - [ ] Feedback received
-  - [ ] Token balance low
-- [ ] Add webhook retry logic (3 attempts with exponential backoff)
-- [ ] Add webhook logs (success/failure) in dashboard
+- [x] Allow users to configure webhook URLs in dashboard (/user/webhooks)
+- [x] Trigger webhooks on events:
+  - [x] New conversation started
+  - [x] Lead captured
+  - [x] Chat escalated to human (triggered on escalate)
+  - [x] Feedback received
+  - [x] Token balance low
+- [x] Add webhook retry logic (3 attempts with exponential backoff)
+- [x] Add webhook logs (success/failure) in dashboard
 
-### 5.3 Native Indian Language Support
+
+
+### 5.4 Advanced AI Features
+
+- [x] Add conversation memory — bot remembers context within a session
+- [x] Add intent detection — classify queries (FAQ, complaint, purchase intent, support)
+- [x] Add sentiment analysis — flag negative sentiment conversations
+- [x] Add auto-learning — suggest new Q&A entries from unanswered questions
+- [x] Add confidence scoring — show "I'm not sure about this" when similarity is low
+- [x] Support multiple AI models (GPT-4o, Gemini Flash, Claude) — let users choose (OpenAI gpt-4o-mini / gpt-4o via WidgetConfig.preferredAiModel; Gemini/Claude optional later)
+
+### 5.5 White-Label Solution
+
+- [x] Remove all branding for Business/Enterprise plans
+- [x] Custom domain for dashboard (CNAME support)
+- [x] Custom email sender (user's domain)
+- [x] Reseller admin panel — agencies can manage multiple client chatbots
+
+### 5.6 Chat Flows / Decision Trees
+
+- [ ] Visual flow builder (drag-and-drop)
+- [x] Support button-based responses alongside AI
+- [x] Pre-built templates (appointment booking, pricing inquiry, support routing)
+- [x] Conditional logic (if user says X, go to step Y)
+- [x] Mix AI responses with structured flows
+
+### 5.7 Native Indian Language Support
 
 - [ ] Go beyond Google Translate — add native Hindi, Tamil, Telugu, Bengali, Marathi prompts
 - [ ] Detect visitor language from browser settings
@@ -324,29 +350,12 @@ Complete Phase 1 before moving to Phase 2. Track progress by marking items `[x]`
 - [ ] Translate knowledge base chunks into target language before RAG
 - [ ] Test response quality in top 5 Indian languages
 
-### 5.4 Advanced AI Features
+### 5.8 Registration & Sign-in with Google (before Phase 6)
 
-- [ ] Add conversation memory — bot remembers context within a session
-- [ ] Add intent detection — classify queries (FAQ, complaint, purchase intent, support)
-- [ ] Add sentiment analysis — flag negative sentiment conversations
-- [ ] Add auto-learning — suggest new Q&A entries from unanswered questions
-- [ ] Add confidence scoring — show "I'm not sure about this" when similarity is low
-- [ ] Support multiple AI models (GPT-4o, Gemini Flash, Claude) — let users choose
-
-### 5.5 White-Label Solution
-
-- [ ] Remove all branding for Business/Enterprise plans
-- [ ] Custom domain for dashboard (CNAME support)
-- [ ] Custom email sender (user's domain)
-- [ ] Reseller admin panel — agencies can manage multiple client chatbots
-
-### 5.6 Chat Flows / Decision Trees
-
-- [ ] Visual flow builder (drag-and-drop)
-- [ ] Support button-based responses alongside AI
-- [ ] Pre-built templates (appointment booking, pricing inquiry, support routing)
-- [ ] Conditional logic (if user says X, go to step Y)
-- [ ] Mix AI responses with structured flows
+- [x] Add Google OAuth — sign up and sign in with Google
+- [x] Link existing email account to Google (optional account linking)
+- [x] Ensure login/register pages offer "Continue with Google" alongside email/password
+- [x] Store Google ID and refresh token (or profile) for session; keep email/password flow intact
 
 ---
 

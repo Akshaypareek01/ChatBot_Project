@@ -3,6 +3,22 @@ const QA = require('../models/QA');
 const bcrypt = require('bcrypt');
 const audit = require('../services/audit.service');
 
+/** Phase 5.5: List resellers (admin only) for assigning clients. */
+const getResellers = async (req, res) => {
+    try {
+        if (!req.isAdmin) {
+            return res.status(403).json({ message: 'Admin access required' });
+        }
+        const resellers = await User.find({ role: 'reseller' })
+            .select('_id name email')
+            .sort({ name: 1 })
+            .lean();
+        return res.status(200).json({ resellers });
+    } catch (error) {
+        return res.status(500).json({ message: 'Server error', error: error.message });
+    }
+};
+
 const getUsers = async (req, res) => {
     try {
         if (!req.isAdmin) {
@@ -20,8 +36,8 @@ const getUsers = async (req, res) => {
         const isApproved = req.query.isApproved;
         const lowTokens = req.query.lowTokens === 'true';
 
-        // Build query
-        const query = { role: 'user' };
+        // Build query: user and reseller (exclude only admin)
+        const query = { role: { $in: ['user', 'reseller'] } };
 
         if (search) {
             query.$or = [
@@ -128,11 +144,17 @@ const updateUser = async (req, res) => {
             return res.status(403).json({ message: 'Admin access required' });
         }
 
-        const { name, email, website, isActive, isApproved, tokenBalance } = req.body;
+        const { name, email, website, isActive, isApproved, tokenBalance, role, resellerId } = req.body;
 
         const updateData = { name, email, website, isActive, isApproved };
         if (tokenBalance !== undefined) {
             updateData.tokenBalance = tokenBalance;
+        }
+        if (role !== undefined && ['user', 'admin', 'reseller'].includes(role)) {
+            updateData.role = role;
+        }
+        if (resellerId !== undefined) {
+            updateData.resellerId = resellerId === null || resellerId === '' ? null : resellerId;
         }
 
         const updatedUser = await User.findByIdAndUpdate(
@@ -343,6 +365,7 @@ const getTransactions = async (req, res) => {
 
 module.exports = {
     getUsers,
+    getResellers,
     createUser,
     updateUser,
     deleteUser,

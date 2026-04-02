@@ -6,7 +6,7 @@ import { Switch } from '@/components/ui/switch';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { getWidgetConfig, updateWidgetConfig, uploadWidgetAvatar, generateSuggestedQuestions } from '@/services/api';
+import { getWidgetConfig, updateWidgetConfig, uploadWidgetAvatar, generateSuggestedQuestions, getMyPlanUsage } from '@/services/api';
 import { useBot } from '@/context/BotContext';
 import { toast } from 'sonner';
 
@@ -36,6 +36,7 @@ interface WidgetConfig {
   preChatForm?: PreChatForm;
   suggestedQuestions?: string[];
   leadCaptureWebhookUrl?: string;
+  preferredAiModel?: string;
 }
 
 export default function WidgetCustomization() {
@@ -44,6 +45,7 @@ export default function WidgetCustomization() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [avatarUploading, setAvatarUploading] = useState(false);
+  const [whitelabel, setWhitelabel] = useState(false);
   const avatarInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -52,6 +54,12 @@ export default function WidgetCustomization() {
       .catch(() => toast.error('Failed to load widget config'))
       .finally(() => setLoading(false));
   }, [currentBotId]);
+
+  useEffect(() => {
+    getMyPlanUsage()
+      .then((u) => setWhitelabel(!!u?.plan?.whitelabel))
+      .catch(() => {});
+  }, []);
 
   const handleChange = (key: keyof WidgetConfig, value: string | number | boolean) => {
     setConfig((c) => ({ ...c, [key]: value }));
@@ -211,6 +219,21 @@ export default function WidgetCustomization() {
                 onChange={(e) => handleChange('autoOpenDelay', parseInt(e.target.value, 10) || 0)}
               />
             </div>
+            <div>
+              <Label>AI model</Label>
+              <Select
+                value={config.preferredAiModel ?? 'gpt-4o-mini'}
+                onValueChange={(v) => handleChange('preferredAiModel', v)}
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="gpt-4o-mini">GPT-4o Mini (faster, cheaper)</SelectItem>
+                  <SelectItem value="gpt-4o">GPT-4o (higher quality)</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
           </div>
           <div>
             <Label>Welcome message</Label>
@@ -348,12 +371,20 @@ export default function WidgetCustomization() {
           <div className="flex items-center justify-between rounded-lg border p-4">
             <div>
               <Label>Show &quot;Powered by&quot; badge</Label>
-              <p className="text-sm text-muted-foreground">Display branding in the widget footer.</p>
+              {whitelabel ? (
+                <p className="text-sm text-muted-foreground">Branding removed (included in your Business/Enterprise plan).</p>
+              ) : (
+                <p className="text-sm text-muted-foreground">Display branding in the widget footer.</p>
+              )}
             </div>
-            <Switch
-              checked={config.showPoweredBy !== false}
-              onCheckedChange={(v) => handleChange('showPoweredBy', v)}
-            />
+            {whitelabel ? (
+              <span className="text-sm text-muted-foreground">Off</span>
+            ) : (
+              <Switch
+                checked={config.showPoweredBy !== false}
+                onCheckedChange={(v) => handleChange('showPoweredBy', v)}
+              />
+            )}
           </div>
           <Button onClick={handleSave} disabled={saving}>
             {saving ? 'Saving...' : 'Save changes'}

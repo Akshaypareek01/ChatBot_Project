@@ -12,6 +12,7 @@ const notificationService = require('../services/notification.service');
 const botService = require('../services/bot.service');
 const Notification = require('../models/Notification');
 const Bot = require('../models/Bot');
+const SuggestedQA = require('../models/SuggestedQA');
 
 /** Knowledge base health: chunks count, sources count, last updated */
 async function getKnowledgeBaseHealth(userId) {
@@ -33,13 +34,23 @@ const tokenService = require('../services/token.service');
 
 const getProfile = async (req, res) => {
     try {
-        const user = await User.findById(req.userId).select('-password');
-
+        const user = await User.findById(req.userId).select('-password').lean();
         if (!user) {
             return res.status(404).json({ message: 'User not found' });
         }
-
-        return res.status(200).json(user);
+        let whitelabel = false;
+        if (user.planId) {
+            const Plan = require('../models/Plan');
+            const plan = await Plan.findOne({ _id: user.planId, isActive: true }).select('whitelabel').lean();
+            whitelabel = !!plan?.whitelabel;
+        }
+        if (!user.referralCode) {
+            await User.updateOne({ _id: req.userId }, {
+                $set: { referralCode: 'REF' + user._id.toString().slice(-8).toUpperCase() + Math.random().toString(36).substring(2, 5).toUpperCase() }
+            });
+            user.referralCode = 'REF' + user._id.toString().slice(-8).toUpperCase() + Math.random().toString(36).substring(2, 5).toUpperCase();
+        }
+        return res.status(200).json({ ...user, whitelabel });
     } catch (error) {
         return res.status(500).json({ message: 'Server error', error: error.message });
     }
@@ -47,7 +58,7 @@ const getProfile = async (req, res) => {
 
 const updateProfile = async (req, res) => {
     try {
-        const { name, website, brandName, onboardingCompleted } = req.body;
+        const { name, website, brandName, onboardingCompleted, gstin, customDashboardDomain, customEmailFromName, customEmailReplyTo } = req.body;
 
         const user = await User.findById(req.userId);
 
@@ -59,6 +70,10 @@ const updateProfile = async (req, res) => {
         if (website !== undefined) user.website = website;
         if (brandName !== undefined) user.brandName = brandName;
         if (onboardingCompleted === true) user.onboardingCompletedAt = user.onboardingCompletedAt || new Date();
+        if (gstin !== undefined) user.gstin = gstin ? String(gstin).trim() || null : null;
+        if (customDashboardDomain !== undefined) user.customDashboardDomain = customDashboardDomain ? String(customDashboardDomain).trim() || null : null;
+        if (customEmailFromName !== undefined) user.customEmailFromName = customEmailFromName ? String(customEmailFromName).trim() || null : null;
+        if (customEmailReplyTo !== undefined) user.customEmailReplyTo = customEmailReplyTo ? String(customEmailReplyTo).trim() || null : null;
 
         await user.save();
 
@@ -70,7 +85,8 @@ const updateProfile = async (req, res) => {
                 email: user.email,
                 website: user.website,
                 brandName: user.brandName,
-                allowedDomains: user.allowedDomains
+                allowedDomains: user.allowedDomains,
+                gstin: user.gstin
             }
         });
     } catch (error) {
@@ -545,7 +561,7 @@ const updateWidgetConfig = async (req, res) => {
         }
         const allowed = [
             'primaryColor', 'accentColor', 'botAvatarUrl', 'position', 'welcomeMessage',
-            'botName', 'size', 'autoOpenDelay', 'customCss', 'showPoweredBy', 'preChatForm', 'suggestedQuestions', 'leadCaptureWebhookUrl'
+            'botName', 'size', 'autoOpenDelay', 'customCss', 'showPoweredBy', 'preChatForm', 'suggestedQuestions', 'leadCaptureWebhookUrl', 'preferredAiModel'
         ];
         const updates = {};
         for (const key of allowed) {
@@ -578,6 +594,96 @@ const updateWidgetConfig = async (req, res) => {
     }
 };
 
+/** Phase 5.4: Suggested Q&A — list pending (not dismissed, not added) */
+const getSuggestedQAs = async (req, res) => {
+    try {
+        const list = await SuggestedQA.find({
+            userId: req.userId,
+            addedToQAAt: null,
+            dismissedAt: null
+        })
+            .sort({ createdAt: -1 })
+            .limit(100)
+            .lean();
+        return res.status(200).json(list);
+    } catch (error) {
+        return res.status(500).json({ message: 'Server error', error: error.message });
+    }
+};
+
+/** Phase 5.4: Add suggested Q&A to knowledge base (create QA, mark suggested as added) */
+const addSuggestedQAToQA = async (req, res) => {
+    try {
+        const { id } = req.params;
+        const { answer } = req.body;
+        const suggested = await SuggestedQA.findOne({ _id: id, userId: req.userId });
+        if (!suggested) {
+            return res.status(404).json({ message: 'Suggested Q&A not found' });
+        }
+        if (suggested.addedToQAAt || suggested.dismissedAt) {
+            return res.status(400).json({ message: 'Already added or dismissed' });
+        }
+        const answerText = (answer && String(answer).trim()) || 'No answer provided yet.';
+        const newQA = await QA.create({
+            userId: req.userId,
+            question: suggested.question,
+            answer: answerText,
+            category: 'General',
+            frequency: 0
+        });
+        suggested.addedToQAAt = new Date();
+        await suggested.save();
+        return res.status(201).json({ qa: newQA, suggestedId: suggested._id });
+    } catch (error) {
+        return res.status(500).json({ message: 'Server error', error: error.message });
+    }
+};
+
+/** Phase 5.5: Reseller — list clients (users where resellerId = me). Reseller role only. */
+const getResellerClients = async (req, res) => {
+    try {
+        const me = await User.findById(req.userId).select('role').lean();
+        if (!me || me.role !== 'reseller') {
+            return res.status(403).json({ message: 'Reseller access required' });
+        }
+        const clients = await User.find({ resellerId: req.userId })
+            .select('name email tokenBalance createdAt isActive')
+            .sort({ createdAt: -1 })
+            .lean();
+        const planLimit = require('../services/planLimit.service');
+        const withUsage = await Promise.all(clients.map(async (c) => {
+            const usage = await planLimit.getUsageSummary(c._id);
+            return {
+                ...c,
+                planName: usage?.plan?.name ?? 'Free',
+                chatCountThisMonth: usage?.chatCountThisMonth ?? 0,
+                chatLimit: usage?.chatLimit ?? null
+            };
+        }));
+        return res.status(200).json({ clients: withUsage });
+    } catch (error) {
+        return res.status(500).json({ message: 'Server error', error: error.message });
+    }
+};
+
+/** Phase 5.4: Dismiss suggested Q&A */
+const dismissSuggestedQA = async (req, res) => {
+    try {
+        const suggested = await SuggestedQA.findOne({ _id: req.params.id, userId: req.userId });
+        if (!suggested) {
+            return res.status(404).json({ message: 'Suggested Q&A not found' });
+        }
+        if (suggested.dismissedAt) {
+            return res.status(200).json({ message: 'Already dismissed' });
+        }
+        suggested.dismissedAt = new Date();
+        await suggested.save();
+        return res.status(200).json({ message: 'Dismissed' });
+    } catch (error) {
+        return res.status(500).json({ message: 'Server error', error: error.message });
+    }
+};
+
 module.exports = {
     getProfile,
     updateProfile,
@@ -604,5 +710,9 @@ module.exports = {
     updateNotificationPrefs,
     listBots,
     createBot,
-    updateBot
+    updateBot,
+    getSuggestedQAs,
+    addSuggestedQAToQA,
+    dismissSuggestedQA,
+    getResellerClients
 };

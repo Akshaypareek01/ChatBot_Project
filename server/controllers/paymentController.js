@@ -4,6 +4,8 @@ const { createOrder: createCashfreeOrder, fetchPayments } = require('../services
 const usageTracker = require('../services/usageTracker.service');
 const emailService = require('../services/email.service');
 const audit = require('../services/audit.service');
+const invoiceService = require('../services/invoice.service');
+const couponService = require('../services/coupon.service');
 const { encrypt, decrypt } = require('../utils/encryption');
 
 function decryptTransactionPayload(t) {
@@ -17,7 +19,7 @@ function decryptTransactionPayload(t) {
 
 const createOrder = async (req, res) => {
     try {
-        const { amount } = req.body;
+        const { amount, couponCode } = req.body;
 
         if (!amount || amount < 49) {
             return res.status(400).json({ message: 'Minimum recharge amount is ₹49' });
@@ -28,19 +30,34 @@ const createOrder = async (req, res) => {
             return res.status(404).json({ message: 'User not found' });
         }
 
+        let orderAmount = amount;
+        let discountAmount = 0;
+        let couponId = null;
+        if (couponCode) {
+            const couponResult = await couponService.validateCoupon(couponCode, amount);
+            if (!couponResult.valid) {
+                return res.status(400).json({ message: couponResult.message });
+            }
+            discountAmount = couponResult.discountAmount;
+            orderAmount = Math.max(49, amount - discountAmount);
+            couponId = couponResult.coupon._id;
+        }
+
         const orderId = 'order_' + Date.now() + '_' + Math.random().toString(36).substring(2, 15);
 
-        const tokens = amount * usageTracker.TOKENS_PER_INR;
+        const tokens = orderAmount * usageTracker.TOKENS_PER_INR;
         const transaction = new Transaction({
             userId: user._id,
             orderId,
-            amount,
+            amount: orderAmount,
             tokens,
-            status: 'initiated'
+            status: 'initiated',
+            couponId,
+            discountAmount
         });
 
         await transaction.save();
-        audit.log('payment_order_created', { actorId: user._id, targetId: transaction._id, targetType: 'Transaction', meta: { orderId, amount }, ...audit.getReqMeta(req) });
+        audit.log('payment_order_created', { actorId: user._id, targetId: transaction._id, targetType: 'Transaction', meta: { orderId, amount: orderAmount }, ...audit.getReqMeta(req) });
 
         const baseUrl = process.env.BASE_URL.endsWith('/')
             ? process.env.BASE_URL.slice(0, -1)
@@ -53,7 +70,7 @@ const createOrder = async (req, res) => {
         }
 
         const request = {
-            "order_amount": amount,
+            "order_amount": orderAmount,
             "order_currency": "INR",
             "order_id": orderId,
             "customer_details": {
@@ -75,7 +92,9 @@ const createOrder = async (req, res) => {
             transaction: {
                 id: transaction._id,
                 orderId: transaction.orderId,
-                amount: transaction.amount
+                amount: transaction.amount,
+                discountAmount: transaction.discountAmount || 0,
+                originalAmount: amount
             }
         });
     } catch (error) {
@@ -166,7 +185,21 @@ const callback = async (req, res) => {
 
                 transaction.tokens = transaction.amount * usageTracker.TOKENS_PER_INR;
                 transaction.status = 'success';
+                transaction.invoiceNumber = await invoiceService.assignInvoiceNumber(transaction._id);
+                transaction.invoiceGenerated = true;
                 await transaction.save();
+
+                if (transaction.couponId) {
+                    couponService.recordCouponUse(transaction.couponId).catch((e) => console.error('Coupon use record error:', e));
+                }
+
+                const payerId = transaction.userId?._id || transaction.userId;
+                const referredUser = await User.findById(payerId).select('referredBy referralCreditedAt').lean();
+                if (referredUser?.referredBy && !referredUser.referralCreditedAt) {
+                    const REFERRAL_CREDIT_TOKENS = 5000;
+                    await usageTracker.addBonusTokens(referredUser.referredBy, REFERRAL_CREDIT_TOKENS);
+                    await User.updateOne({ _id: payerId }, { $set: { referralCreditedAt: new Date() } });
+                }
 
                 // **SEND EMAIL NOTIFICATION**
                 if (transaction.userId && transaction.userId.email) {
@@ -175,7 +208,8 @@ const callback = async (req, res) => {
                         transaction.userId.name,
                         transaction.amount,
                         transaction.tokens,
-                        orderId
+                        orderId,
+                        transaction.userId._id
                     );
                 }
 
@@ -236,6 +270,8 @@ const simulatePayment = async (req, res) => {
             // **TOKEN RECHARGE LOGIC**
             await usageTracker.rechargeTokens(transaction.userId, transaction.amount);
             transaction.tokens = transaction.amount * usageTracker.TOKENS_PER_INR;
+            transaction.invoiceNumber = await invoiceService.assignInvoiceNumber(transaction._id);
+            transaction.invoiceGenerated = true;
             await transaction.save();
             return res.json({ success: true, message: 'Payment simulation successful', transaction });
         } else {
@@ -258,9 +294,48 @@ const getUserTransactions = async (req, res) => {
     }
 };
 
+const validateCoupon = async (req, res) => {
+    try {
+        const { code, amount } = req.body;
+        if (!code || amount == null) {
+            return res.status(400).json({ message: 'code and amount are required' });
+        }
+        const result = await couponService.validateCoupon(code, Number(amount));
+        if (!result.valid) {
+            return res.status(400).json({ message: result.message });
+        }
+        return res.json({ valid: true, discountAmount: result.discountAmount, message: result.message });
+    } catch (error) {
+        return res.status(500).json({ message: 'Error validating coupon', error: error.message });
+    }
+};
+
 const getTransactionByOrderId = async (req, res) => {
     const transaction = await Transaction.findOne({ orderId: req.params.orderId });
     res.json(transaction ? decryptTransactionPayload(transaction) : null);
+};
+
+/** Phase 4.2: Download invoice PDF for a successful transaction (auth: own order only). */
+const getInvoice = async (req, res) => {
+    try {
+        const { orderId } = req.params;
+        const transaction = await Transaction.findOne({ orderId, userId: req.userId });
+        if (!transaction) {
+            return res.status(404).json({ message: 'Transaction not found' });
+        }
+        if (transaction.status !== 'success' || !transaction.invoiceGenerated) {
+            return res.status(400).json({ message: 'Invoice not available for this order' });
+        }
+        const user = await User.findById(req.userId).select('name email gstin').lean();
+        const { buffer, invoiceNumber } = await invoiceService.generateInvoiceBuffer(transaction, user);
+        const filename = `invoice-${(invoiceNumber || orderId).replace(/\s/g, '-')}.pdf`;
+        res.setHeader('Content-Type', 'application/pdf');
+        res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+        return res.send(buffer);
+    } catch (error) {
+        console.error('Invoice download error:', error);
+        return res.status(500).json({ message: 'Error generating invoice', error: error.message });
+    }
 };
 
 // Admin Routes (Simplified for now)
@@ -280,9 +355,11 @@ const adminGetTransactions = async (req, res) => {
 
 module.exports = {
     createOrder,
+    validateCoupon,
     callback,
     simulatePayment,
     getUserTransactions,
     getTransactionByOrderId,
+    getInvoice,
     adminGetTransactions
 };

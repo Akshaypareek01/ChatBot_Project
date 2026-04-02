@@ -1,7 +1,7 @@
 
 import React from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import { LayoutDashboard, MessageSquareText, User, LogOut, DollarSign, HelpCircle, Shield, Palette, MessagesSquare, BarChart2 } from 'lucide-react';
+import { LayoutDashboard, MessageSquareText, User, LogOut, DollarSign, HelpCircle, Shield, Palette, MessagesSquare, BarChart2, Zap, Link2, MessageCircle, Users, Workflow } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
 import { cn } from '@/lib/utils';
@@ -23,10 +23,15 @@ const UserLayout: React.FC<UserLayoutProps> = ({ children, onLogout, user }) => 
     { icon: MessageSquareText, label: 'Knowledge Base', path: '/user/qa' },
     { icon: Palette, label: 'Widget', path: '/user/widget' },
     { icon: MessagesSquare, label: 'Conversations', path: '/user/conversations' },
+    { icon: MessageCircle, label: 'Live Chat', path: '/user/live-chat' },
+    { icon: Workflow, label: 'Flows', path: '/user/flows' },
     { icon: Shield, label: 'Domain Security', path: '/user/security' },
     { icon: User, label: 'Profile', path: '/user/profile' },
     { icon: DollarSign, label: 'Transactions', path: '/user/transactions' },
+    { icon: Zap, label: 'Plan', path: '/user/plan' },
+    { icon: Link2, label: 'Webhooks', path: '/user/webhooks' },
     { icon: HelpCircle, label: 'Help & Support', path: '/user/support' },
+    ...(user?.role === 'reseller' ? [{ icon: Users, label: 'Clients', path: '/user/clients' }] : []),
   ];
 
   return (
@@ -37,7 +42,7 @@ const UserLayout: React.FC<UserLayoutProps> = ({ children, onLogout, user }) => 
           <div className="p-6 flex items-center justify-between">
             <div className="flex items-center space-x-2">
               <MessageSquareText className="h-6 w-6 text-primary" />
-              <h1 className="font-semibold text-xl">IndicBot Dashboard</h1>
+              <h1 className="font-semibold text-xl">{user?.whitelabel ? (user?.brandName || 'Dashboard') : 'IndicBot'} Dashboard</h1>
             </div>
             <NotificationBell />
           </div>
@@ -91,7 +96,7 @@ const UserLayout: React.FC<UserLayoutProps> = ({ children, onLogout, user }) => 
         <div className="flex justify-between items-center">
           <div className="flex items-center space-x-2">
             <MessageSquareText className="h-5 w-5 text-primary" />
-            <h1 className="font-semibold">IndicBot Dashboard</h1>
+            <h1 className="font-semibold">{user?.whitelabel ? (user?.brandName || 'Dashboard') : 'IndicBot'} Dashboard</h1>
           </div>
           <div className="flex items-center gap-1">
             <NotificationBell />

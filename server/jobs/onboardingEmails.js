@@ -28,7 +28,7 @@ async function runOnboardingEmails() {
 
     for (const u of day1Users) {
         try {
-            await emailService.sendOnboardingDay1Email(u.email, u.name);
+            await emailService.sendOnboardingDay1Email(u.email, u.name, u._id);
             await User.updateOne(
                 { _id: u._id },
                 { $set: { 'onboardingEmailSent.day1': now } }
@@ -49,7 +49,7 @@ async function runOnboardingEmails() {
 
     for (const u of day3Users) {
         try {
-            await emailService.sendOnboardingDay3Email(u.email, u.name);
+            await emailService.sendOnboardingDay3Email(u.email, u.name, u._id);
             await User.updateOne(
                 { _id: u._id },
                 { $set: { 'onboardingEmailSent.day3': now } }
@@ -70,7 +70,7 @@ async function runOnboardingEmails() {
 
     for (const u of day7Users) {
         try {
-            await emailService.sendOnboardingDay7Email(u.email, u.name);
+            await emailService.sendOnboardingDay7Email(u.email, u.name, u._id);
             await User.updateOne(
                 { _id: u._id },
                 { $set: { 'onboardingEmailSent.day7': now } }

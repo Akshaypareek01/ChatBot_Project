@@ -107,7 +107,7 @@ export const adminLogin = async (email: string, password: string) => {
   }
 };
 
-export const registerUser = async (userData: { name: string; email: string; password: string; website: string; brandName?: string; acceptTos?: boolean; acceptPrivacy?: boolean }) => {
+export const registerUser = async (userData: { name: string; email: string; password: string; website: string; brandName?: string; acceptTos?: boolean; acceptPrivacy?: boolean; referralCode?: string }) => {
   try {
     const response = await api.post('/users/register', userData);
     return response.data;
@@ -163,7 +163,16 @@ export const getUserProfile = async () => {
   }
 };
 
-export const updateUserProfile = async (userData: { name: string; website: string; brandName?: string; onboardingCompleted?: boolean }) => {
+export const updateUserProfile = async (userData: {
+  name: string;
+  website: string;
+  brandName?: string;
+  onboardingCompleted?: boolean;
+  gstin?: string | null;
+  customDashboardDomain?: string | null;
+  customEmailFromName?: string | null;
+  customEmailReplyTo?: string | null;
+}) => {
   try {
     const response = await api.put('/users/profile', userData);
     return response.data;
@@ -227,13 +236,30 @@ export const createUser = async (userData: { name: string; email: string; passwo
   }
 };
 
-export const updateUser = async (id: string, userData: { name: string; email: string; website: string; isActive: boolean; isApproved: boolean; tokenBalance?: number }) => {
+export const updateUser = async (
+  id: string,
+  userData: {
+    name: string;
+    email: string;
+    website: string;
+    isActive: boolean;
+    isApproved: boolean;
+    tokenBalance?: number;
+    role?: 'user' | 'admin' | 'reseller';
+    resellerId?: string | null;
+  }
+) => {
   try {
     const response = await api.put(`/admin/users/${id}`, userData);
     return response.data;
   } catch (error: any) {
     return handleApiError(error, 'An error occurred while updating user');
   }
+};
+
+export const getResellers = async () => {
+  const response = await api.get('/admin/resellers');
+  return response.data;
 };
 
 export const deleteUser = async (id: string) => {
@@ -328,12 +354,75 @@ export const deleteUserQA = async (id: string) => {
   }
 };
 
+// --- Suggested Q&A (Phase 5.4 auto-learning) ---
+export const getSuggestedQAs = async () => {
+  try {
+    const response = await api.get('/users/suggested-qa');
+    return response.data;
+  } catch (error: any) {
+    return handleApiError(error, 'Error fetching suggested Q&As');
+  }
+};
+
+export const addSuggestedQAToQA = async (id: string, answer: string) => {
+  try {
+    const response = await api.post(`/users/suggested-qa/${id}/add-to-qa`, { answer: answer || 'No answer provided yet.' });
+    return response.data;
+  } catch (error: any) {
+    return handleApiError(error, 'Error adding to Q&A');
+  }
+};
+
+export const dismissSuggestedQA = async (id: string) => {
+  try {
+    const response = await api.delete(`/users/suggested-qa/${id}`);
+    return response.data;
+  } catch (error: any) {
+    return handleApiError(error, 'Error dismissing suggestion');
+  }
+};
+
+// --- Chat flows (Phase 5.6) ---
+export const getFlowTemplates = async () => {
+  const response = await api.get('/users/flows/templates');
+  return response.data;
+};
+
+export const listFlows = async (botId?: string | null) => {
+  const response = await api.get('/users/flows', { params: botId ? { botId } : undefined });
+  return response.data;
+};
+
+export const getFlow = async (id: string) => {
+  const response = await api.get(`/users/flows/${id}`);
+  return response.data;
+};
+
+export const createFlow = async (payload: any) => {
+  const response = await api.post('/users/flows', payload);
+  return response.data;
+};
+
+export const updateFlow = async (id: string, payload: any) => {
+  const response = await api.put(`/users/flows/${id}`, payload);
+  return response.data;
+};
+
+export const deleteFlow = async (id: string) => {
+  const response = await api.delete(`/users/flows/${id}`);
+  return response.data;
+};
+
 // --- Wallet & Payment Services ---
 
-export const createPaymentOrder = async (amount: number) => {
+export const validateCoupon = async (code: string, amount: number) => {
+  const response = await api.post('/payments/validate-coupon', { code, amount });
+  return response.data;
+};
+
+export const createPaymentOrder = async (amount: number, couponCode?: string) => {
   try {
-    // Minimum recharge amount logic should be handled by backend, but frontend can also validate
-    const response = await api.post('/payments/create-order', { amount });
+    const response = await api.post('/payments/create-order', { amount, couponCode: couponCode || undefined });
     return response.data;
   } catch (error: any) {
     return handleApiError(error, 'Error creating payment order');
@@ -347,6 +436,48 @@ export const getUserTransactions = async () => {
   } catch (error: any) {
     return handleApiError(error, 'Error fetching transactions');
   }
+};
+
+/** Phase 4.2: Download invoice PDF for a successful transaction. */
+export const downloadInvoice = async (orderId: string) => {
+  const token = localStorage.getItem('token');
+  const response = await fetch(`${API_URL}/payments/invoice/${orderId}`, {
+    headers: token ? { Authorization: `Bearer ${token}` } : {},
+  });
+  if (!response.ok) throw new Error(response.status === 404 ? 'Invoice not found' : 'Failed to download invoice');
+  const blob = await response.blob();
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `invoice-${orderId}.pdf`;
+  a.click();
+  URL.revokeObjectURL(url);
+};
+
+/** Phase 5.2: Webhooks */
+export const getWebhookEvents = async () => {
+  const response = await api.get('/webhooks/events');
+  return response.data;
+};
+export const getWebhooks = async () => {
+  const response = await api.get('/webhooks');
+  return response.data;
+};
+export const createWebhook = async (data: { url: string; events: string[]; secret?: string }) => {
+  const response = await api.post('/webhooks', data);
+  return response.data;
+};
+export const updateWebhook = async (id: string, data: { url?: string; events?: string[]; secret?: string; isActive?: boolean }) => {
+  const response = await api.patch(`/webhooks/${id}`, data);
+  return response.data;
+};
+export const deleteWebhook = async (id: string) => {
+  const response = await api.delete(`/webhooks/${id}`);
+  return response.data;
+};
+export const getWebhookLogs = async (id: string, limit?: number) => {
+  const response = await api.get(`/webhooks/${id}/logs`, { params: { limit } });
+  return response.data;
 };
 
 export const getAdminTransactions = async (params?: { page?: number; limit?: number; status?: string; search?: string }) => {
@@ -451,6 +582,11 @@ export const exportLeadsCsv = async () => {
   return response.data;
 };
 
+export const getResellerClients = async () => {
+  const response = await api.get('/users/clients');
+  return response.data;
+};
+
 export const getFeedbackStats = async () => {
   const response = await api.get('/users/feedback-stats');
   return response.data;
@@ -496,6 +632,22 @@ export const createBot = async (data: { name: string; slug?: string }) => {
 
 export const updateBot = async (id: string, data: { name?: string; slug?: string }) => {
   const response = await api.patch(`/users/bots/${id}`, data);
+  return response.data;
+};
+
+/** Phase 4: Plans & usage */
+export const getPlans = async () => {
+  const response = await api.get('/plans');
+  return response.data;
+};
+
+export const getMyPlanUsage = async () => {
+  const response = await api.get('/users/plan/usage');
+  return response.data;
+};
+
+export const changePlan = async (planId: string) => {
+  const response = await api.patch('/users/plan', { planId });
   return response.data;
 };
 

@@ -385,7 +385,7 @@
     }, 500);
 
     const openChat = () => { if (!isOpen) toggleChat(); };
-    return { chatBody, input, sendBtn, openChat };
+    return { chatBody, input, sendBtn, openChat, inputArea };
   };
 
   // Helper: Neural Message Bubbles
@@ -754,7 +754,7 @@
         return;
       }
 
-      const { chatBody, input, sendBtn, openChat } = createChatbotUI(data);
+      const { chatBody, input, sendBtn, openChat, inputArea } = createChatbotUI(data);
       const autoOpenDelay = data.widgetConfig?.autoOpenDelay;
       if (autoOpenDelay > 0) setTimeout(openChat, autoOpenDelay * 1000);
 
@@ -772,14 +772,19 @@
       createGlobalLanguageSwitcher();
 
       if (data.isOffline) {
-        // Disable interaction
         input.disabled = true;
-        input.placeholder = 'Chatbot is currently offline';
         sendBtn.style.display = 'none';
-
-        setTimeout(() => {
-          addMessage(chatBody, 'bot', `Hello! We are currently offline. Please contact our administrator at ${data.email} for assistance.`);
-        }, 800);
+        if (data.upgradeRequired) {
+          input.placeholder = 'Monthly limit reached';
+          setTimeout(function () {
+            addMessage(chatBody, 'bot', 'The chat limit for this month has been reached. Please ask the site owner to upgrade their plan to continue.');
+          }, 800);
+        } else {
+          input.placeholder = 'Chatbot is currently offline';
+          setTimeout(function () {
+            addMessage(chatBody, 'bot', 'Hello! We are currently offline. Please contact our administrator at ' + (data.email || '') + ' for assistance.');
+          }, 800);
+        }
         return;
       }
 
@@ -820,12 +825,21 @@
       };
 
       var lastSentMessage = null;
+      var inHandoffMode = false;
+      var handoffSocket = null;
 
       const handleSend = async (optionalText) => {
         const text = (optionalText != null ? String(optionalText).trim() : input.value.trim());
         if (!text) return;
-
         input.value = '';
+
+        if (inHandoffMode && handoffSocket) {
+          handoffSocket.emit('handoff_message', { conversationId: getConversationId(), content: text, role: 'visitor' }, function () {});
+          addMessage(chatBody, 'user', text);
+          chatBody.scrollTop = chatBody.scrollHeight;
+          return;
+        }
+
         addMessage(chatBody, 'user', text);
         lastSentMessage = text;
 
@@ -867,6 +881,7 @@
           let buffer = '';
           let streamStarted = false;
           let streamEl = null;
+          let lowConfidenceFlag = false;
 
           while (true) {
             const { done, value } = await reader.read();
@@ -885,6 +900,9 @@
               }
               if (obj.type === 'conversationId' && obj.conversationId) {
                 setConversationId(obj.conversationId);
+              }
+              if (obj.type === 'confidence' && obj.low === true && !streamStarted && streamEl == null) {
+                lowConfidenceFlag = true;
               }
               if (obj.type === 'messageIndex' && typeof obj.messageIndex === 'number' && streamEl) {
                 var cid = getConversationId();
@@ -918,11 +936,30 @@
                 }
                 streamEl = null;
               }
+              if (obj.type === 'buttons' && Array.isArray(obj.buttons) && obj.buttons.length && streamEl) {
+                var wrap = document.createElement('div');
+                wrap.style.cssText = 'display:flex;flex-wrap:wrap;gap:8px;margin-top:10px;';
+                obj.buttons.slice(0, 8).forEach(function (b) {
+                  var btn = document.createElement('button');
+                  btn.textContent = b.label;
+                  btn.style.cssText = 'padding:6px 10px;border-radius:999px;border:1px solid rgba(148,163,184,0.35);background:rgba(15,23,42,0.35);color:#e2e8f0;cursor:pointer;font-size:12px;';
+                  btn.onclick = function () {
+                    input.value = b.label;
+                    sendBtn.click();
+                  };
+                  wrap.appendChild(btn);
+                });
+                streamEl.container.appendChild(wrap);
+              }
               if (obj.type === 'token' && obj.content != null) {
                 if (!streamStarted) {
                   loader.remove();
                   streamStarted = true;
                   streamEl = addStreamingBotMessage(chatBody);
+                  if (lowConfidenceFlag) {
+                    streamEl.append("I'm not sure about this. ");
+                    lowConfidenceFlag = false;
+                  }
                 }
                 streamEl.append(obj.content);
               } else if (obj.type === 'done') {
@@ -1094,6 +1131,71 @@
           }
         }, 800);
       }
+
+      // Phase 5.1: Talk to Human button
+      var humanWrap = document.createElement('div');
+      humanWrap.style.cssText = 'padding:6px 12px;text-align:center;border-top:1px solid rgba(255,255,255,0.06);';
+      var humanBtn = document.createElement('button');
+      humanBtn.textContent = 'Talk to Human';
+      humanBtn.style.cssText = 'background:transparent;border:1px solid rgba(34,211,238,0.4);color:#22D3EE;padding:6px 12px;border-radius:8px;cursor:pointer;font-size:12px;';
+      humanBtn.onclick = async function () {
+        var cid = getConversationId();
+        if (!cid) {
+          addMessage(chatBody, 'bot', 'Please send a message first to start the conversation.');
+          return;
+        }
+        humanBtn.disabled = true;
+        var body = { widgetToken: data.widgetToken, conversationId: cid };
+        var bodyString = JSON.stringify(body);
+        var path = '/api/chat/escalate';
+        var sig = await signRequest('POST', path, bodyString, data.widgetToken);
+        try {
+          var escRes = await fetch(API_URL + '/chat/escalate', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'X-Widget-Timestamp': sig.timestamp, 'X-Widget-Signature': sig.signature },
+            body: bodyString
+          });
+          var escJson = await escRes.json();
+          if (!escRes.ok) {
+            addMessage(chatBody, 'bot', escJson.message || 'Could not connect.');
+            humanBtn.disabled = false;
+            return;
+          }
+          addMessage(chatBody, 'bot', 'Connecting you to an agent...');
+          chatBody.scrollTop = chatBody.scrollHeight;
+          if (typeof io === 'undefined') {
+            await new Promise(function (resolve, reject) {
+              var sc = document.createElement('script');
+              sc.src = baseUrl + '/socket.io/socket.io.js';
+              sc.onload = resolve;
+              sc.onerror = reject;
+              document.head.appendChild(sc);
+            });
+          }
+          handoffSocket = io(baseUrl, { path: '/socket.io', auth: { widgetToken: data.widgetToken, conversationId: cid } });
+          handoffSocket.on('agent_joined', function () {
+            inHandoffMode = true;
+            addMessage(chatBody, 'bot', 'An agent has joined. You can chat below.');
+            chatBody.scrollTop = chatBody.scrollHeight;
+          });
+          handoffSocket.on('handoff_message', function (p) {
+            if (p.role === 'agent') {
+              addMessage(chatBody, 'bot', p.content);
+              chatBody.scrollTop = chatBody.scrollHeight;
+            }
+          });
+          handoffSocket.on('agent_left', function () {
+            inHandoffMode = false;
+            addMessage(chatBody, 'bot', 'Agent left. You can continue with the chatbot.');
+            chatBody.scrollTop = chatBody.scrollHeight;
+          });
+        } catch (err) {
+          addMessage(chatBody, 'bot', 'Connection error. Please try again.');
+        }
+        humanBtn.disabled = false;
+      };
+      humanWrap.appendChild(humanBtn);
+      inputArea.insertBefore(humanWrap, inputArea.firstChild);
 
     } catch (e) {
       console.error('Chatbot init failed:', e);

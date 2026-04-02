@@ -8,9 +8,12 @@ if (process.env.SENTRY_DSN) {
   Sentry.init({ dsn: process.env.SENTRY_DSN, environment: process.env.NODE_ENV || 'development' });
 }
 
+const http = require('http');
 const express = require('express');
 const cors = require('cors');
 const connectDB = require('./config/db');
+const { Server: SocketServer } = require('socket.io');
+const { attachSocket } = require('./socket');
 // Route imports
 const authRoutes = require('./routes/authRoutes');
 const userRoutes = require('./routes/userRoutes');
@@ -20,14 +23,24 @@ const adminRoutes = require('./routes/adminRoutes');
 const paymentRoutes = require('./routes/paymentRoutes');
 const chatbotRoutes = require('./routes/chatbotRoutes');
 const supportRoutes = require('./routes/supportRoutes');
+const planRoutes = require('./routes/planRoutes');
+const webhookRoutes = require('./routes/webhookRoutes');
 const csrfGuard = require('./middleware/csrfGuard');
 
 // Configure environment variables
 // Configure environment variables (moved to top)
 
-// Initialize Express app
+// Initialize Express app and HTTP server (for Socket.io)
 const app = express();
+const server = http.createServer(app);
 const PORT = process.env.PORT || 5001;
+
+const io = new SocketServer(server, {
+  cors: { origin: true },
+  path: '/socket.io'
+});
+app.set('io', io);
+attachSocket(io);
 
 const helmet = require('helmet');
 const rateLimit = require('express-rate-limit');
@@ -87,6 +100,15 @@ app.use('/api', chatbotRoutes);
 app.use('/api', userRoutes);
 app.use('/api', adminRoutes);
 app.use('/api', supportRoutes);
+app.use('/api', planRoutes);
+app.use('/api', webhookRoutes);
+
+// Seed plans on startup (Phase 4.1)
+const { seedPlans } = require('./jobs/seedPlans');
+seedPlans().catch((e) => console.error('Seed plans error:', e));
+// Seed sample coupons (Phase 4.2, optional)
+const { seedCoupons } = require('./jobs/seedCoupons');
+seedCoupons().catch((e) => console.error('Seed coupons error:', e));
 
 // Mount same routes under /api/v1 for versioned API (backward compat: keep /api for 3+ months)
 app.use('/api/v1', authRoutes);
@@ -95,6 +117,8 @@ app.use('/api/v1', chatbotRoutes);
 app.use('/api/v1', userRoutes);
 app.use('/api/v1', adminRoutes);
 app.use('/api/v1', supportRoutes);
+app.use('/api/v1', planRoutes);
+app.use('/api/v1', webhookRoutes);
 
 // Scheduled re-scrape for website sources (daily/weekly)
 const { runScheduledScrapes } = require('./jobs/scheduledScrape');
@@ -118,7 +142,7 @@ if (process.env.SENTRY_DSN) {
   app.use(Sentry.Handlers.errorHandler());
 }
 
-// Start server
-app.listen(PORT, () => {
+// Start server (HTTP + Socket.io)
+server.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
 });

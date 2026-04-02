@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { getUserTransactions, createPaymentOrder, getUsageHistory } from '@/services/api';
+import { getUserTransactions, createPaymentOrder, getUsageHistory, downloadInvoice, validateCoupon } from '@/services/api';
 import { Base_url } from '@/config/Base_url.jsx';
 import {
   Card,
@@ -20,7 +20,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { RefreshCw, Wallet, BarChart3, History } from 'lucide-react';
+import { RefreshCw, Wallet, BarChart3, History, FileDown } from 'lucide-react';
 import { toast } from 'sonner';
 import { load } from '@cashfreepayments/cashfree-js';
 
@@ -35,6 +35,7 @@ interface Transaction {
   status: 'initiated' | 'processing' | 'success' | 'failed' | 'refunded';
   tokens: number;
   createdAt: string;
+  invoiceGenerated?: boolean;
 }
 
 interface UsageRecord {
@@ -72,6 +73,9 @@ const UserTransactions = () => {
   const [amount, setAmount] = useState<number>(99);
   const [processing, setProcessing] = useState(false);
   const [isAutoPay, setIsAutoPay] = useState(false);
+  const [couponCode, setCouponCode] = useState('');
+  const [couponDiscount, setCouponDiscount] = useState<number | null>(null);
+  const [couponError, setCouponError] = useState<string | null>(null);
 
   // Calculate estimated tokens for custom amount
   const getEstimatedTokens = (amt: number) => {
@@ -162,9 +166,12 @@ const UserTransactions = () => {
 
     try {
       setProcessing(true);
-      const data = await createPaymentOrder(finalAmount);
+      const data = await createPaymentOrder(finalAmount, couponCode.trim() || undefined);
 
       if (data && data.order && data.order.payment_session_id) {
+        setCouponCode('');
+        setCouponDiscount(null);
+        setCouponError(null);
         const checkoutOptions = {
           paymentSessionId: data.order.payment_session_id,
           redirectTarget: "_self"
@@ -303,14 +310,54 @@ const UserTransactions = () => {
                 </Button>
               </div>
 
+              <div className="flex flex-wrap gap-4 items-end">
+                <div className="flex-1 min-w-[160px]">
+                  <label className="text-xs font-medium text-muted-foreground">Promo code</label>
+                  <div className="flex gap-2 mt-1">
+                    <Input
+                      placeholder="Enter code"
+                      value={couponCode}
+                      onChange={(e) => { setCouponCode(e.target.value); setCouponError(null); setCouponDiscount(null); }}
+                      className="uppercase"
+                    />
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={async () => {
+                        if (!couponCode.trim()) return;
+                        try {
+                          const res = await validateCoupon(couponCode.trim(), amount);
+                          setCouponDiscount(res.discountAmount);
+                          setCouponError(null);
+                          toast.success(res.message);
+                        } catch (e: any) {
+                          setCouponDiscount(null);
+                          setCouponError(e?.message || 'Invalid code');
+                        }
+                      }}
+                    >
+                      Apply
+                    </Button>
+                  </div>
+                  {couponError && <p className="text-xs text-destructive mt-1">{couponError}</p>}
+                  {couponDiscount != null && couponDiscount > 0 && (
+                    <p className="text-xs text-green-600 font-medium mt-1">You save ₹{couponDiscount.toFixed(2)}</p>
+                  )}
+                </div>
+              </div>
               <div className="p-4 bg-muted/30 rounded-lg flex flex-wrap gap-6 items-center border">
                 <div className="flex flex-col">
+                  <span className="text-xs text-muted-foreground uppercase font-bold tracking-tighter">You Pay</span>
+                  <span className="text-lg font-bold text-primary">₹{Math.max(49, amount - (couponDiscount || 0)).toFixed(0)}</span>
+                </div>
+                <div className="flex flex-col">
                   <span className="text-xs text-muted-foreground uppercase font-bold tracking-tighter">You Get</span>
-                  <span className="text-lg font-bold text-primary">{getEstimatedTokens(amount).toLocaleString()} Credits</span>
+                  <span className="text-lg font-bold text-primary">{getEstimatedTokens(Math.max(49, amount - (couponDiscount || 0))).toLocaleString()} Credits</span>
                 </div>
                 <div className="flex flex-col border-l pl-6">
                   <span className="text-xs text-muted-foreground uppercase font-bold tracking-tighter">Est. Usage</span>
-                  <span className="text-lg font-bold text-green-600">~{Math.floor(getEstimatedTokens(amount) / AVG_TOKENS_PER_CHAT)} Chats</span>
+                  <span className="text-lg font-bold text-green-600">~{Math.floor(getEstimatedTokens(Math.max(49, amount - (couponDiscount || 0))) / AVG_TOKENS_PER_CHAT)} Chats</span>
                 </div>
               </div>
             </div>
@@ -384,6 +431,7 @@ const UserTransactions = () => {
                         <TableHead>Amount</TableHead>
                         <TableHead>Credits</TableHead>
                         <TableHead className="text-center">Status</TableHead>
+                        <TableHead className="text-right">Invoice</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
@@ -406,6 +454,18 @@ const UserTransactions = () => {
                             <Badge variant={getStatusBadgeVariant(transaction.status) as any} className="capitalize px-3 py-0.5 font-bold">
                               {transaction.status}
                             </Badge>
+                          </TableCell>
+                          <TableCell className="text-right">
+                            {transaction.status === 'success' && (
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="text-primary hover:text-primary gap-1"
+                                onClick={() => downloadInvoice(transaction.orderId).catch(() => toast.error('Invoice not available'))}
+                              >
+                                <FileDown className="h-4 w-4" /> PDF
+                              </Button>
+                            )}
                           </TableCell>
                         </TableRow>
                       ))}

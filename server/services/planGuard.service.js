@@ -1,4 +1,5 @@
 const User = require('../models/User');
+const planLimit = require('./planLimit.service');
 
 /**
  * Check if user has enough tokens for an action
@@ -21,25 +22,25 @@ const hasTokens = async (userId, estimatedCost = 100) => {
 const chatBurstMap = new Map(); // userId -> { count, lastReset }
 
 /**
- * Validations
+ * Validations (Phase 4: plan limits + tokens)
  */
 const canUploadFile = async (userId) => {
-    const Source = require('../models/Source');
-    const docCount = await Source.countDocuments({ userId, type: 'file' });
-    if (docCount >= 5) throw new Error("Document limit reached (Max 5 docs). Please remove old ones to upload more.");
+    await planLimit.checkSourcesLimit(userId);
     return hasTokens(userId, 10000);
 };
 
 const canAddWebsite = async (userId) => {
-    // Note: Scraper already limits to 20 pages in logic, but we can double check here
+    await planLimit.checkSourcesLimit(userId);
     return hasTokens(userId, 5000);
 };
 
 const canSendMessage = async (userId) => {
-    // 1. Check Tokens
+    // 1. Plan chat limit (Phase 4)
+    await planLimit.checkChatLimit(userId);
+    // 2. Check Tokens
     await hasTokens(userId, 100);
 
-    // 2. Burst Rate Limiting (5 msgs / minute)
+    // 3. Burst Rate Limiting (5 msgs / minute)
     const now = Date.now();
     const userBurst = chatBurstMap.get(userId) || { count: 0, lastReset: now };
 

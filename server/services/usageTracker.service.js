@@ -2,6 +2,7 @@ const User = require('../models/User');
 const Usage = require('../models/Usage');
 const emailService = require('./email.service');
 const notificationService = require('./notification.service');
+const webhookService = require('./webhook.service');
 
 // Constants
 const TOKENS_PER_INR = 2500; // Updated: 1 INR = 2500 Tokens (Strategic Profitability)
@@ -29,21 +30,25 @@ const deductTokens = async (userId, tokensToDeduct, type = 'chat', description =
 
     // Trigger Emails + in-app notifications (Phase 3.4)
     if (user.tokenBalance === 0 && oldBalance > 0) {
-        await emailService.sendEmptyBalanceEmail(user.email, user.name);
+        await emailService.sendEmptyBalanceEmail(user.email, user.name, userId);
         user.lastAlertThreshold = 0;
         notificationService.create(userId, 'low_balance', 'Token balance empty', 'Your chatbot has stopped. Recharge to reactivate.', { balance: 0 }).catch(() => {});
+        webhookService.triggerWebhooks(userId, 'token_low', { balance: 0 }).catch(() => {});
     } else if (percentage <= 5 && user.lastAlertThreshold > 5) {
-        await emailService.sendLowBalanceEmail(user.email, user.name, user.tokenBalance);
+        await emailService.sendLowBalanceEmail(user.email, user.name, user.tokenBalance, userId);
         user.lastAlertThreshold = 5;
         notificationService.create(userId, 'low_balance', 'Low token balance', `${user.tokenBalance.toLocaleString()} tokens left (~${Math.floor(user.tokenBalance / 1800)} chats).`, { balance: user.tokenBalance }).catch(() => {});
+        webhookService.triggerWebhooks(userId, 'token_low', { balance: user.tokenBalance }).catch(() => {});
     } else if (percentage <= 10 && user.lastAlertThreshold > 10) {
-        await emailService.sendLowBalanceEmail(user.email, user.name, user.tokenBalance);
+        await emailService.sendLowBalanceEmail(user.email, user.name, user.tokenBalance, userId);
         user.lastAlertThreshold = 10;
         notificationService.create(userId, 'low_balance', 'Low token balance', `${user.tokenBalance.toLocaleString()} tokens remaining.`, { balance: user.tokenBalance }).catch(() => {});
+        webhookService.triggerWebhooks(userId, 'token_low', { balance: user.tokenBalance }).catch(() => {});
     } else if (percentage <= 25 && user.lastAlertThreshold > 25) {
-        await emailService.sendLowBalanceEmail(user.email, user.name, user.tokenBalance);
+        await emailService.sendLowBalanceEmail(user.email, user.name, user.tokenBalance, userId);
         user.lastAlertThreshold = 25;
         notificationService.create(userId, 'low_balance', 'Token balance alert', `You have ${user.tokenBalance.toLocaleString()} tokens left. Consider recharging.`, { balance: user.tokenBalance }).catch(() => {});
+        webhookService.triggerWebhooks(userId, 'token_low', { balance: user.tokenBalance }).catch(() => {});
     }
 
     await user.save();
@@ -91,6 +96,13 @@ const rechargeTokens = async (userId, amountInINR) => {
     return user.tokenBalance;
 };
 
+/** Phase 4.2: Add bonus tokens (e.g. referral credit) without payment. */
+const addBonusTokens = async (userId, tokens) => {
+    if (!userId || tokens <= 0) return 0;
+    const user = await User.findByIdAndUpdate(userId, { $inc: { tokenBalance: tokens } }, { new: true });
+    return user ? user.tokenBalance : 0;
+};
+
 /**
  * Get estimated chats remaining
  * @param {number} tokenBalance 
@@ -111,6 +123,7 @@ const trackWebsiteScrape = async (userId, url) => {
 module.exports = {
     deductTokens,
     rechargeTokens,
+    addBonusTokens,
     trackFileUpload,
     trackWebsiteScrape,
     TOKENS_PER_INR

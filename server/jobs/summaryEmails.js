@@ -38,7 +38,7 @@ async function runSummaryEmails() {
                 uniqueVisitors: data.uniqueVisitors,
                 leadsCaptured: leadConv.leadsCaptured,
                 satisfactionPercent: data.satisfactionScore?.satisfactionScore ?? data.satisfactionScore?.percentPositive ?? null
-            });
+            }, u._id);
         } catch (err) {
             console.error('Summary email (daily) failed for', u.email, err.message);
         }
@@ -55,7 +55,7 @@ async function runSummaryEmails() {
                 uniqueVisitors: data.uniqueVisitors,
                 leadsCaptured: leadConv.leadsCaptured,
                 satisfactionPercent: data.satisfactionScore?.satisfactionScore ?? data.satisfactionScore?.percentPositive ?? null
-            });
+            }, u._id);
         } catch (err) {
             console.error('Summary email (weekly) failed for', u.email, err.message);
         }

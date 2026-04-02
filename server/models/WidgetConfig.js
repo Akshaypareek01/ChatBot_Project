@@ -30,6 +30,7 @@ const widgetConfigSchema = new mongoose.Schema({
     },
     suggestedQuestions: { type: [String], default: [] },
     leadCaptureWebhookUrl: { type: String, default: '' },
+    preferredAiModel: { type: String, default: 'gpt-4o-mini' },
     updatedAt: { type: Date, default: Date.now }
 }, { timestamps: true });
 
