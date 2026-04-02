@@ -967,18 +967,72 @@
               if (obj.type === 'messageIndex' && typeof obj.messageIndex === 'number' && streamEl) {
                 var cid = getConversationId();
                 if (cid) {
+                  var themePrimary = (chatBody && chatBody.dataset && chatBody.dataset.primaryColor) || '#2563EB';
                   var thumbsWrap = document.createElement('div');
-                  thumbsWrap.style.cssText = 'display:flex;gap:8px;margin-top:8px;';
+                  thumbsWrap.style.cssText = 'display:flex;gap:10px;margin-top:10px;align-items:center;';
+                  thumbsWrap.setAttribute('aria-label', 'Rate this response');
+                  thumbsWrap.dataset.selected = '0';
+                  thumbsWrap.dataset.sent = '0';
+
+                  // Inject styles once
+                  if (!document.getElementById('chatbot-feedback-style')) {
+                    var fbStyle = document.createElement('style');
+                    fbStyle.id = 'chatbot-feedback-style';
+                    fbStyle.textContent = `
+                      .cb-fb-btn{
+                        width:34px;height:34px;border-radius:999px;
+                        display:inline-flex;align-items:center;justify-content:center;
+                        border:1px solid rgba(15,23,42,0.14);
+                        background:#fff;color:#0F172A;
+                        cursor:pointer; user-select:none;
+                        transition: transform .12s ease, background .18s ease, border-color .18s ease, box-shadow .18s ease, opacity .18s ease;
+                        box-shadow: 0 8px 18px rgba(15,23,42,0.08);
+                      }
+                      .cb-fb-btn:hover{ transform: translateY(-1px); border-color: rgba(15,23,42,0.22); box-shadow: 0 10px 22px rgba(15,23,42,0.12); }
+                      .cb-fb-btn:active{ transform: translateY(0px) scale(0.98); }
+                      .cb-fb-btn[disabled]{ cursor: default; opacity: .45; box-shadow:none; transform:none; }
+                      .cb-fb-btn.cb-selected{
+                        border-color: var(--cb-primary);
+                        background: color-mix(in srgb, var(--cb-primary) 12%, white);
+                        box-shadow: 0 10px 24px color-mix(in srgb, var(--cb-primary) 22%, transparent);
+                      }
+                      .cb-fb-btn.cb-selected.cb-up{ color: var(--cb-primary); }
+                      .cb-fb-btn.cb-selected.cb-down{ color: #DC2626; border-color: #DC2626; background: rgba(220,38,38,0.08); box-shadow: 0 10px 24px rgba(220,38,38,0.18); }
+                    `;
+                    document.head.appendChild(fbStyle);
+                  }
+
+                  // Scope theme color to the wrap so both buttons can use it
+                  thumbsWrap.style.setProperty('--cb-primary', themePrimary);
+
                   var up = document.createElement('button');
                   up.title = 'Good response';
+                  up.className = 'cb-fb-btn cb-up';
+                  up.type = 'button';
+                  up.setAttribute('aria-label', 'Thumbs up');
                   up.innerHTML = '&#128077;';
-                  up.style.cssText = 'background:none;border:none;cursor:pointer;font-size:16px;opacity:0.7;';
                   var down = document.createElement('button');
                   down.title = 'Bad response';
+                  down.className = 'cb-fb-btn cb-down';
+                  down.type = 'button';
+                  down.setAttribute('aria-label', 'Thumbs down');
                   down.innerHTML = '&#128078;';
-                  down.style.cssText = 'background:none;border:none;cursor:pointer;font-size:16px;opacity:0.7;';
                   var sendFeedback = function (val) {
-                    up.disabled = down.disabled = true;
+                    if (thumbsWrap.dataset.sent === '1') return;
+                    thumbsWrap.dataset.sent = '1';
+
+                    // Persist selected state + disable opposite button
+                    thumbsWrap.dataset.selected = String(val);
+                    if (val === 1) {
+                      up.classList.add('cb-selected');
+                      down.classList.remove('cb-selected');
+                      down.disabled = true;
+                    } else {
+                      down.classList.add('cb-selected');
+                      up.classList.remove('cb-selected');
+                      up.disabled = true;
+                    }
+
                     var bodyString = JSON.stringify({ widgetToken: data.widgetToken, conversationId: cid, messageIndex: obj.messageIndex, feedback: val });
                     signRequest('POST', '/api/chat/feedback', bodyString, data.widgetToken).then(function (sig) {
                       fetch(API_URL + '/chat/feedback', {
