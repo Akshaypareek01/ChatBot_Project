@@ -814,6 +814,9 @@
       injectTranslateScript();
 
       const wc = data.widgetConfig || {};
+      const configuredNoAnswerMessage = (wc && typeof wc.noAnswerMessage === 'string'
+        ? wc.noAnswerMessage.trim()
+        : '') || "I don't have this information yet.";
       createGlobalLanguageSwitcher(widgetContainer, {
         isLeft: wc.position === 'bottom-left',
         primaryColor: wc.primaryColor || '#2563EB',
@@ -826,12 +829,18 @@
         if (data.upgradeRequired) {
           input.placeholder = 'Monthly limit reached';
           setTimeout(function () {
-            addMessage(chatBody, 'bot', 'The chat limit for this month has been reached. Please ask the site owner to upgrade their plan to continue.');
+            addMessage(chatBody, 'bot', configuredNoAnswerMessage);
+            addMessage(chatBody, 'bot', 'Monthly limit reached. Please upgrade to continue.');
           }, 800);
         } else {
           input.placeholder = 'Chatbot is currently offline';
           setTimeout(function () {
-            addMessage(chatBody, 'bot', 'Hello! We are currently offline. Please contact our administrator at ' + (data.email || '') + ' for assistance.');
+            addMessage(chatBody, 'bot', configuredNoAnswerMessage);
+            if (typeof data.tokenBalance === 'number' && data.tokenBalance <= 0) {
+              addMessage(chatBody, 'bot', 'Low balance. Please recharge to resume.');
+            } else {
+              addMessage(chatBody, 'bot', 'Chatbot is currently offline. Please contact the site owner for assistance.');
+            }
           }, 800);
         }
         return;
@@ -876,9 +885,6 @@
       var lastSentMessage = null;
       var inHandoffMode = false;
       var handoffSocket = null;
-      var configuredNoAnswerMessage = (data.widgetConfig && typeof data.widgetConfig.noAnswerMessage === 'string'
-        ? data.widgetConfig.noAnswerMessage.trim()
-        : '') || "I don't have this information yet.";
 
       const handleSend = async (optionalText) => {
         const isDomEvent =
@@ -1088,7 +1094,7 @@
                 if (streamEl) {
                   const finalText = streamedContent.trim();
                   const looksLikeNoAnswer =
-                    lowConfidenceFlag === true ||
+                    !finalText ||
                     /don't have this information yet|do not have this information yet/i.test(finalText);
                   if (looksLikeNoAnswer && configuredNoAnswerMessage) {
                     streamEl.finish(configuredNoAnswerMessage);
