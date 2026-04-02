@@ -33,6 +33,7 @@ interface WidgetConfig {
   autoOpenDelay?: number;
   customCss?: string;
   showPoweredBy?: boolean;
+  allowTalkToHuman?: boolean;
   preChatForm?: PreChatForm;
   suggestedQuestions?: string[];
   leadCaptureWebhookUrl?: string;
@@ -385,6 +386,17 @@ export default function WidgetCustomization() {
                 onCheckedChange={(v) => handleChange('showPoweredBy', v)}
               />
             )}
+          </div>
+
+          <div className="flex items-center justify-between rounded-lg border p-4">
+            <div>
+              <Label>Allow &quot;Talk to Human&quot;</Label>
+              <p className="text-sm text-muted-foreground">Show a button in the widget for escalation to a live agent.</p>
+            </div>
+            <Switch
+              checked={config.allowTalkToHuman === true}
+              onCheckedChange={(v) => handleChange('allowTalkToHuman', v)}
+            />
           </div>
           <Button onClick={handleSave} disabled={saving}>
             {saving ? 'Saving...' : 'Save changes'}
