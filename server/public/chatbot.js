@@ -485,23 +485,29 @@
     });
 
     loader.innerHTML = `
-      <div style="display: flex; justify-content: space-between; align-items: baseline;">
-        <span style="font-size: 11px; font-weight: 700; color: ${themePrimary}; letter-spacing: 0.1em;">PROCESSING</span>
-        <span style="font-size: 9px; color: ${themePrimary}; font-weight: 600;">REAL-TIME</span>
-      </div>
-      <div style="padding: 14px 18px; background: rgba(15,23,42,0.02); border: 1px dashed rgba(15,23,42,0.25); border-radius: 12px; display: flex; align-items: center; gap: 12px; color: ${themePrimary}; font-size: 13px;">
-        <div class="neural-spin" style="width: 14px; height: 14px; border: 2px solid ${themePrimary}; border-top-color: transparent; border-radius: 50%;"></div>
-        <span>Synchronizing with high-speed nodes...</span>
+      <div style="display:flex;align-items:center;gap:10px;">
+        <span style="font-size: 12px; font-weight: 700; color: ${themePrimary}; letter-spacing: 0.06em;">AGENT</span>
+        <span class="typing-dots" aria-label="Typing" style="display:inline-flex;gap:4px;align-items:center;height:14px;">
+          <span class="typing-dot" style="width:6px;height:6px;border-radius:999px;background:${themePrimary};opacity:0.35;"></span>
+          <span class="typing-dot" style="width:6px;height:6px;border-radius:999px;background:${themePrimary};opacity:0.35;"></span>
+          <span class="typing-dot" style="width:6px;height:6px;border-radius:999px;background:${themePrimary};opacity:0.35;"></span>
+        </span>
       </div>
     `;
 
-    // Add spin animation if not exists
+    // Add typing dots animation if not exists
     if (!document.getElementById('neural-style')) {
       const style = document.createElement('style');
       style.id = 'neural-style';
       style.innerText = `
-        @keyframes neural-spin { to { transform: rotate(360deg); } }
-        .neural-spin { animation: neural-spin 0.8s linear infinite; }
+        @keyframes typing-bounce {
+          0%, 80%, 100% { transform: translateY(0); opacity: 0.35; }
+          40% { transform: translateY(-3px); opacity: 1; }
+        }
+        #chatbot-typing-indicator .typing-dot { animation: typing-bounce 1.1s infinite ease-in-out; }
+        #chatbot-typing-indicator .typing-dot:nth-child(1) { animation-delay: 0ms; }
+        #chatbot-typing-indicator .typing-dot:nth-child(2) { animation-delay: 140ms; }
+        #chatbot-typing-indicator .typing-dot:nth-child(3) { animation-delay: 280ms; }
         @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
       `;
       document.head.appendChild(style);
@@ -870,6 +876,9 @@
       var lastSentMessage = null;
       var inHandoffMode = false;
       var handoffSocket = null;
+      var configuredNoAnswerMessage = (data.widgetConfig && typeof data.widgetConfig.noAnswerMessage === 'string'
+        ? data.widgetConfig.noAnswerMessage.trim()
+        : '') || "I don't have this information yet.";
 
       const handleSend = async (optionalText) => {
         const isDomEvent =
@@ -932,6 +941,7 @@
           let streamStarted = false;
           let streamEl = null;
           let lowConfidenceFlag = false;
+          let streamedContent = '';
 
           while (true) {
             const { done, value } = await reader.read();
@@ -1007,11 +1017,10 @@
                   loader.remove();
                   streamStarted = true;
                   streamEl = addStreamingBotMessage(chatBody);
-                  if (lowConfidenceFlag) {
-                    streamEl.append("I'm not sure about this. ");
-                    lowConfidenceFlag = false;
-                  }
+                  // If backend flagged low confidence, we don't show extra text here.
+                  // We'll swap in the user-configured noAnswerMessage if the final content matches the fallback.
                 }
+                streamedContent += String(obj.content);
                 streamEl.append(obj.content);
               } else if (obj.type === 'done') {
                 if (obj.error) {
@@ -1022,7 +1031,17 @@
                     streamEl.append(' ' + obj.error);
                   }
                 }
-                if (streamEl) streamEl.finish();
+                if (streamEl) {
+                  const finalText = streamedContent.trim();
+                  const looksLikeNoAnswer =
+                    lowConfidenceFlag === true ||
+                    /don't have this information yet|do not have this information yet/i.test(finalText);
+                  if (looksLikeNoAnswer && configuredNoAnswerMessage) {
+                    streamEl.finish(configuredNoAnswerMessage);
+                  } else {
+                    streamEl.finish();
+                  }
+                }
                 var sug = data.widgetConfig?.suggestedQuestions;
                 if (Array.isArray(sug) && sug.length > 0) {
                   var qWrap = document.createElement('div');

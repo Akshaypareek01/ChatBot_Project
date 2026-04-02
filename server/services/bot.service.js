@@ -33,7 +33,8 @@ async function ensureDefaultBot(userId) {
                 position: 'bottom-right',
                 size: 'standard',
                 showPoweredBy: true,
-                allowTalkToHuman: false
+                allowTalkToHuman: false,
+                noAnswerMessage: "I don't have this information yet."
             });
         }
     }
@@ -68,7 +69,8 @@ async function createBot(userId, name, slug) {
         position: 'bottom-right',
         size: 'standard',
         showPoweredBy: true,
-        allowTalkToHuman: false
+        allowTalkToHuman: false,
+        noAnswerMessage: "I don't have this information yet."
     });
     return bot.toObject();
 }

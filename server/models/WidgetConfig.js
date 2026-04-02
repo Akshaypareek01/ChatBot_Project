@@ -24,6 +24,7 @@ const widgetConfigSchema = new mongoose.Schema({
     customCss: { type: String, default: '' },
     showPoweredBy: { type: Boolean, default: true },
     allowTalkToHuman: { type: Boolean, default: false },
+    noAnswerMessage: { type: String, default: "I don't have this information yet." },
     preChatForm: {
         enabled: { type: Boolean, default: false },
         welcomeMessage: { type: String, default: '' },

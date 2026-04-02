@@ -34,6 +34,7 @@ interface WidgetConfig {
   customCss?: string;
   showPoweredBy?: boolean;
   allowTalkToHuman?: boolean;
+  noAnswerMessage?: string;
   preChatForm?: PreChatForm;
   suggestedQuestions?: string[];
   leadCaptureWebhookUrl?: string;
@@ -396,6 +397,19 @@ export default function WidgetCustomization() {
             <Switch
               checked={config.allowTalkToHuman === true}
               onCheckedChange={(v) => handleChange('allowTalkToHuman', v)}
+            />
+          </div>
+
+          <div className="rounded-lg border p-4 space-y-2">
+            <div>
+              <Label>No-answer message</Label>
+              <p className="text-sm text-muted-foreground">Message shown when the bot can’t find relevant info in your knowledge base.</p>
+            </div>
+            <Textarea
+              value={config.noAnswerMessage ?? ''}
+              onChange={(e) => handleChange('noAnswerMessage', e.target.value)}
+              placeholder={`e.g. Sorry — I don’t have that info yet. Please contact support.`}
+              rows={3}
             />
           </div>
           <Button onClick={handleSave} disabled={saving}>
