@@ -176,8 +176,8 @@
       left: '0',
       width: '100%',
       height: '100%',
-      backgroundColor: 'rgba(0,0,0,0.6)',
-      backdropFilter: 'blur(4px)',
+      backgroundColor: 'rgba(15,23,42,0.35)',
+      backdropFilter: 'blur(2px)',
       zIndex: '2147483648',
       display: 'none',
       opacity: '0',
@@ -197,21 +197,21 @@
       width: chatWidth,
       maxWidth: '90vw',
       height: '100%',
-      backgroundColor: '#0B0F17',
+      backgroundColor: '#ffffff',
       zIndex: '2147483649',
-      boxShadow: '0 0 32px rgba(0,0,0,0.5)',
+      boxShadow: '0 0 40px rgba(15,23,42,0.18)',
       display: 'flex',
       flexDirection: 'column',
       transition: `${slideKey} 0.4s cubic-bezier(0.4, 0, 0.2, 1)`,
-      fontFamily: '"Inter", "JetBrains Mono", monospace'
+      fontFamily: '"Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif'
     });
 
     // Header (Futuristic Neural Style)
     const header = document.createElement('div');
     Object.assign(header.style, {
       padding: '24px',
-      background: '#0F172A',
-      borderBottom: '1px solid rgba(34, 211, 238, 0.1)',
+      background: '#ffffff',
+      borderBottom: '1px solid rgba(15,23,42,0.08)',
       display: 'flex',
       justifyContent: 'space-between',
       alignItems: 'center',
@@ -224,18 +224,18 @@
     headerTitleContainer.innerHTML = `
       <div style="display: flex; align-items: center; gap: 10px;">
         ${safeAvatarUrl
-          ? '<img src="' + safeAvatarUrl + '" alt="" style="width: 36px; height: 36px; border-radius: 50%; object-fit: cover; border: 2px solid ' + accentColor + ';">'
-          : '<div style="width: 8px; height: 8px; border-radius: 50%; background: ' + accentColor + '; box-shadow: 0 0 10px ' + accentColor + ';"></div>'}
-        <h3 style="margin:0; font-size: 14px; color: white; font-weight: 700; text-transform: uppercase; letter-spacing: 0.1em;">${brandName}</h3>
+          ? '<img src="' + safeAvatarUrl + '" alt="" style="width: 36px; height: 36px; border-radius: 50%; object-fit: cover; border: 2px solid ' + primaryColor + ';">'
+          : '<div style="width: 10px; height: 10px; border-radius: 999px; background: ' + primaryColor + '; box-shadow: 0 0 0 4px rgba(15,23,42,0.04);"></div>'}
+        <h3 style="margin:0; font-size: 14px; color: #0F172A; font-weight: 800; letter-spacing: 0.02em;">${brandName}</h3>
       </div>
     `;
 
     const closeBtn = document.createElement('button');
     closeBtn.innerHTML = '✕';
     Object.assign(closeBtn.style, {
-      background: 'rgba(255,255,255,0.05)',
-      border: '1px solid rgba(255,255,255,0.1)',
-      color: 'white',
+      background: 'rgba(15,23,42,0.03)',
+      border: '1px solid rgba(15,23,42,0.12)',
+      color: '#0F172A',
       borderRadius: '8px',
       padding: '8px 12px',
       cursor: 'pointer',
@@ -243,12 +243,12 @@
       transition: 'all 0.2s'
     });
     closeBtn.onmouseover = () => {
-      closeBtn.style.background = 'rgba(255,255,255,0.1)';
-      closeBtn.style.borderColor = '#22D3EE';
+      closeBtn.style.background = 'rgba(15,23,42,0.06)';
+      closeBtn.style.borderColor = primaryColor;
     };
     closeBtn.onmouseout = () => {
-      closeBtn.style.background = 'rgba(255,255,255,0.05)';
-      closeBtn.style.borderColor = 'rgba(255,255,255,0.1)';
+      closeBtn.style.background = 'rgba(15,23,42,0.03)';
+      closeBtn.style.borderColor = 'rgba(15,23,42,0.12)';
     };
 
     header.appendChild(headerTitleContainer);
@@ -258,6 +258,7 @@
     // Chat Body
     const chatBody = document.createElement('div');
     chatBody.id = 'neural-chat-body';
+    chatBody.dataset.primaryColor = primaryColor;
     Object.assign(chatBody.style, {
       flex: '1',
       padding: '24px',
@@ -265,7 +266,7 @@
       display: 'flex',
       flexDirection: 'column',
       gap: '24px',
-      backgroundColor: '#0B0F17' // Neural Dark
+      backgroundColor: '#F8FAFC'
     });
     chatWindow.appendChild(chatBody);
 
@@ -273,8 +274,8 @@
     const inputArea = document.createElement('div');
     Object.assign(inputArea.style, {
       padding: '20px',
-      backgroundColor: '#0F172A',
-      borderTop: '1px solid rgba(34, 211, 238, 0.1)',
+      backgroundColor: '#ffffff',
+      borderTop: '1px solid rgba(15,23,42,0.08)',
       display: 'flex',
       flexDirection: 'column',
       gap: '12px'
@@ -288,32 +289,32 @@
     });
 
     const input = document.createElement('input');
-    input.placeholder = 'Inquire Neural Agent...';
+    input.placeholder = 'Type Your Query here';
     Object.assign(input.style, {
       flex: '1',
       padding: '12px 16px',
-      border: '1px solid rgba(255,255,255,0.1)',
-      backgroundColor: 'rgba(255,255,255,0.03)',
+      border: '1px solid #E2E8F0',
+      backgroundColor: '#ffffff',
       borderRadius: '12px',
       fontSize: '14px',
-      color: 'white',
+      color: '#0F172A',
       outline: 'none',
       fontFamily: 'inherit',
       transition: 'all 0.2s'
     });
     input.onfocus = () => {
-      input.style.borderColor = '#22D3EE';
-      input.style.backgroundColor = 'rgba(34, 211, 238, 0.05)';
+      input.style.borderColor = primaryColor;
+      input.style.boxShadow = `0 0 0 4px ${primaryColor}1f`;
     };
     input.onblur = () => {
-      input.style.borderColor = 'rgba(255,255,255,0.1)';
-      input.style.backgroundColor = 'rgba(255,255,255,0.03)';
+      input.style.borderColor = '#E2E8F0';
+      input.style.boxShadow = 'none';
     };
 
     const sendBtn = document.createElement('button');
     Object.assign(sendBtn.style, {
-      background: '#22D3EE',
-      color: '#0B0F17',
+      background: primaryColor,
+      color: '#ffffff',
       border: 'none',
       borderRadius: '10px',
       width: '42px',
@@ -323,7 +324,7 @@
       justifyContent: 'center',
       cursor: 'pointer',
       transition: 'all 0.2s',
-      boxShadow: '0 0 15px rgba(34, 211, 238, 0.3)'
+      boxShadow: `0 10px 20px ${primaryColor}2b`
     });
     sendBtn.innerHTML = `
       <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
@@ -333,7 +334,7 @@
     `;
     sendBtn.onmouseover = () => {
       sendBtn.style.transform = 'scale(1.05)';
-      sendBtn.style.boxShadow = '0 0 20px rgba(34, 211, 238, 0.5)';
+      sendBtn.style.boxShadow = `0 12px 26px ${primaryColor}3d`;
     };
 
     inputWrapper.appendChild(input);
@@ -396,6 +397,7 @@
   };
 
   const addMessage = (target, type, text) => {
+    const themePrimary = (target && target.dataset && target.dataset.primaryColor) || '#2563EB';
     const container = document.createElement('div');
     Object.assign(container.style, {
       display: 'flex',
@@ -409,20 +411,20 @@
     if (type === 'user') {
       container.innerHTML = `
         <div style="display: flex; justify-content: space-between; align-items: baseline;">
-          <span style="font-size: 11px; font-weight: 700; color: white; letter-spacing: 0.1em;">USER</span>
-          <span style="font-size: 10px; color: #475569;">${timeStr}</span>
+          <span style="font-size: 11px; font-weight: 700; color: #0F172A; letter-spacing: 0.1em;">YOU</span>
+          <span style="font-size: 10px; color: #64748B;">${timeStr}</span>
         </div>
-        <div style="padding: 16px; background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.08); border-radius: 12px; color: #94A3B8; font-size: 14px; line-height: 1.6; font-family: 'JetBrains Mono', monospace;">
+        <div style="padding: 16px; background: ${themePrimary}; border: 1px solid rgba(15,23,42,0.08); border-radius: 12px; color: #ffffff; font-size: 14px; line-height: 1.6;">
           ${escapeHtml(text)}
         </div>
       `;
     } else {
       container.innerHTML = `
         <div style="display: flex; justify-content: space-between; align-items: baseline;">
-          <span style="font-size: 11px; font-weight: 700; color: #22D3EE; letter-spacing: 0.1em;">AGENT</span>
-          <span style="font-size: 10px; color: #475569;">${timeStr}</span>
+          <span style="font-size: 11px; font-weight: 700; color: ${themePrimary}; letter-spacing: 0.1em;">AGENT</span>
+          <span style="font-size: 10px; color: #64748B;">${timeStr}</span>
         </div>
-        <div style="padding: 18px; background: rgba(34, 211, 238, 0.03); border: 1px solid rgba(34, 211, 238, 0.15); border-radius: 12px; color: white; font-size: 14px; line-height: 1.6; box-shadow: 0 4px 20px rgba(0,0,0,0.2);">
+        <div style="padding: 18px; background: #ffffff; border: 1px solid rgba(15,23,42,0.10); border-radius: 12px; color: #0F172A; font-size: 14px; line-height: 1.6; box-shadow: 0 10px 30px rgba(15,23,42,0.10);">
           ${escapeHtml(text)}
         </div>
       `;
@@ -434,6 +436,7 @@
 
   /** Creates a bot message container for streaming; returns { container, contentEl, append(text), finish() }. */
   const addStreamingBotMessage = (target) => {
+    const themePrimary = (target && target.dataset && target.dataset.primaryColor) || '#2563EB';
     const outer = document.createElement('div');
     Object.assign(outer.style, {
       display: 'flex',
@@ -444,10 +447,10 @@
     const timeStr = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false });
     outer.innerHTML = `
       <div style="display: flex; justify-content: space-between; align-items: baseline;">
-        <span style="font-size: 11px; font-weight: 700; color: #22D3EE; letter-spacing: 0.1em;">AGENT</span>
-        <span style="font-size: 10px; color: #475569;">${timeStr}</span>
+        <span style="font-size: 11px; font-weight: 700; color: ${themePrimary}; letter-spacing: 0.1em;">AGENT</span>
+        <span style="font-size: 10px; color: #64748B;">${timeStr}</span>
       </div>
-      <div class="neural-stream-content" style="padding: 18px; background: rgba(34, 211, 238, 0.03); border: 1px solid rgba(34, 211, 238, 0.15); border-radius: 12px; color: white; font-size: 14px; line-height: 1.6; box-shadow: 0 4px 20px rgba(0,0,0,0.2); min-height: 24px;"></div>
+      <div class="neural-stream-content" style="padding: 18px; background: #ffffff; border: 1px solid rgba(15,23,42,0.10); border-radius: 12px; color: #0F172A; font-size: 14px; line-height: 1.6; box-shadow: 0 10px 30px rgba(15,23,42,0.10); min-height: 24px;"></div>
     `;
     const contentEl = outer.querySelector('.neural-stream-content');
     target.appendChild(outer);
@@ -471,6 +474,7 @@
 
   // Helper: Neural Typing Indicator
   const addTyping = (target) => {
+    const themePrimary = (target && target.dataset && target.dataset.primaryColor) || '#2563EB';
     const loader = document.createElement('div');
     loader.id = 'chatbot-typing-indicator';
     Object.assign(loader.style, {
@@ -482,11 +486,11 @@
 
     loader.innerHTML = `
       <div style="display: flex; justify-content: space-between; align-items: baseline;">
-        <span style="font-size: 11px; font-weight: 700; color: #22D3EE; letter-spacing: 0.1em;">PROCESSING</span>
-        <span style="font-size: 9px; color: #22D3EE; font-weight: 600;">REAL-TIME</span>
+        <span style="font-size: 11px; font-weight: 700; color: ${themePrimary}; letter-spacing: 0.1em;">PROCESSING</span>
+        <span style="font-size: 9px; color: ${themePrimary}; font-weight: 600;">REAL-TIME</span>
       </div>
-      <div style="padding: 14px 18px; background: rgba(34, 211, 238, 0.02); border: 1px dashed rgba(34, 211, 238, 0.3); border-radius: 12px; display: flex; align-items: center; gap: 12px; color: #22D3EE; font-size: 13px;">
-        <div class="neural-spin" style="width: 14px; height: 14px; border: 2px solid #22D3EE; border-top-color: transparent; border-radius: 50%;"></div>
+      <div style="padding: 14px 18px; background: rgba(15,23,42,0.02); border: 1px dashed rgba(15,23,42,0.25); border-radius: 12px; display: flex; align-items: center; gap: 12px; color: ${themePrimary}; font-size: 13px;">
+        <div class="neural-spin" style="width: 14px; height: 14px; border: 2px solid ${themePrimary}; border-top-color: transparent; border-radius: 50%;"></div>
         <span>Synchronizing with high-speed nodes...</span>
       </div>
     `;
@@ -589,9 +593,9 @@
       right: isLeft ? 'auto' : drawerHidden,
       width: '280px',
       height: '100%',
-      backgroundColor: '#0B0F17',
+      backgroundColor: '#ffffff',
       zIndex: '2147483649',
-      boxShadow: isLeft ? '8px 0 32px rgba(0,0,0,0.5)' : '-8px 0 32px rgba(0,0,0,0.5)',
+      boxShadow: isLeft ? '8px 0 32px rgba(15,23,42,0.18)' : '-8px 0 32px rgba(15,23,42,0.18)',
       display: 'flex',
       flexDirection: 'column',
       transition: `${drawerSlide} 0.3s cubic-bezier(0.4, 0, 0.2, 1)`,
@@ -602,29 +606,29 @@
     const drawerHeader = document.createElement('div');
     Object.assign(drawerHeader.style, {
       padding: '24px',
-      background: '#0F172A',
-      borderBottom: '1px solid rgba(34, 211, 238, 0.1)',
+      background: primaryColor,
+      borderBottom: '1px solid rgba(15,23,42,0.08)',
       display: 'flex',
       justifyContent: 'space-between',
       alignItems: 'center'
     });
     drawerHeader.innerHTML = `
       <div style="display: flex; align-items: center; gap: 10px;">
-        <div style="width: 6px; height: 6px; border-radius: 50%; background: #22D3EE; box-shadow: 0 0 10px #22D3EE;"></div>
-        <h3 style="margin:0; font-size: 14px; color: white; font-weight: 700; text-transform: uppercase; letter-spacing: 0.1em;">Select Language</h3>
+        <div style="width: 8px; height: 8px; border-radius: 999px; background: rgba(255,255,255,0.9); box-shadow: 0 0 0 4px rgba(255,255,255,0.15);"></div>
+        <h3 style="margin:0; font-size: 14px; color: #ffffff; font-weight: 800; letter-spacing: 0.04em;">Select Language</h3>
       </div>
     `;
 
     const closeDrawerBtn = document.createElement('button');
     closeDrawerBtn.innerHTML = '✕';
     Object.assign(closeDrawerBtn.style, {
-      border: '1px solid rgba(255,255,255,0.1)',
-      background: 'rgba(255,255,255,0.05)',
+      border: '1px solid rgba(255,255,255,0.25)',
+      background: 'rgba(255,255,255,0.12)',
       width: '32px',
       height: '32px',
       borderRadius: '8px',
       cursor: 'pointer',
-      color: 'white',
+      color: '#ffffff',
       fontSize: '12px',
       display: 'flex',
       alignItems: 'center',
@@ -632,12 +636,12 @@
       transition: 'all 0.2s'
     });
     closeDrawerBtn.onmouseover = () => {
-      closeDrawerBtn.style.background = 'rgba(255,255,255,0.1)';
-      closeDrawerBtn.style.borderColor = '#22D3EE';
+      closeDrawerBtn.style.background = 'rgba(255,255,255,0.18)';
+      closeDrawerBtn.style.borderColor = 'rgba(255,255,255,0.45)';
     };
     closeDrawerBtn.onmouseout = () => {
-      closeDrawerBtn.style.background = 'rgba(255,255,255,0.05)';
-      closeDrawerBtn.style.borderColor = 'rgba(255,255,255,0.1)';
+      closeDrawerBtn.style.background = 'rgba(255,255,255,0.12)';
+      closeDrawerBtn.style.borderColor = 'rgba(255,255,255,0.25)';
     };
 
     // Drawer Body (Language List)
@@ -647,16 +651,16 @@
       flex: '1',
       overflowY: 'auto',
       padding: '16px',
-      backgroundColor: '#0B0F17'
+      backgroundColor: '#ffffff'
     });
 
     // Drawer Footer (Branding)
     const drawerFooter = document.createElement('div');
     Object.assign(drawerFooter.style, {
       padding: '20px',
-      borderTop: '1px solid rgba(34, 211, 238, 0.1)',
+      borderTop: '1px solid rgba(15,23,42,0.08)',
       textAlign: 'center',
-      backgroundColor: '#0F172A'
+      backgroundColor: '#ffffff'
     });
     drawerFooter.innerHTML = `
       <p style="margin:0; font-size: 9px; color: #475569; text-transform: uppercase; letter-spacing: 0.1em;">Powered By</p>
@@ -694,15 +698,15 @@
       Object.assign(item.style, {
         width: '100%',
         padding: '12px 16px',
-        border: '1px solid rgba(255,255,255,0.05)',
-        background: 'rgba(255,255,255,0.02)',
+      border: '1px solid rgba(15,23,42,0.10)',
+      background: '#ffffff',
         display: 'flex',
         justifyContent: 'space-between',
         alignItems: 'center',
         cursor: 'pointer',
         fontSize: '13px',
         borderRadius: '10px',
-        color: '#94A3B8',
+      color: '#0F172A',
         transition: 'all 0.2s',
         marginBottom: '8px',
         fontFamily: 'inherit',
@@ -713,14 +717,14 @@
         closeDrawer();
       };
       item.onmouseover = () => {
-        item.style.backgroundColor = 'rgba(34, 211, 238, 0.05)';
-        item.style.borderColor = 'rgba(34, 211, 238, 0.3)';
-        item.style.color = '#22D3EE';
+      item.style.backgroundColor = primaryColor + '0f';
+      item.style.borderColor = primaryColor + '55';
+      item.style.color = primaryColor;
       };
       item.onmouseout = () => {
-        item.style.backgroundColor = 'rgba(255,255,255,0.02)';
-        item.style.borderColor = 'rgba(255,255,255,0.05)';
-        item.style.color = '#94A3B8';
+      item.style.backgroundColor = '#ffffff';
+      item.style.borderColor = 'rgba(15,23,42,0.10)';
+      item.style.color = '#0F172A';
       };
       drawerBody.appendChild(item);
     });
@@ -864,7 +868,14 @@
       var handoffSocket = null;
 
       const handleSend = async (optionalText) => {
-        const text = (optionalText != null ? String(optionalText).trim() : input.value.trim());
+        const isDomEvent =
+          optionalText &&
+          typeof optionalText === 'object' &&
+          (typeof optionalText.preventDefault === 'function' ||
+            typeof optionalText.stopPropagation === 'function' ||
+            (typeof Event !== 'undefined' && optionalText instanceof Event));
+
+        const text = (!isDomEvent && optionalText != null ? String(optionalText).trim() : input.value.trim());
         if (!text) return;
         input.value = '';
 
@@ -974,10 +985,11 @@
               if (obj.type === 'buttons' && Array.isArray(obj.buttons) && obj.buttons.length && streamEl) {
                 var wrap = document.createElement('div');
                 wrap.style.cssText = 'display:flex;flex-wrap:wrap;gap:8px;margin-top:10px;';
+                var themePrimary = (chatBody && chatBody.dataset && chatBody.dataset.primaryColor) || '#2563EB';
                 obj.buttons.slice(0, 8).forEach(function (b) {
                   var btn = document.createElement('button');
                   btn.textContent = b.label;
-                  btn.style.cssText = 'padding:6px 10px;border-radius:999px;border:1px solid rgba(148,163,184,0.35);background:rgba(15,23,42,0.35);color:#e2e8f0;cursor:pointer;font-size:12px;';
+                  btn.style.cssText = 'padding:6px 10px;border-radius:999px;border:1px solid ' + themePrimary + '55;background:' + themePrimary + '12;color:' + themePrimary + ';cursor:pointer;font-size:12px;';
                   btn.onclick = function () {
                     input.value = b.label;
                     sendBtn.click();
@@ -1015,7 +1027,8 @@
                     if (!q || typeof q !== 'string') return;
                     var qBtn = document.createElement('button');
                     qBtn.textContent = q;
-                    qBtn.style.cssText = 'padding:8px 14px;border:1px solid rgba(34,211,238,0.3);background:rgba(34,211,238,0.08);color:#22D3EE;border-radius:8px;font-size:13px;cursor:pointer;';
+                    var themePrimary = (chatBody && chatBody.dataset && chatBody.dataset.primaryColor) || '#2563EB';
+                    qBtn.style.cssText = 'padding:8px 14px;border:1px solid ' + themePrimary + '55;background:' + themePrimary + '12;color:' + themePrimary + ';border-radius:8px;font-size:13px;cursor:pointer;';
                     qBtn.onclick = function () { handleSend(q); qWrap.remove(); };
                     qWrap.appendChild(qBtn);
                   });
@@ -1037,10 +1050,11 @@
           if (err.name === 'AbortError') {
             var retryWrap = document.createElement('div');
             retryWrap.style.cssText = 'margin-top:8px;';
-            retryWrap.innerHTML = '<span style="color:#94A3B8;font-size:13px;">Connection interrupted. </span>';
+            retryWrap.innerHTML = '<span style="color:#64748B;font-size:13px;">Connection interrupted. </span>';
             var retryBtn = document.createElement('button');
             retryBtn.textContent = 'Retry';
-            retryBtn.style.cssText = 'background:rgba(34,211,238,0.2);color:#22D3EE;border:1px solid rgba(34,211,238,0.5);padding:6px 12px;border-radius:8px;cursor:pointer;font-size:13px;margin-left:8px;';
+            var themePrimary = (chatBody && chatBody.dataset && chatBody.dataset.primaryColor) || '#2563EB';
+            retryBtn.style.cssText = 'background:' + themePrimary + '12;color:' + themePrimary + ';border:1px solid ' + themePrimary + '55;padding:6px 12px;border-radius:8px;cursor:pointer;font-size:13px;margin-left:8px;';
             retryBtn.onclick = function () {
               retryWrap.remove();
               if (lastSentMessage) handleSend(lastSentMessage);
@@ -1050,10 +1064,11 @@
             chatBody.scrollTop = chatBody.scrollHeight;
           } else {
             var errWrap = document.createElement('div');
-            errWrap.innerHTML = '<span style="color:#94A3B8;">Network error. </span>';
+            errWrap.innerHTML = '<span style="color:#64748B;">Network error. </span>';
             var againBtn = document.createElement('button');
             againBtn.textContent = 'Retry';
-            againBtn.style.cssText = 'background:rgba(34,211,238,0.2);color:#22D3EE;border:1px solid rgba(34,211,238,0.5);padding:6px 12px;border-radius:8px;cursor:pointer;font-size:13px;margin-left:8px;';
+            var themePrimary = (chatBody && chatBody.dataset && chatBody.dataset.primaryColor) || '#2563EB';
+            againBtn.style.cssText = 'background:' + themePrimary + '12;color:' + themePrimary + ';border:1px solid ' + themePrimary + '55;padding:6px 12px;border-radius:8px;cursor:pointer;font-size:13px;margin-left:8px;';
             againBtn.onclick = function () {
               errWrap.remove();
               if (lastSentMessage) handleSend(lastSentMessage);
@@ -1065,7 +1080,7 @@
         }
       };
 
-      sendBtn.onclick = handleSend;
+      sendBtn.onclick = function () { handleSend(); };
       input.onkeypress = (e) => { if (e.key === 'Enter') handleSend(); };
 
       const welcomeText = data.widgetConfig?.welcomeMessage ||
@@ -1078,27 +1093,31 @@
         formWrap.id = 'chatbot-preachat-form';
         formWrap.style.cssText = 'padding: 16px;';
         const msg = (preChat.welcomeMessage || 'Please share your details to start.').trim();
-        formWrap.innerHTML = '<p style="color:#94A3B8;font-size:14px;margin-bottom:16px;">' + escapeHtml(msg) + '</p>';
+        formWrap.innerHTML = '<p style="color:#64748B;font-size:14px;margin-bottom:16px;">' + escapeHtml(msg) + '</p>';
         const form = document.createElement('form');
         form.style.cssText = 'display:flex;flex-direction:column;gap:12px;';
         preChat.fields.forEach(function (f) {
           const key = f.key || 'name';
           const lab = document.createElement('label');
           lab.textContent = f.label || key.charAt(0).toUpperCase() + key.slice(1);
-          lab.style.cssText = 'color:#94A3B8;font-size:12px;';
+          lab.style.cssText = 'color:#475569;font-size:12px;';
           const inp = document.createElement('input');
           inp.name = key;
           inp.type = key === 'email' ? 'email' : key === 'phone' ? 'tel' : 'text';
           inp.placeholder = key === 'email' ? 'you@example.com' : key === 'phone' ? 'Phone' : 'Name';
           inp.required = !!f.required;
-          inp.style.cssText = 'padding:10px 12px;border:1px solid rgba(255,255,255,0.1);background:rgba(255,255,255,0.03);border-radius:8px;color:#fff;font-size:14px;';
+          var themePrimary = (chatBody && chatBody.dataset && chatBody.dataset.primaryColor) || '#2563EB';
+          inp.style.cssText = 'padding:10px 12px;border:1px solid #E2E8F0;background:#ffffff;border-radius:8px;color:#0F172A;font-size:14px;outline:none;';
+          inp.onfocus = function () { inp.style.borderColor = themePrimary; inp.style.boxShadow = '0 0 0 4px ' + themePrimary + '1f'; };
+          inp.onblur = function () { inp.style.borderColor = '#E2E8F0'; inp.style.boxShadow = 'none'; };
           form.appendChild(lab);
           form.appendChild(inp);
         });
         const subBtn = document.createElement('button');
         subBtn.type = 'submit';
         subBtn.textContent = 'Start chat';
-        subBtn.style.cssText = 'padding:10px 16px;background:#22D3EE;color:#0B0F17;border:none;border-radius:8px;cursor:pointer;font-weight:600;';
+        var themePrimary = (chatBody && chatBody.dataset && chatBody.dataset.primaryColor) || '#2563EB';
+        subBtn.style.cssText = 'padding:10px 16px;background:' + themePrimary + ';color:#ffffff;border:none;border-radius:8px;cursor:pointer;font-weight:700;';
         form.appendChild(subBtn);
         formWrap.appendChild(form);
         chatBody.appendChild(formWrap);
