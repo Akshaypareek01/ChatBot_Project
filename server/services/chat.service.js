@@ -111,8 +111,8 @@ const handleChat = async (userId, message) => {
 
         if (cachedResponse) {
             console.log("Cache hit for query:", message);
-            // Deduct flat tokens for cached response (Discounted: 50% of Industry Avg)
-            await usageTracker.deductTokens(userId, 900, 'chat', 'Cached AI Response');
+            // Fixed 50 credits for cached response (half of a normal chat — cache hits cost us ~nothing).
+            await usageTracker.deductTokens(userId, usageTracker.CREDITS_PER_CACHED_CHAT, 'chat', 'Cached AI Response');
             return cachedResponse.answer;
         }
         // --- END CACHE LOGIC ---
@@ -158,12 +158,8 @@ ${contextText}`;
         if (!outputCheck.pass) answer = outputCheck.sanitized;
         const usage = completion.usage;
 
-        // 7. Deduct Tokens & Cache Answer
-        if (usage) {
-            await usageTracker.deductTokens(userId, usage.total_tokens, 'chat', 'AI Response');
-        } else {
-            await usageTracker.deductTokens(userId, 500, 'chat', 'AI Response');
-        }
+        // 7. Fixed-credit deduction (100/chat). Real OpenAI usage stays in `usage` for internal analytics.
+        await usageTracker.deductTokens(userId, usageTracker.CREDITS_PER_CHAT, 'chat', 'AI Response');
 
         // Store in cache
         await Cache.create({
@@ -250,9 +246,10 @@ const handleChatStream = async (userId, message, onChunk, onComplete, options = 
 
         if (cachedResponse) {
             for (const char of cachedResponse.answer) send({ type: 'token', content: char });
-            await usageTracker.deductTokens(userId, 900, 'chat', 'Cached AI Response');
-            send({ type: 'done', usage: 900 });
-            if (onComplete) await Promise.resolve(onComplete(null, cachedResponse.answer, 900));
+            const cachedCost = usageTracker.CREDITS_PER_CACHED_CHAT;
+            await usageTracker.deductTokens(userId, cachedCost, 'chat', 'Cached AI Response');
+            send({ type: 'done', usage: cachedCost });
+            if (onComplete) await Promise.resolve(onComplete(null, cachedResponse.answer, cachedCost));
             return;
         }
 
@@ -337,7 +334,8 @@ ${contextText}`;
 
         const outputCheck = guardrail.checkOutput(fullContent, { userId: userId?.toString() });
         const finalContent = outputCheck.pass ? fullContent : outputCheck.sanitized;
-        const toDeduct = totalTokens || 500;
+        // Fixed 100 credits/chat. `totalTokens` (real OpenAI usage) is kept in scope for future cost analytics.
+        const toDeduct = usageTracker.CREDITS_PER_CHAT;
         await usageTracker.deductTokens(userId, toDeduct, 'chat', 'AI Response');
 
         if (lowConfidence || /don't have this information|do not have/i.test(finalContent)) {

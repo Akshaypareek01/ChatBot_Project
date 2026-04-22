@@ -18,7 +18,7 @@ import LazyLoadSection from '@/components/landing/LazyLoadSection';
 
 const Index = () => {
   const [userData, setUserData] = useState<unknown | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
+  const [, setIsLoading] = useState(true);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -37,47 +37,33 @@ const Index = () => {
 
   return (
     <ChatProvider>
-      <div className="min-h-screen bg-[#F9FAFB] text-slate-900 font-sans selection:bg-primary/10 selection:text-primary">
+      <div className="min-h-screen bg-white text-slate-950 font-sans antialiased selection:bg-indigo-600/15 selection:text-indigo-700">
         <style dangerouslySetInnerHTML={{
           __html: `
-          @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap');
-          
-          .font-sans { font-family: 'Plus Jakarta Sans', sans-serif !important; }
-          .tracking-premium { letter-spacing: 0.025em; }
-          .tracking-button { letter-spacing: 0.05em; }
-          
-          .glass-card {
-            background: rgba(255, 255, 255, 0.4);
-            backdrop-filter: blur(12px);
-            border: 1px solid rgba(255, 255, 255, 0.7);
-          }
-          
-          .inner-glow {
-            box-shadow: inset 0 1px 1px rgba(255, 255, 255, 0.3), 0 4px 6px -1px rgba(79, 70, 229, 0.1);
-          }
-          
-          .aura-animation {
-            background: radial-gradient(circle, rgba(79, 70, 229, 0.15) 0%, rgba(255, 255, 255, 0) 70%);
-            filter: blur(60px);
-          }
+          @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap');
 
-          .shadow-premium {
-            box-shadow: 0 20px 40px -15px rgba(0,0,0,0.05);
-          }
+          html, body { font-family: 'Inter', 'Plus Jakarta Sans', ui-sans-serif, system-ui, -apple-system, sans-serif; }
+          .font-sans { font-family: 'Inter', 'Plus Jakarta Sans', ui-sans-serif, system-ui, -apple-system, sans-serif !important; }
 
-          @keyframes pulse-slow {
-            0%, 100% { opacity: 1; }
-            50% { opacity: 0.5; }
-          }
-          .animate-pulse-slow {
-            animation: pulse-slow 3s cubic-bezier(0.4, 0, 0.6, 1) infinite;
-          }
+          html { scroll-behavior: smooth; }
+
+          /* Subtle scrollbar */
+          ::-webkit-scrollbar { width: 10px; height: 10px; }
+          ::-webkit-scrollbar-thumb { background: rgba(15,23,42,0.12); border-radius: 8px; }
+          ::-webkit-scrollbar-thumb:hover { background: rgba(15,23,42,0.22); }
+
+          /* Premium focus ring */
+          :focus-visible { outline: 2px solid rgba(79,70,229,0.5); outline-offset: 2px; }
         `}} />
 
         <Header userData={userData} />
-        <ScrollProgress className="top-[80px]" />
+        <ScrollProgress className="top-[64px] h-[2px]" />
         <main>
           <Hero />
+
+          <LazyLoadSection>
+            <Compliance />
+          </LazyLoadSection>
 
           <LazyLoadSection>
             <Process />
@@ -88,15 +74,11 @@ const Index = () => {
           </LazyLoadSection>
 
           <LazyLoadSection>
-            <Pricing />
-          </LazyLoadSection>
-
-          <LazyLoadSection>
             <Industries />
           </LazyLoadSection>
 
           <LazyLoadSection>
-            <Compliance />
+            <Pricing />
           </LazyLoadSection>
 
           <LazyLoadSection>

@@ -1,14 +1,33 @@
 import React from 'react';
-import { Receipt, ShieldCheck, Lock, Globe } from 'lucide-react';
+import { ShieldCheck, Lock, FileCheck2, Globe2, KeyRound, ServerCog } from 'lucide-react';
+
+const badges = [
+    { icon: ShieldCheck, label: 'SOC 2 Type II' },
+    { icon: Lock, label: 'ISO 27001' },
+    { icon: FileCheck2, label: 'GDPR Aligned' },
+    { icon: KeyRound, label: 'DPDP Certified' },
+    { icon: ServerCog, label: 'Data Residency' },
+    { icon: Globe2, label: '99.99% SLA' },
+];
 
 const Compliance = () => {
     return (
-        <section className="py-16 border-y border-slate-100 bg-white">
-            <div className="max-w-[1440px] mx-auto px-5 sm:px-8 lg:px-20 flex flex-wrap justify-center items-center gap-8 sm:gap-12 lg:gap-24 opacity-40 grayscale transition-all hover:grayscale-0 hover:opacity-100">
-                <div className="flex items-center gap-3 text-[10px] font-bold uppercase tracking-[0.2em]"><Receipt className="w-4 h-4" /> GST Compliant</div>
-                <div className="flex items-center gap-3 text-[10px] font-bold uppercase tracking-[0.2em]"><ShieldCheck className="w-4 h-4" /> DPDP Certified</div>
-                <div className="flex items-center gap-3 text-[10px] font-bold uppercase tracking-[0.2em]"><Lock className="w-4 h-4" /> ISO 27001</div>
-                <div className="flex items-center gap-3 text-[10px] font-bold uppercase tracking-[0.2em]"><Globe className="w-4 h-4" /> Servers in India</div>
+        <section className="py-14 border-y border-slate-900/[0.06] bg-white">
+            <div className="max-w-[1200px] mx-auto px-5 sm:px-8">
+                <p className="text-center text-[11px] font-semibold uppercase tracking-[0.22em] text-slate-400 mb-8">
+                    Security &amp; compliance, by default
+                </p>
+                <div className="flex flex-wrap justify-center items-center gap-x-10 sm:gap-x-14 gap-y-5">
+                    {badges.map(({ icon: Icon, label }) => (
+                        <div
+                            key={label}
+                            className="flex items-center gap-2 text-slate-500 hover:text-slate-900 transition-colors"
+                        >
+                            <Icon className="w-4 h-4" strokeWidth={1.75} />
+                            <span className="text-[12px] font-semibold tracking-tight">{label}</span>
+                        </div>
+                    ))}
+                </div>
             </div>
         </section>
     );

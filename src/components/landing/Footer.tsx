@@ -2,28 +2,100 @@ import React from 'react';
 import { Link } from 'react-router-dom';
 
 const Footer = () => {
+    const year = new Date().getFullYear();
+
+    const cols = [
+        {
+            title: 'Product',
+            links: [
+                { label: 'Overview', href: '#benefits' },
+                { label: 'How it works', href: '#how-it-works' },
+                { label: 'Pricing', href: '#pricing' },
+                { label: 'Industries', href: '#industries' },
+            ],
+        },
+        {
+            title: 'Company',
+            links: [
+                { label: 'About', href: 'https://nvhotech.com/', external: true },
+                { label: 'Contact', href: 'https://nvhotech.com/book-appointment', external: true },
+                { label: 'Careers', href: '#' },
+                { label: 'Press', href: '#' },
+            ],
+        },
+        {
+            title: 'Resources',
+            links: [
+                { label: 'Documentation', href: '#' },
+                { label: 'Changelog', href: '#' },
+                { label: 'Security', href: '#' },
+                { label: 'Status', href: '#' },
+            ],
+        },
+        {
+            title: 'Legal',
+            links: [
+                { label: 'Privacy Policy', href: '#' },
+                { label: 'Terms of Service', href: '#' },
+                { label: 'DPA', href: '#' },
+                { label: 'Cookies', href: '#' },
+            ],
+        },
+    ];
+
     return (
-        <footer className="py-16 sm:py-20 lg:py-24 border-t border-slate-100 bg-white">
-            <div className="max-w-[1440px] mx-auto px-5 sm:px-8 lg:px-20 flex flex-col md:flex-row justify-between items-center gap-10 sm:gap-12 text-center md:text-left">
-                <div className="flex items-center gap-2.5">
-                    <div className="bg-primary p-1 rounded-lg">
-                        <span className="material-symbols-outlined text-white text-lg font-variation-FILL-1">bubble_chart</span>
+        <footer className="border-t border-slate-900/[0.06] bg-white">
+            <div className="max-w-[1200px] mx-auto px-5 sm:px-8 py-16">
+                <div className="grid grid-cols-2 md:grid-cols-5 gap-10 lg:gap-16">
+                    {/* Brand */}
+                    <div className="col-span-2 md:col-span-1">
+                        <Link to="/" className="flex items-center gap-2">
+                            <div className="w-7 h-7 rounded-md bg-slate-900 flex items-center justify-center">
+                                <svg viewBox="0 0 24 24" className="w-4 h-4 text-white" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                                    <path d="M12 2L2 7l10 5 10-5-10-5z" />
+                                    <path d="M2 17l10 5 10-5" />
+                                    <path d="M2 12l10 5 10-5" />
+                                </svg>
+                            </div>
+                            <span className="text-[15px] font-semibold tracking-tight text-slate-900">IndicBot</span>
+                        </Link>
+                        <p className="mt-4 text-[13px] text-slate-500 leading-relaxed max-w-xs">
+                            Enterprise AI agents, engineered for global teams.
+                        </p>
                     </div>
-                    <span className="text-lg font-bold tracking-tight">IndicBot.ai</span>
+
+                    {cols.map((col) => (
+                        <div key={col.title}>
+                            <h4 className="text-[12px] font-semibold uppercase tracking-[0.14em] text-slate-900 mb-4">
+                                {col.title}
+                            </h4>
+                            <ul className="space-y-3">
+                                {col.links.map((link) => (
+                                    <li key={link.label}>
+                                        <a
+                                            href={link.href}
+                                            target={link.external ? '_blank' : undefined}
+                                            rel={link.external ? 'noreferrer' : undefined}
+                                            className="text-[13px] text-slate-500 hover:text-slate-900 transition-colors"
+                                        >
+                                            {link.label}
+                                        </a>
+                                    </li>
+                                ))}
+                            </ul>
+                        </div>
+                    ))}
                 </div>
 
-                <nav className="flex flex-wrap justify-center items-center gap-8 text-[10px] font-bold uppercase tracking-widest text-slate-500">
-                    <a className="hover:text-primary transition-colors" href="#how-it-works">Process</a>
-                    <a className="hover:text-primary transition-colors" href="#benefits">Features</a>
-                    <a className="hover:text-primary transition-colors" href="#pricing">Pricing</a>
-                    <Link className="hover:text-primary transition-colors" to="/login">Login</Link>
-                </nav>
-
-                <div className="flex flex-col md:flex-row items-center gap-8">
-                    <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400">© 2024 NVHO TECH PVT LTD. All rights reserved.</p>
-                    <div className="flex gap-6 text-[10px] font-bold uppercase tracking-widest text-slate-400">
-                        <a className="hover:text-primary transition-colors" href="#">Privacy Policy</a>
-                        <a className="hover:text-primary transition-colors" href="#">Terms of Service</a>
+                <div className="mt-14 pt-8 border-t border-slate-900/[0.06] flex flex-col sm:flex-row justify-between items-center gap-4">
+                    <p className="text-[12px] text-slate-500">
+                        © {year} NVHO TECH PVT LTD. All rights reserved.
+                    </p>
+                    <div className="flex items-center gap-4">
+                        <span className="inline-flex items-center gap-1.5 text-[12px] text-slate-500">
+                            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                            All systems operational
+                        </span>
                     </div>
                 </div>
             </div>

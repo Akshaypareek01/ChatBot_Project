@@ -1,156 +1,144 @@
 import React from 'react';
-import { Link } from 'react-router-dom';
-import { CheckCircle } from 'lucide-react';
+import { motion } from 'framer-motion';
+import { Check } from 'lucide-react';
+
+type Plan = {
+    tag: string;
+    name: string;
+    priceMasked: string;
+    tokens: string;
+    chats: string;
+    features: string[];
+    featured?: boolean;
+};
+
+const plans: Plan[] = [
+    {
+        tag: 'Starter',
+        name: 'Budget',
+        priceMasked: '₹49',
+        tokens: '122,500 tokens',
+        chats: '~68 AI chats',
+        features: ['Domain security', 'PDF & link training', 'Email support'],
+    },
+    {
+        tag: 'Growth',
+        name: 'Popular',
+        priceMasked: '₹99',
+        tokens: '247,500 tokens',
+        chats: '~137 AI chats',
+        features: ['Operations console', 'Smart analytics', 'Priority email support'],
+    },
+    {
+        tag: 'Scale',
+        name: 'Professional',
+        priceMasked: '₹199',
+        tokens: '522,375 tokens',
+        chats: '~290 AI chats',
+        features: ['24/7 autonomous resolution', 'Evaluations & versioning', 'Dedicated onboarding'],
+        featured: true,
+    },
+    {
+        tag: 'Enterprise',
+        name: 'Enterprise',
+        priceMasked: '₹499',
+        tokens: '1,372,250 tokens',
+        chats: '~762 AI chats',
+        features: ['Data residency & BYOK', 'SSO / SAML', 'Solutions engineer'],
+    },
+];
 
 const Pricing = () => {
-    /** Appointment page used for "discuss pricing" CTAs. */
     const appointmentUrl = 'https://nvhotech.com/book-appointment';
 
     return (
-        <section className="py-20 sm:py-28 lg:py-32 bg-white" id="pricing">
-            <div className="max-w-[1440px] mx-auto px-5 sm:px-8 lg:px-20">
-                <div className="text-center mb-24">
-                    <h2 className="text-[10px] font-bold uppercase tracking-[0.3em] text-primary mb-6">Investment</h2>
-                    <h3 className="text-4xl lg:text-5xl font-bold tracking-tight text-slate-900">Plans, tailored pricing</h3>
-                    <p className="mt-6 text-sm text-slate-500 max-w-2xl mx-auto">
-                        See what’s included. For pricing, let’s align on your traffic, use-case, and support needs.
+        <section className="py-24 sm:py-32 bg-[#FAFAFA]" id="pricing">
+            <div className="max-w-[1200px] mx-auto px-5 sm:px-8">
+                <div className="max-w-2xl mx-auto text-center mb-16">
+                    <div className="inline-flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-indigo-600 mb-5">
+                        <span className="w-6 h-px bg-indigo-600" /> Pricing
+                    </div>
+                    <h2 className="text-3xl sm:text-5xl font-semibold tracking-[-0.02em] text-slate-950 leading-[1.05]">
+                        Transparent pricing, calibrated to usage.
+                    </h2>
+                    <p className="mt-5 text-base text-slate-600 leading-relaxed">
+                        Pay only for successful interactions. Credits never expire and carry forward on every recharge.
                     </p>
                 </div>
 
-                <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6 items-start">
-                    {/* Budget Plan */}
-                    <div className="p-8 rounded-[2.5rem] border border-slate-100 bg-white hover:border-primary/20 transition-all shadow-sm hover:shadow-md h-full flex flex-col">
-                        <div className="mb-8">
-                            <span className="text-[10px] font-bold uppercase tracking-[0.2em] text-slate-400">Budget</span>
-                            <div className="flex items-baseline gap-1 mt-4">
-                                <span
-                                    className="text-3xl font-bold text-slate-900 blur-[6px] select-none"
-                                    aria-label="Price hidden"
-                                >
-                                    ₹49
-                                </span>
-                                <span className="text-slate-400 text-[10px] font-medium uppercase tracking-wider blur-[4px] select-none" aria-hidden="true">/ Credits</span>
-                            </div>
-                            <div className="mt-2 text-primary text-[10px] font-bold uppercase tracking-wider">122,500 Tokens</div>
-                        </div>
-                        <ul className="space-y-4 mb-8 flex-grow">
-                            <li className="flex items-center gap-3 text-[11px] font-medium text-slate-500">
-                                <CheckCircle className="text-primary/40 w-3.5 h-3.5" /> ~68 AI Chats
-                            </li>
-                            <li className="flex items-center gap-3 text-[11px] font-medium text-slate-500">
-                                <CheckCircle className="text-primary/40 w-3.5 h-3.5" /> Domain Security
-                            </li>
-                            <li className="flex items-center gap-3 text-[11px] font-medium text-slate-500">
-                                <CheckCircle className="text-primary/40 w-3.5 h-3.5" /> PDF & Link Training
-                            </li>
-                        </ul>
-                    </div>
+                <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-4 items-stretch">
+                    {plans.map((plan, i) => (
+                        <motion.div
+                            key={plan.tag}
+                            initial={{ opacity: 0, y: 14 }}
+                            whileInView={{ opacity: 1, y: 0 }}
+                            viewport={{ once: true, margin: '-60px' }}
+                            transition={{ duration: 0.45, delay: i * 0.05, ease: 'easeOut' }}
+                            className={`relative flex flex-col p-7 rounded-xl bg-white border transition-all ${
+                                plan.featured
+                                    ? 'border-slate-900 shadow-[0_20px_50px_-20px_rgba(15,23,42,0.25)]'
+                                    : 'border-slate-900/[0.08] hover:border-slate-900/20'
+                            }`}
+                        >
+                            {plan.featured && (
+                                <div className="absolute -top-3 left-1/2 -translate-x-1/2 bg-slate-900 text-white text-[10px] font-semibold uppercase tracking-[0.18em] px-3 py-1 rounded-full">
+                                    Most popular
+                                </div>
+                            )}
 
-                    {/* Popular Plan */}
-                    <div className="p-8 rounded-[2.5rem] border border-slate-100 bg-white hover:border-primary/20 transition-all shadow-sm hover:shadow-md h-full flex flex-col">
-                        <div className="mb-8">
-                            <span className="text-[10px] font-bold uppercase tracking-[0.2em] text-primary">Popular</span>
-                            <div className="flex items-baseline gap-1 mt-4">
-                                <span
-                                    className="text-3xl font-bold text-slate-900 blur-[6px] select-none"
-                                    aria-label="Price hidden"
-                                >
-                                    ₹99
-                                </span>
-                                <span className="text-slate-400 text-[10px] font-medium uppercase tracking-wider blur-[4px] select-none" aria-hidden="true">/ Credits</span>
+                            <div className="mb-6">
+                                <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
+                                    {plan.tag}
+                                </div>
+                                <div className="mt-4 flex items-baseline gap-1">
+                                    <span className="text-3xl font-semibold text-slate-950 blur-[6px] select-none" aria-label="Price hidden">
+                                        {plan.priceMasked}
+                                    </span>
+                                    <span className="text-[11px] font-medium uppercase tracking-wider text-slate-400 blur-[4px] select-none" aria-hidden>
+                                        / credit pack
+                                    </span>
+                                </div>
+                                <div className="mt-2 text-[12px] font-medium text-indigo-600">
+                                    {plan.tokens} · {plan.chats}
+                                </div>
                             </div>
-                            <div className="mt-2 text-primary text-[10px] font-bold uppercase tracking-wider">247,500 Tokens</div>
-                        </div>
-                        <ul className="space-y-4 mb-8 flex-grow">
-                            <li className="flex items-center gap-3 text-[11px] font-medium text-slate-500">
-                                <CheckCircle className="text-primary/40 w-3.5 h-3.5" /> ~137 AI Chats
-                            </li>
-                            <li className="flex items-center gap-3 text-[11px] font-medium text-slate-500">
-                                <CheckCircle className="text-primary/40 w-3.5 h-3.5" /> Premium Dashboard
-                            </li>
-                            <li className="flex items-center gap-3 text-[11px] font-medium text-slate-500">
-                                <CheckCircle className="text-primary/40 w-3.5 h-3.5" /> Smart Analytics
-                            </li>
-                        </ul>
-                    </div>
 
-                    {/* Professional Plan */}
-                    <div className="p-10 rounded-[2.5rem] border border-primary/20 bg-white shadow-2xl shadow-primary/5 relative z-10 group h-full flex flex-col scale-105">
-                        <div className="absolute inset-0 bg-primary/5 opacity-0 group-hover:opacity-100 transition-opacity rounded-[2.5rem]"></div>
-                        <div className="absolute -top-4 left-1/2 -translate-x-1/2 bg-primary text-white px-5 py-2 rounded-full text-[10px] font-bold uppercase tracking-[0.2em] shadow-lg shadow-primary/30 inner-glow whitespace-nowrap">
-                            Best Value
-                        </div>
-                        <div className="mb-8 relative">
-                            <span className="text-[10px] font-bold uppercase tracking-[0.2em] text-primary">Professional</span>
-                            <div className="flex items-baseline gap-1 mt-4">
-                                <span
-                                    className="text-4xl font-bold text-slate-900 blur-[6px] select-none"
-                                    aria-label="Price hidden"
-                                >
-                                    ₹199
-                                </span>
-                                <span className="text-slate-400 text-[10px] font-medium uppercase tracking-wider blur-[4px] select-none" aria-hidden="true">/ Credits</span>
-                            </div>
-                            <div className="mt-2 text-green-600 text-[10px] font-bold uppercase tracking-wider">522,375 Tokens</div>
-                        </div>
-                        <ul className="space-y-4 mb-8 relative flex-grow">
-                            <li className="flex items-center gap-3 text-[11px] font-medium text-slate-600">
-                                <CheckCircle className="text-primary w-3.5 h-3.5" /> ~290 AI Chats
-                            </li>
-                            <li className="flex items-center gap-3 text-[11px] font-medium text-slate-600">
-                                <CheckCircle className="text-primary w-3.5 h-3.5" /> 24/7 Intelligence
-                            </li>
-                            <li className="flex items-center gap-3 text-[11px] font-medium text-slate-600">
-                                <CheckCircle className="text-primary w-3.5 h-3.5" /> Full Features
-                            </li>
-                        </ul>
-                    </div>
+                            <ul className="space-y-3 mb-6 flex-grow">
+                                {plan.features.map((f) => (
+                                    <li key={f} className="flex items-start gap-2.5 text-[13px] text-slate-600">
+                                        <Check className="w-4 h-4 text-slate-900 shrink-0 mt-0.5" strokeWidth={2.5} />
+                                        <span>{f}</span>
+                                    </li>
+                                ))}
+                            </ul>
 
-                    {/* Enterprise Plan */}
-                    <div className="p-8 rounded-[2.5rem] border border-slate-100 bg-white hover:border-primary/20 transition-all shadow-sm hover:shadow-md h-full flex flex-col">
-                        <div className="mb-8">
-                            <span className="text-[10px] font-bold uppercase tracking-[0.2em] text-slate-400">Enterprise</span>
-                            <div className="flex items-baseline gap-1 mt-4">
-                                <span
-                                    className="text-3xl font-bold text-slate-900 blur-[6px] select-none"
-                                    aria-label="Price hidden"
-                                >
-                                    ₹499
-                                </span>
-                                <span className="text-slate-400 text-[10px] font-medium uppercase tracking-wider blur-[4px] select-none" aria-hidden="true">/ Credits</span>
-                            </div>
-                            <div className="mt-2 text-green-600 text-[10px] font-bold uppercase tracking-wider">1,372,250 Tokens</div>
-                        </div>
-                        <ul className="space-y-4 mb-8 flex-grow">
-                            <li className="flex items-center gap-3 text-[11px] font-medium text-slate-500">
-                                <CheckCircle className="text-primary/40 w-3.5 h-3.5" /> ~762 AI Chats
-                            </li>
-                            <li className="flex items-center gap-3 text-[11px] font-medium text-slate-500">
-                                <CheckCircle className="text-primary/40 w-3.5 h-3.5" /> Priority Support
-                            </li>
-                            <li className="flex items-center gap-3 text-[11px] font-medium text-slate-500">
-                                <CheckCircle className="text-primary/40 w-3.5 h-3.5" /> Expert Guidance
-                            </li>
-                        </ul>
-                    </div>
+                            <a
+                                href={appointmentUrl}
+                                target="_blank"
+                                rel="noreferrer"
+                                className={`inline-flex items-center justify-center h-10 px-4 rounded-md text-[13px] font-medium transition-colors ${
+                                    plan.featured
+                                        ? 'bg-slate-900 text-white hover:bg-slate-800'
+                                        : 'bg-white border border-slate-900/10 text-slate-900 hover:bg-slate-50 hover:border-slate-900/20'
+                                }`}
+                            >
+                                Discuss pricing
+                            </a>
+                        </motion.div>
+                    ))}
                 </div>
 
-                <div className="mt-16 flex flex-col items-center gap-4">
+                <div className="mt-12 flex flex-col sm:flex-row items-center justify-center gap-3 text-[13px]">
+                    <span className="text-slate-500">Need volume pricing or a custom contract?</span>
                     <a
                         href={appointmentUrl}
                         target="_blank"
                         rel="noreferrer"
-                        className="w-full sm:w-auto inline-flex items-center justify-center px-10 py-4 rounded-full bg-primary text-white text-[10px] sm:text-xs font-bold uppercase tracking-button shadow-lg shadow-primary/25 inner-glow hover:bg-indigo-700 transition-all hover:scale-[1.02]"
-                        aria-label="Book an appointment to discuss pricing"
+                        className="font-medium text-slate-900 hover:text-indigo-600 transition-colors inline-flex items-center gap-1"
                     >
-                        Let’s discuss pricing
+                        Talk to our team
+                        <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M5 12h14" /><path d="m12 5 7 7-7 7" /></svg>
                     </a>
-                    <p className="text-xs font-medium text-slate-600 bg-primary/5 border border-primary/10 px-6 py-3 rounded-full">
-                        Need exact pricing? <span className="text-primary font-bold uppercase tracking-widest ml-2">Let’s discuss your volume & setup</span>
-                    </p>
-                    <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-slate-400">
-                        * Tokens never expire and carry forward on recharge
-                    </p>
                 </div>
             </div>
         </section>
