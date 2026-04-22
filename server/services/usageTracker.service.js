@@ -17,6 +17,7 @@ const CREDITS_PER_CACHED_CHAT = 50; // Half — cache hits cost us ~₹0
 const CREDITS_PER_UPLOAD = 500;     // Embedding + parsing
 const CREDITS_PER_SCRAPE = 200;     // Crawl + embedding
 const CREDITS_REFERRAL_BONUS = 500; // 5 free chats for sponsor
+const FREE_TRIAL_CREDITS = 500;     // 5 free chats on signup (enough to evaluate)
 const LOW_BALANCE_THRESHOLD = 300;  // ~3 chats remaining
 const MIN_RECHARGE_INR = 99;
 
@@ -162,6 +163,7 @@ module.exports = {
     CREDITS_PER_UPLOAD,
     CREDITS_PER_SCRAPE,
     CREDITS_REFERRAL_BONUS,
+    FREE_TRIAL_CREDITS,
     LOW_BALANCE_THRESHOLD,
     MIN_RECHARGE_INR,
     // Legacy export alias (kept for backwards compatibility with callers expecting it).

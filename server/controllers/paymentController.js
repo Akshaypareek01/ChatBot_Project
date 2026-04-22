@@ -21,8 +21,8 @@ const createOrder = async (req, res) => {
     try {
         const { amount, couponCode } = req.body;
 
-        if (!amount || amount < 49) {
-            return res.status(400).json({ message: 'Minimum recharge amount is ₹49' });
+        if (!amount || amount < usageTracker.MIN_RECHARGE_INR) {
+            return res.status(400).json({ message: `Minimum recharge amount is ₹${usageTracker.MIN_RECHARGE_INR}` });
         }
 
         const user = await User.findById(req.userId);
@@ -39,13 +39,13 @@ const createOrder = async (req, res) => {
                 return res.status(400).json({ message: couponResult.message });
             }
             discountAmount = couponResult.discountAmount;
-            orderAmount = Math.max(49, amount - discountAmount);
+            orderAmount = Math.max(usageTracker.MIN_RECHARGE_INR, amount - discountAmount);
             couponId = couponResult.coupon._id;
         }
 
         const orderId = 'order_' + Date.now() + '_' + Math.random().toString(36).substring(2, 15);
 
-        const tokens = orderAmount * usageTracker.TOKENS_PER_INR;
+        const tokens = usageTracker.computeCreditsForAmount(orderAmount);
         const transaction = new Transaction({
             userId: user._id,
             orderId,
@@ -180,10 +180,10 @@ const callback = async (req, res) => {
             console.log(`Final Payment Status for ${orderId}: ${paymentStatus}`);
 
             if (paymentStatus.toUpperCase() === "SUCCESS") {
-                // **TOKEN RECHARGE LOGIC**
+                // **CREDIT RECHARGE LOGIC (tier-based)**
                 await usageTracker.rechargeTokens(transaction.userId, transaction.amount);
 
-                transaction.tokens = transaction.amount * usageTracker.TOKENS_PER_INR;
+                transaction.tokens = usageTracker.computeCreditsForAmount(transaction.amount);
                 transaction.status = 'success';
                 transaction.invoiceNumber = await invoiceService.assignInvoiceNumber(transaction._id);
                 transaction.invoiceGenerated = true;
@@ -196,8 +196,7 @@ const callback = async (req, res) => {
                 const payerId = transaction.userId?._id || transaction.userId;
                 const referredUser = await User.findById(payerId).select('referredBy referralCreditedAt').lean();
                 if (referredUser?.referredBy && !referredUser.referralCreditedAt) {
-                    const REFERRAL_CREDIT_TOKENS = 5000;
-                    await usageTracker.addBonusTokens(referredUser.referredBy, REFERRAL_CREDIT_TOKENS);
+                    await usageTracker.addBonusTokens(referredUser.referredBy, usageTracker.CREDITS_REFERRAL_BONUS);
                     await User.updateOne({ _id: payerId }, { $set: { referralCreditedAt: new Date() } });
                 }
 
@@ -267,9 +266,9 @@ const simulatePayment = async (req, res) => {
         await transaction.save();
 
         if (transaction.status === 'success') {
-            // **TOKEN RECHARGE LOGIC**
+            // **CREDIT RECHARGE LOGIC (tier-based)**
             await usageTracker.rechargeTokens(transaction.userId, transaction.amount);
-            transaction.tokens = transaction.amount * usageTracker.TOKENS_PER_INR;
+            transaction.tokens = usageTracker.computeCreditsForAmount(transaction.amount);
             transaction.invoiceNumber = await invoiceService.assignInvoiceNumber(transaction._id);
             transaction.invoiceGenerated = true;
             await transaction.save();

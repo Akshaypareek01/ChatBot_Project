@@ -146,12 +146,12 @@ const UserDashboardHome = () => {
             <Wallet className="h-4 w-4 text-primary" />
           </CardHeader>
           <CardContent>
-            <div className={`text-3xl font-black ${userData?.tokenBalance < 25000 ? 'text-destructive animate-pulse' : 'text-foreground'}`}>
+            <div className={`text-3xl font-black ${userData?.tokenBalance < 500 ? 'text-destructive animate-pulse' : 'text-foreground'}`}>
               {userData?.tokenBalance?.toLocaleString() || 0}
             </div>
             <p className="text-xs text-muted-foreground mt-1 flex items-center gap-1 font-medium">
-              {userData?.tokenBalance < 25000 && <AlertTriangle className="h-3 w-3" />}
-              Approx. <span className="text-primary font-bold">{Math.floor((userData?.tokenBalance || 0) / 1800)} Chats</span> Remaining
+              {userData?.tokenBalance < 500 && <AlertTriangle className="h-3 w-3" />}
+              Approx. <span className="text-primary font-bold">{Math.floor((userData?.tokenBalance || 0) / 100)} Chats</span> Remaining
             </p>
           </CardContent>
         </Card>

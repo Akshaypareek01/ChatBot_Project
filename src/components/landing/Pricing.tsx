@@ -1,56 +1,64 @@
 import React from 'react';
+import { Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { Check } from 'lucide-react';
+import { Check, ArrowRight } from 'lucide-react';
 
 type Plan = {
-    tag: string;
     name: string;
-    priceMasked: string;
-    tokens: string;
-    chats: string;
+    price: number;
+    credits: number;
+    chats: number;
+    savings?: string;
+    badge?: string;
     features: string[];
     featured?: boolean;
 };
 
+/**
+ * Canonical landing pricing. Mirrors server/services/usageTracker.service.js PRICING_TIERS.
+ * Keep these in sync if tiers change.
+ */
 const plans: Plan[] = [
     {
-        tag: 'Starter',
-        name: 'Budget',
-        priceMasked: '₹49',
-        tokens: '122,500 tokens',
-        chats: '~68 AI chats',
-        features: ['Domain security', 'PDF & link training', 'Email support'],
+        name: 'Starter',
+        price: 99,
+        credits: 2_500,
+        chats: 25,
+        features: ['25 AI chats', 'Domain whitelisting', 'PDF & URL training', 'Email support'],
     },
     {
-        tag: 'Growth',
-        name: 'Popular',
-        priceMasked: '₹99',
-        tokens: '247,500 tokens',
-        chats: '~137 AI chats',
-        features: ['Operations console', 'Smart analytics', 'Priority email support'],
+        name: 'Growth',
+        price: 299,
+        credits: 9_000,
+        chats: 90,
+        savings: 'Save 16%',
+        badge: 'Most popular',
+        features: ['90 AI chats', 'Operations console', 'Smart analytics', 'Priority email'],
     },
     {
-        tag: 'Scale',
-        name: 'Professional',
-        priceMasked: '₹199',
-        tokens: '522,375 tokens',
-        chats: '~290 AI chats',
-        features: ['24/7 autonomous resolution', 'Evaluations & versioning', 'Dedicated onboarding'],
+        name: 'Scale',
+        price: 799,
+        credits: 28_000,
+        chats: 280,
+        savings: 'Save 28%',
+        badge: 'Best value',
+        features: ['280 AI chats', 'Evaluations & versioning', 'Dedicated onboarding', 'Webhooks & API'],
         featured: true,
     },
     {
-        tag: 'Enterprise',
-        name: 'Enterprise',
-        priceMasked: '₹499',
-        tokens: '1,372,250 tokens',
-        chats: '~762 AI chats',
-        features: ['Data residency & BYOK', 'SSO / SAML', 'Solutions engineer'],
+        name: 'Business',
+        price: 1_999,
+        credits: 80_000,
+        chats: 800,
+        savings: 'Save 37%',
+        features: ['800 AI chats', 'SSO / SAML ready', 'Data residency on request', 'Solutions engineer'],
     },
 ];
 
-const Pricing = () => {
-    const appointmentUrl = 'https://nvhotech.com/book-appointment';
+const formatINR = (n: number) => `₹${n.toLocaleString('en-IN')}`;
+const formatNum = (n: number) => n.toLocaleString('en-IN');
 
+const Pricing = () => {
     return (
         <section className="py-24 sm:py-32 bg-[#FAFAFA]" id="pricing">
             <div className="max-w-[1200px] mx-auto px-5 sm:px-8">
@@ -59,7 +67,7 @@ const Pricing = () => {
                         <span className="w-6 h-px bg-indigo-600" /> Pricing
                     </div>
                     <h2 className="text-3xl sm:text-5xl font-semibold tracking-[-0.02em] text-slate-950 leading-[1.05]">
-                        Transparent pricing, calibrated to usage.
+                        Transparent pricing. Scales with you.
                     </h2>
                     <p className="mt-5 text-base text-slate-600 leading-relaxed">
                         Pay only for successful interactions. Credits never expire and carry forward on every recharge.
@@ -69,7 +77,7 @@ const Pricing = () => {
                 <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-4 items-stretch">
                     {plans.map((plan, i) => (
                         <motion.div
-                            key={plan.tag}
+                            key={plan.name}
                             initial={{ opacity: 0, y: 14 }}
                             whileInView={{ opacity: 1, y: 0 }}
                             viewport={{ once: true, margin: '-60px' }}
@@ -77,29 +85,47 @@ const Pricing = () => {
                             className={`relative flex flex-col p-7 rounded-xl bg-white border transition-all ${
                                 plan.featured
                                     ? 'border-slate-900 shadow-[0_20px_50px_-20px_rgba(15,23,42,0.25)]'
-                                    : 'border-slate-900/[0.08] hover:border-slate-900/20'
+                                    : 'border-slate-900/[0.08] hover:border-slate-900/20 hover:shadow-[0_12px_30px_-20px_rgba(15,23,42,0.15)]'
                             }`}
                         >
-                            {plan.featured && (
-                                <div className="absolute -top-3 left-1/2 -translate-x-1/2 bg-slate-900 text-white text-[10px] font-semibold uppercase tracking-[0.18em] px-3 py-1 rounded-full">
-                                    Most popular
+                            {plan.badge && (
+                                <div
+                                    className={`absolute -top-3 left-1/2 -translate-x-1/2 text-[10px] font-semibold uppercase tracking-[0.18em] px-3 py-1 rounded-full ${
+                                        plan.featured
+                                            ? 'bg-slate-900 text-white'
+                                            : 'bg-indigo-600 text-white'
+                                    }`}
+                                >
+                                    {plan.badge}
                                 </div>
                             )}
 
                             <div className="mb-6">
-                                <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
-                                    {plan.tag}
+                                <div className="flex items-center justify-between">
+                                    <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
+                                        {plan.name}
+                                    </div>
+                                    {plan.savings && (
+                                        <span className="text-[10px] font-semibold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full">
+                                            {plan.savings}
+                                        </span>
+                                    )}
                                 </div>
-                                <div className="mt-4 flex items-baseline gap-1">
-                                    <span className="text-3xl font-semibold text-slate-950 blur-[6px] select-none" aria-label="Price hidden">
-                                        {plan.priceMasked}
+                                <div className="mt-4 flex items-baseline gap-1.5">
+                                    <span className="text-4xl font-semibold tracking-[-0.02em] text-slate-950">
+                                        {formatINR(plan.price)}
                                     </span>
-                                    <span className="text-[11px] font-medium uppercase tracking-wider text-slate-400 blur-[4px] select-none" aria-hidden>
-                                        / credit pack
+                                    <span className="text-[12px] font-medium text-slate-400">
+                                        one-time
                                     </span>
                                 </div>
-                                <div className="mt-2 text-[12px] font-medium text-indigo-600">
-                                    {plan.tokens} · {plan.chats}
+                                <div className="mt-3 flex flex-col gap-0.5 text-[12.5px]">
+                                    <span className="font-semibold text-slate-900">
+                                        {formatNum(plan.chats)} AI chats
+                                    </span>
+                                    <span className="text-slate-500">
+                                        {formatNum(plan.credits)} credits · 100 / chat
+                                    </span>
                                 </div>
                             </div>
 
@@ -112,34 +138,37 @@ const Pricing = () => {
                                 ))}
                             </ul>
 
-                            <a
-                                href={appointmentUrl}
-                                target="_blank"
-                                rel="noreferrer"
+                            <Link
+                                to="/register"
                                 className={`inline-flex items-center justify-center h-10 px-4 rounded-md text-[13px] font-medium transition-colors ${
                                     plan.featured
                                         ? 'bg-slate-900 text-white hover:bg-slate-800'
                                         : 'bg-white border border-slate-900/10 text-slate-900 hover:bg-slate-50 hover:border-slate-900/20'
                                 }`}
                             >
-                                Discuss pricing
-                            </a>
+                                Get {plan.name}
+                                <ArrowRight className="ml-1.5 w-3.5 h-3.5" />
+                            </Link>
                         </motion.div>
                     ))}
                 </div>
 
-                <div className="mt-12 flex flex-col sm:flex-row items-center justify-center gap-3 text-[13px]">
-                    <span className="text-slate-500">Need volume pricing or a custom contract?</span>
+                <div className="mt-10 flex flex-col sm:flex-row items-center justify-center gap-3 text-[13px]">
+                    <span className="text-slate-500">Need a custom volume or procurement contract?</span>
                     <a
-                        href={appointmentUrl}
+                        href="https://nvhotech.com/book-appointment"
                         target="_blank"
                         rel="noreferrer"
                         className="font-medium text-slate-900 hover:text-indigo-600 transition-colors inline-flex items-center gap-1"
                     >
                         Talk to our team
-                        <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M5 12h14" /><path d="m12 5 7 7-7 7" /></svg>
+                        <ArrowRight className="w-3.5 h-3.5" />
                     </a>
                 </div>
+
+                <p className="mt-8 text-center text-[11px] font-medium uppercase tracking-[0.16em] text-slate-400">
+                    Credits never expire · No subscription lock-in · Cancel anytime
+                </p>
             </div>
         </section>
     );

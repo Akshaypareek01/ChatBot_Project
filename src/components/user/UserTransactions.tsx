@@ -46,7 +46,10 @@ interface UsageRecord {
   createdAt: string;
 }
 
-const AVG_TOKENS_PER_CHAT = 1800;
+// Mirrors server/services/usageTracker.service.js — CREDITS_PER_CHAT.
+const CREDITS_PER_CHAT = 100;
+const AVG_TOKENS_PER_CHAT = CREDITS_PER_CHAT; // legacy alias kept for existing JSX below
+const MIN_RECHARGE_INR = 99;
 
 interface Plan {
   id: string;
@@ -59,10 +62,10 @@ interface Plan {
 }
 
 const PLANS: Plan[] = [
-  { id: 'budget', name: 'Budget', amount: 49, tokens: 122500, chats: 68 },
-  { id: 'popular', name: 'Popular', amount: 99, tokens: 247500, badge: 'Popular', chats: 137 },
-  { id: 'pro', name: 'Professional', amount: 199, tokens: 522375, bonus: '+5% Bonus', badge: 'Best Value', chats: 290 },
-  { id: 'growth', name: 'Enterprise', amount: 499, tokens: 1372250, bonus: '+10% Bonus', chats: 762 },
+  { id: 'starter',  name: 'Starter',  amount: 99,   tokens: 2_500,  chats: 25 },
+  { id: 'growth',   name: 'Growth',   amount: 299,  tokens: 9_000,  chats: 90,  badge: 'Popular' },
+  { id: 'scale',    name: 'Scale',    amount: 799,  tokens: 28_000, chats: 280, badge: 'Best Value', bonus: 'Save 28%' },
+  { id: 'business', name: 'Business', amount: 1999, tokens: 80_000, chats: 800, bonus: 'Save 37%' },
 ];
 
 const UserTransactions = () => {
@@ -70,20 +73,27 @@ const UserTransactions = () => {
   const [usageHistory, setUsageHistory] = useState<UsageRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadingUsage, setLoadingUsage] = useState(false);
-  const [amount, setAmount] = useState<number>(99);
+  const [amount, setAmount] = useState<number>(MIN_RECHARGE_INR);
   const [processing, setProcessing] = useState(false);
   const [isAutoPay, setIsAutoPay] = useState(false);
   const [couponCode, setCouponCode] = useState('');
   const [couponDiscount, setCouponDiscount] = useState<number | null>(null);
   const [couponError, setCouponError] = useState<string | null>(null);
 
-  // Calculate estimated tokens for custom amount
+  /**
+   * Tier-aware credit estimate. Matches server/services/usageTracker.service.js.
+   * - Exact tier amount → tier's credit grant.
+   * - Custom amount → proportional at Starter ratio + bonus (≥₹500=+5%, ≥₹1500=+10%).
+   */
   const getEstimatedTokens = (amt: number) => {
-    const base = amt * 2500;
-    if (amt >= 999) return Math.floor(base * 1.15);
-    if (amt >= 499) return Math.floor(base * 1.10);
-    if (amt >= 199) return Math.floor(base * 1.05);
-    return base;
+    if (!amt || amt < MIN_RECHARGE_INR) return 0;
+    const exact = PLANS.find((p) => p.amount === amt);
+    if (exact) return exact.tokens;
+    const baseRatio = PLANS[0].tokens / PLANS[0].amount; // 25.25 credits/INR
+    let credits = Math.floor(amt * baseRatio);
+    if (amt >= 1500) credits = Math.floor(credits * 1.10);
+    else if (amt >= 500) credits = Math.floor(credits * 1.05);
+    return credits;
   };
 
   const fetchTransactions = async () => {
@@ -159,8 +169,8 @@ const UserTransactions = () => {
 
   const handleRecharge = async (rechargeAmount?: number) => {
     const finalAmount = rechargeAmount || amount;
-    if (finalAmount < 49) {
-      toast.error("Minimum recharge amount is ₹49");
+    if (finalAmount < MIN_RECHARGE_INR) {
+      toast.error(`Minimum recharge amount is ₹${MIN_RECHARGE_INR}`);
       return;
     }
 
@@ -280,7 +290,7 @@ const UserTransactions = () => {
         <Card className="lg:col-span-2">
           <CardHeader>
             <CardTitle>Custom Recharge</CardTitle>
-            <CardDescription>Enter any amount (Min ₹49). 1 INR = 2500 Credits.</CardDescription>
+            <CardDescription>Enter any amount (Min ₹{MIN_RECHARGE_INR}). 1 chat = {CREDITS_PER_CHAT} credits.</CardDescription>
           </CardHeader>
           <CardContent>
             <div className="space-y-6">
@@ -289,7 +299,7 @@ const UserTransactions = () => {
                   <span className="absolute left-3 top-2.5 text-gray-500 font-medium">₹</span>
                   <Input
                     type="number"
-                    min="49"
+                    min={MIN_RECHARGE_INR}
                     value={amount}
                     onChange={(e) => setAmount(Number(e.target.value))}
                     className="pl-7 text-xl font-bold h-12"
@@ -349,15 +359,15 @@ const UserTransactions = () => {
               <div className="p-4 bg-muted/30 rounded-lg flex flex-wrap gap-6 items-center border">
                 <div className="flex flex-col">
                   <span className="text-xs text-muted-foreground uppercase font-bold tracking-tighter">You Pay</span>
-                  <span className="text-lg font-bold text-primary">₹{Math.max(49, amount - (couponDiscount || 0)).toFixed(0)}</span>
+                  <span className="text-lg font-bold text-primary">₹{Math.max(MIN_RECHARGE_INR, amount - (couponDiscount || 0)).toFixed(0)}</span>
                 </div>
                 <div className="flex flex-col">
                   <span className="text-xs text-muted-foreground uppercase font-bold tracking-tighter">You Get</span>
-                  <span className="text-lg font-bold text-primary">{getEstimatedTokens(Math.max(49, amount - (couponDiscount || 0))).toLocaleString()} Credits</span>
+                  <span className="text-lg font-bold text-primary">{getEstimatedTokens(Math.max(MIN_RECHARGE_INR, amount - (couponDiscount || 0))).toLocaleString()} Credits</span>
                 </div>
                 <div className="flex flex-col border-l pl-6">
                   <span className="text-xs text-muted-foreground uppercase font-bold tracking-tighter">Est. Usage</span>
-                  <span className="text-lg font-bold text-green-600">~{Math.floor(getEstimatedTokens(Math.max(49, amount - (couponDiscount || 0))) / AVG_TOKENS_PER_CHAT)} Chats</span>
+                  <span className="text-lg font-bold text-green-600">~{Math.floor(getEstimatedTokens(Math.max(MIN_RECHARGE_INR, amount - (couponDiscount || 0))) / AVG_TOKENS_PER_CHAT)} Chats</span>
                 </div>
               </div>
             </div>
@@ -448,7 +458,7 @@ const UserTransactions = () => {
                           </TableCell>
                           <TableCell className="font-semibold text-foreground">₹{transaction.amount}</TableCell>
                           <TableCell>
-                            <span className="font-semibold">{(transaction.tokens || transaction.amount * 2500).toLocaleString()}</span>
+                            <span className="font-semibold">{(transaction.tokens || getEstimatedTokens(transaction.amount)).toLocaleString()}</span>
                           </TableCell>
                           <TableCell className="text-center">
                             <Badge variant={getStatusBadgeVariant(transaction.status) as any} className="capitalize px-3 py-0.5 font-bold">

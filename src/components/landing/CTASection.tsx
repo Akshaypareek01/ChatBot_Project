@@ -43,7 +43,7 @@ const CTASection = () => {
                             Ready to ship AI your customers will actually trust?
                         </h2>
                         <p className="mx-auto max-w-xl mt-5 text-base text-slate-300 leading-relaxed">
-                            Start for free with <span className="text-white font-medium">25,000 credits</span>. Upgrade only when you're ready for scale.
+                            Start free with <span className="text-white font-medium">5 chats</span> to evaluate. Upgrade from ₹99 when you're ready.
                         </p>
                         <div className="mt-10 flex flex-col sm:flex-row items-center justify-center gap-3">
                             <Link to="/register" className="w-full sm:w-auto">

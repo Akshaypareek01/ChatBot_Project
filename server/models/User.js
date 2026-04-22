@@ -45,7 +45,7 @@ const userSchema = new mongoose.Schema({
     },
     tokenBalance: {
         type: Number,
-        default: 25000 // Strategic Trial: 25k tokens (~15 chats)
+        default: 500 // Free trial: 500 credits = 5 chats (see usageTracker.FREE_TRIAL_CREDITS)
     },
     role: {
         type: String,
