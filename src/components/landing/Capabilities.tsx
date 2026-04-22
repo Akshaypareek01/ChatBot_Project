@@ -12,8 +12,8 @@ const Capabilities = () => {
     ];
 
     return (
-        <section className="py-32 bg-[#F9FAFB]" id="benefits">
-            <div className="max-w-[1440px] mx-auto px-8 lg:px-20">
+        <section className="py-20 sm:py-28 lg:py-32 bg-[#F9FAFB]" id="benefits">
+            <div className="max-w-[1440px] mx-auto px-5 sm:px-8 lg:px-20">
                 <div className="flex flex-col md:flex-row justify-between items-end gap-10 mb-20">
                     <div className="max-w-xl">
                         <h2 className="text-[10px] font-bold uppercase tracking-[0.3em] text-primary mb-6">Capabilities</h2>

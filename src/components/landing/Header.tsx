@@ -4,13 +4,13 @@ import { RainbowButton } from '@/components/ui/rainbow-button';
 import { RippleButton } from '@/components/ui/ripple-button';
 
 interface HeaderProps {
-    userData: any;
+    userData: unknown;
 }
 
 const Header = ({ userData }: HeaderProps) => {
     return (
         <header className="fixed top-0 z-50 w-full border-b border-white/20 bg-white/60 backdrop-blur-xl">
-            <div className="max-w-[1440px] mx-auto px-8 lg:px-20 h-20 flex items-center justify-between">
+            <div className="max-w-[1440px] mx-auto px-5 sm:px-8 lg:px-20 h-20 flex items-center justify-between">
                 <div className="flex items-center gap-2.5">
                     <div className="bg-primary p-1.5 rounded-lg flex items-center justify-center shadow-lg shadow-primary/20">
                         <span className="material-symbols-outlined text-white text-xl">bubble_chart</span>

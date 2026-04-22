@@ -10,9 +10,10 @@ import { Textarea } from '@/components/ui/textarea';
 
 interface ChatbotWidgetProps {
   userId?: string;
+  hideLauncher?: boolean;
 }
 
-const ChatbotWidget: React.FC<ChatbotWidgetProps> = ({ userId }) => {
+const ChatbotWidget: React.FC<ChatbotWidgetProps> = ({ userId, hideLauncher }) => {
   const { messages, isTyping, isChatOpen, sendMessage, toggleChat, setUserId } = useChat();
   const [inputValue, setInputValue] = useState('');
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -64,6 +65,7 @@ const ChatbotWidget: React.FC<ChatbotWidgetProps> = ({ userId }) => {
   };
 
   if (!isChatOpen) {
+    if (hideLauncher) return null;
     return (
       <Button
         onClick={toggleChat}

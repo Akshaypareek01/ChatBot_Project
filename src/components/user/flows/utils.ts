@@ -13,6 +13,7 @@ export const createEmptyNode = (type: FlowNodeType, id?: string): FlowNode => ({
   conditions: [],
   fallbackNextNodeId: '',
   aiInstructions: '',
+  position: { x: Math.random() * 400, y: Math.random() * 400 },
 });
 
 export const createEmptyFlow = (): FlowDocument => ({
@@ -28,13 +29,14 @@ export const createEmptyFlow = (): FlowDocument => ({
       conditions: [],
       fallbackNextNodeId: '',
       aiInstructions: '',
+      position: { x: 100, y: 100 },
     },
   ],
 });
 
 export const normalizeFlow = (raw: any): FlowDocument => {
   const nodes = Array.isArray(raw?.nodes) ? raw.nodes : [];
-  const safeNodes: FlowNode[] = nodes.map((n: any) => ({
+  const safeNodes: FlowNode[] = nodes.map((n: any, idx: number) => ({
     id: String(n?.id || `node-${uid()}`),
     type: (n?.type || 'message') as FlowNodeType,
     title: n?.title || '',
@@ -47,6 +49,7 @@ export const normalizeFlow = (raw: any): FlowDocument => {
     conditions: Array.isArray(n?.conditions) ? n.conditions : [],
     fallbackNextNodeId: n?.fallbackNextNodeId ? String(n.fallbackNextNodeId) : '',
     aiInstructions: n?.aiInstructions || '',
+    position: n?.position || { x: 100 + idx * 250, y: 100 },
   }));
 
   const startNodeId = raw?.startNodeId || safeNodes[0]?.id || 'start';

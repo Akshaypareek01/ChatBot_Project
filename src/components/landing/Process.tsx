@@ -3,8 +3,8 @@ import { Code, FileText, Zap } from 'lucide-react';
 
 const Process = () => {
     return (
-        <section className="py-32 bg-white" id="how-it-works">
-            <div className="max-w-[1440px] mx-auto px-8 lg:px-20 text-center">
+        <section className="py-20 sm:py-28 lg:py-32 bg-white" id="how-it-works">
+            <div className="max-w-[1440px] mx-auto px-5 sm:px-8 lg:px-20 text-center">
                 <div className="mb-24">
                     <h2 className="text-[10px] font-bold uppercase tracking-[0.3em] text-primary mb-6">Process</h2>
                     <h3 className="text-4xl lg:text-5xl font-bold tracking-tight text-slate-900">Seamless Integration</h3>

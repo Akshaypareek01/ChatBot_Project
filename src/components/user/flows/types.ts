@@ -21,6 +21,7 @@ export type FlowNode = {
   conditions?: FlowCondition[];
   fallbackNextNodeId?: string;
   aiInstructions?: string;
+  position?: { x: number; y: number };
 };
 
 export type FlowDocument = {

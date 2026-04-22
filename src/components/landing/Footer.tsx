@@ -3,8 +3,8 @@ import { Link } from 'react-router-dom';
 
 const Footer = () => {
     return (
-        <footer className="py-24 border-t border-slate-100 bg-white">
-            <div className="max-w-[1440px] mx-auto px-8 lg:px-20 flex flex-col md:flex-row justify-between items-center gap-12 text-center md:text-left">
+        <footer className="py-16 sm:py-20 lg:py-24 border-t border-slate-100 bg-white">
+            <div className="max-w-[1440px] mx-auto px-5 sm:px-8 lg:px-20 flex flex-col md:flex-row justify-between items-center gap-10 sm:gap-12 text-center md:text-left">
                 <div className="flex items-center gap-2.5">
                     <div className="bg-primary p-1 rounded-lg">
                         <span className="material-symbols-outlined text-white text-lg font-variation-FILL-1">bubble_chart</span>

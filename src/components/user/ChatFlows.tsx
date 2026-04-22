@@ -5,11 +5,12 @@ import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger, SheetClose } from '@/components/ui/sheet';
 import { toast } from 'sonner';
-import { Trash2, Plus, Save, Power } from 'lucide-react';
+import { Trash2, Plus, Save, Power, Maximize2 } from 'lucide-react';
 import { createFlow, deleteFlow, getFlow, getFlowTemplates, listFlows, updateFlow } from '@/services/api';
 import { useBot } from '@/context/BotContext';
-import FlowCanvas from './flows/FlowCanvas';
+import VisualFlowBuilder from './flows/VisualFlowBuilder';
 import FlowPreview from './flows/FlowPreview';
 import { createEmptyFlow, normalizeFlow, prettyJson } from './flows/utils';
 import { FlowDocument, FlowSummary } from './flows/types';
@@ -218,14 +219,47 @@ export default function ChatFlows() {
                   </Button>
                 </div>
 
-                <Tabs defaultValue="json">
+                <Tabs defaultValue="visual">
                   <TabsList>
                     <TabsTrigger value="visual">Visual</TabsTrigger>
                     <TabsTrigger value="json">Flow JSON</TabsTrigger>
                     <TabsTrigger value="preview">Preview</TabsTrigger>
                   </TabsList>
-                  <TabsContent value="visual" className="mt-3">
-                    <FlowCanvas value={flowDoc} onChange={syncJsonFromVisual} />
+                  <TabsContent value="visual" className="mt-3 relative group">
+                    <div className="absolute top-4 right-4 z-10 flex gap-2">
+                      <Sheet>
+                        <SheetTrigger asChild>
+                          <Button variant="secondary" size="sm" className="shadow-lg opacity-0 group-hover:opacity-100 transition-opacity">
+                            <Maximize2 className="h-4 w-4 mr-2" />
+                            Full Screen Builder
+                          </Button>
+                        </SheetTrigger>
+                        <SheetContent side="right" className="w-full sm:max-w-none h-full p-0 flex flex-col border-none">
+                          <SheetHeader className="p-4 pr-12 border-b flex flex-row items-center justify-between space-y-0">
+                            <div className="flex items-center gap-4 flex-1">
+                              <SheetTitle>Flow Builder: {name || selected?.name}</SheetTitle>
+                              <div className="flex items-center gap-2">
+                                <Button size="sm" onClick={handleSave} disabled={saving}>
+                                  <Save className="h-4 w-4 mr-2" />
+                                  {saving ? 'Saving…' : 'Save Flow'}
+                                </Button>
+                                <Button variant="outline" size="sm" onClick={() => syncVisualFromJson()}>
+                                  Refresh from JSON
+                                </Button>
+                              </div>
+                            </div>
+                          </SheetHeader>
+                          <div className="flex-1 min-h-0">
+                            <VisualFlowBuilder 
+                              value={flowDoc} 
+                              onChange={syncJsonFromVisual}
+                              className="h-full border-none rounded-none" 
+                            />
+                          </div>
+                        </SheetContent>
+                      </Sheet>
+                    </div>
+                    <VisualFlowBuilder value={flowDoc} onChange={syncJsonFromVisual} />
                   </TabsContent>
                   <TabsContent value="json" className="mt-3">
                     <Textarea

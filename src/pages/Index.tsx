@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { ChatProvider } from '@/context/ChatContext';
 import { getUserProfile } from '@/services/api';
+import ChatbotWidget from '@/components/chatbot/ChatbotWidget';
 import {
   Header,
   Hero,
@@ -16,7 +17,7 @@ import { ScrollProgress } from "@/components/ui/scroll-progress";
 import LazyLoadSection from '@/components/landing/LazyLoadSection';
 
 const Index = () => {
-  const [userData, setUserData] = useState<any>(null);
+  const [userData, setUserData] = useState<unknown | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
@@ -103,6 +104,7 @@ const Index = () => {
           </LazyLoadSection>
         </main>
         <Footer />
+        <ChatbotWidget hideLauncher />
       </div>
     </ChatProvider>
   );

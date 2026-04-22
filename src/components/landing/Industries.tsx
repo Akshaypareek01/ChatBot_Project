@@ -9,8 +9,8 @@ const Industries = () => {
     ];
 
     return (
-        <section className="py-32 bg-[#F9FAFB]">
-            <div className="max-w-[1440px] mx-auto px-8 lg:px-20">
+        <section className="py-20 sm:py-28 lg:py-32 bg-[#F9FAFB]">
+            <div className="max-w-[1440px] mx-auto px-5 sm:px-8 lg:px-20">
                 <h3 className="text-2xl font-bold mb-16 flex items-center gap-4 tracking-tight">
                     <span className="w-12 h-[1px] bg-slate-300"></span>
                     Specialized for Your Industry

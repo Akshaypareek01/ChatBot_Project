@@ -5,8 +5,8 @@ import { Particles } from "@/components/ui/particles";
 
 const CTASection = () => {
     return (
-        <section className="py-32 px-8">
-            <div className="max-w-[1240px] mx-auto bg-slate-900 rounded-[3rem] p-16 lg:p-24 text-center relative overflow-hidden shadow-2xl transition-all hover:shadow-primary/10 group">
+        <section className="py-20 sm:py-28 lg:py-32 px-5 sm:px-8">
+            <div className="max-w-[1240px] mx-auto bg-slate-900 rounded-[2.5rem] sm:rounded-[3rem] p-8 sm:p-12 lg:p-24 text-center relative overflow-hidden shadow-2xl transition-all hover:shadow-primary/10 group">
                 {/* Particles background */}
                 <Particles
                     className="absolute inset-0 z-0"
@@ -24,8 +24,8 @@ const CTASection = () => {
                 </div>
 
                 <div className="relative z-10 animate-in fade-in zoom-in-95 duration-700">
-                    <h2 className="text-4xl lg:text-6xl font-bold text-white mb-10 tracking-tight leading-tight">Ready to Automate Your Growth?</h2>
-                    <p className="text-slate-400 text-lg mb-14 font-light max-w-2xl mx-auto leading-relaxed">Join the next generation of Indian B2B businesses. Start for free with <span className="text-white font-bold">25,000 credits</span> instantly.</p>
+                    <h2 className="text-3xl sm:text-4xl lg:text-6xl font-bold text-white mb-8 sm:mb-10 tracking-tight leading-tight">Ready to Automate Your Growth?</h2>
+                    <p className="text-slate-400 text-base sm:text-lg mb-10 sm:mb-14 font-light max-w-2xl mx-auto leading-relaxed">Join the next generation of Indian B2B businesses. Start for free with <span className="text-white font-bold">25,000 credits</span> instantly.</p>
                     <div className="flex justify-center">
                         <Link to="/register" className="w-full sm:w-auto">
                             <button className="bg-primary text-white px-12 py-6 rounded-full text-sm font-bold uppercase tracking-button shadow-2xl shadow-primary/40 inner-glow hover:scale-105 transition-all w-full md:min-w-[320px]">

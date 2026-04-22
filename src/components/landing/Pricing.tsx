@@ -3,12 +3,18 @@ import { Link } from 'react-router-dom';
 import { CheckCircle } from 'lucide-react';
 
 const Pricing = () => {
+    /** Appointment page used for "discuss pricing" CTAs. */
+    const appointmentUrl = 'https://nvhotech.com/book-appointment';
+
     return (
-        <section className="py-32 bg-white" id="pricing">
-            <div className="max-w-[1440px] mx-auto px-8 lg:px-20">
+        <section className="py-20 sm:py-28 lg:py-32 bg-white" id="pricing">
+            <div className="max-w-[1440px] mx-auto px-5 sm:px-8 lg:px-20">
                 <div className="text-center mb-24">
                     <h2 className="text-[10px] font-bold uppercase tracking-[0.3em] text-primary mb-6">Investment</h2>
-                    <h3 className="text-4xl lg:text-5xl font-bold tracking-tight text-slate-900">Simple, Transparent Pricing</h3>
+                    <h3 className="text-4xl lg:text-5xl font-bold tracking-tight text-slate-900">Plans, tailored pricing</h3>
+                    <p className="mt-6 text-sm text-slate-500 max-w-2xl mx-auto">
+                        See what’s included. For pricing, let’s align on your traffic, use-case, and support needs.
+                    </p>
                 </div>
 
                 <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6 items-start">
@@ -17,8 +23,13 @@ const Pricing = () => {
                         <div className="mb-8">
                             <span className="text-[10px] font-bold uppercase tracking-[0.2em] text-slate-400">Budget</span>
                             <div className="flex items-baseline gap-1 mt-4">
-                                <span className="text-3xl font-bold text-slate-900">₹49</span>
-                                <span className="text-slate-400 text-[10px] font-medium uppercase tracking-wider">/ Credits</span>
+                                <span
+                                    className="text-3xl font-bold text-slate-900 blur-[6px] select-none"
+                                    aria-label="Price hidden"
+                                >
+                                    ₹49
+                                </span>
+                                <span className="text-slate-400 text-[10px] font-medium uppercase tracking-wider blur-[4px] select-none" aria-hidden="true">/ Credits</span>
                             </div>
                             <div className="mt-2 text-primary text-[10px] font-bold uppercase tracking-wider">122,500 Tokens</div>
                         </div>
@@ -33,9 +44,6 @@ const Pricing = () => {
                                 <CheckCircle className="text-primary/40 w-3.5 h-3.5" /> PDF & Link Training
                             </li>
                         </ul>
-                        <Link to="/register" className="block text-center w-full py-3.5 rounded-full border border-slate-200 text-[10px] font-bold uppercase tracking-button hover:border-primary hover:text-primary transition-all">
-                            Select
-                        </Link>
                     </div>
 
                     {/* Popular Plan */}
@@ -43,8 +51,13 @@ const Pricing = () => {
                         <div className="mb-8">
                             <span className="text-[10px] font-bold uppercase tracking-[0.2em] text-primary">Popular</span>
                             <div className="flex items-baseline gap-1 mt-4">
-                                <span className="text-3xl font-bold text-slate-900">₹99</span>
-                                <span className="text-slate-400 text-[10px] font-medium uppercase tracking-wider">/ Credits</span>
+                                <span
+                                    className="text-3xl font-bold text-slate-900 blur-[6px] select-none"
+                                    aria-label="Price hidden"
+                                >
+                                    ₹99
+                                </span>
+                                <span className="text-slate-400 text-[10px] font-medium uppercase tracking-wider blur-[4px] select-none" aria-hidden="true">/ Credits</span>
                             </div>
                             <div className="mt-2 text-primary text-[10px] font-bold uppercase tracking-wider">247,500 Tokens</div>
                         </div>
@@ -59,9 +72,6 @@ const Pricing = () => {
                                 <CheckCircle className="text-primary/40 w-3.5 h-3.5" /> Smart Analytics
                             </li>
                         </ul>
-                        <Link to="/register" className="block text-center w-full py-3.5 rounded-full border border-slate-200 text-[10px] font-bold uppercase tracking-button hover:border-primary hover:text-primary transition-all">
-                            Select
-                        </Link>
                     </div>
 
                     {/* Professional Plan */}
@@ -73,8 +83,13 @@ const Pricing = () => {
                         <div className="mb-8 relative">
                             <span className="text-[10px] font-bold uppercase tracking-[0.2em] text-primary">Professional</span>
                             <div className="flex items-baseline gap-1 mt-4">
-                                <span className="text-4xl font-bold text-slate-900">₹199</span>
-                                <span className="text-slate-400 text-[10px] font-medium uppercase tracking-wider">/ Credits</span>
+                                <span
+                                    className="text-4xl font-bold text-slate-900 blur-[6px] select-none"
+                                    aria-label="Price hidden"
+                                >
+                                    ₹199
+                                </span>
+                                <span className="text-slate-400 text-[10px] font-medium uppercase tracking-wider blur-[4px] select-none" aria-hidden="true">/ Credits</span>
                             </div>
                             <div className="mt-2 text-green-600 text-[10px] font-bold uppercase tracking-wider">522,375 Tokens</div>
                         </div>
@@ -89,9 +104,6 @@ const Pricing = () => {
                                 <CheckCircle className="text-primary w-3.5 h-3.5" /> Full Features
                             </li>
                         </ul>
-                        <Link to="/register" className="block text-center w-full py-4 rounded-full bg-primary text-white text-[10px] font-bold uppercase tracking-button shadow-lg shadow-primary/20 inner-glow hover:bg-indigo-700 transition-all hover:scale-[1.02] relative z-20">
-                            Get Started
-                        </Link>
                     </div>
 
                     {/* Enterprise Plan */}
@@ -99,8 +111,13 @@ const Pricing = () => {
                         <div className="mb-8">
                             <span className="text-[10px] font-bold uppercase tracking-[0.2em] text-slate-400">Enterprise</span>
                             <div className="flex items-baseline gap-1 mt-4">
-                                <span className="text-3xl font-bold text-slate-900">₹499</span>
-                                <span className="text-slate-400 text-[10px] font-medium uppercase tracking-wider">/ Credits</span>
+                                <span
+                                    className="text-3xl font-bold text-slate-900 blur-[6px] select-none"
+                                    aria-label="Price hidden"
+                                >
+                                    ₹499
+                                </span>
+                                <span className="text-slate-400 text-[10px] font-medium uppercase tracking-wider blur-[4px] select-none" aria-hidden="true">/ Credits</span>
                             </div>
                             <div className="mt-2 text-green-600 text-[10px] font-bold uppercase tracking-wider">1,372,250 Tokens</div>
                         </div>
@@ -115,15 +132,21 @@ const Pricing = () => {
                                 <CheckCircle className="text-primary/40 w-3.5 h-3.5" /> Expert Guidance
                             </li>
                         </ul>
-                        <button className="w-full py-3.5 rounded-full border border-slate-200 text-[10px] font-bold uppercase tracking-button hover:border-primary hover:text-primary transition-all">
-                            Contact
-                        </button>
                     </div>
                 </div>
 
                 <div className="mt-16 flex flex-col items-center gap-4">
+                    <a
+                        href={appointmentUrl}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="w-full sm:w-auto inline-flex items-center justify-center px-10 py-4 rounded-full bg-primary text-white text-[10px] sm:text-xs font-bold uppercase tracking-button shadow-lg shadow-primary/25 inner-glow hover:bg-indigo-700 transition-all hover:scale-[1.02]"
+                        aria-label="Book an appointment to discuss pricing"
+                    >
+                        Let’s discuss pricing
+                    </a>
                     <p className="text-xs font-medium text-slate-600 bg-primary/5 border border-primary/10 px-6 py-3 rounded-full">
-                        Need a specific amount? <span className="text-primary font-bold uppercase tracking-widest ml-2">Custom Recharge Available in Dashboard</span>
+                        Need exact pricing? <span className="text-primary font-bold uppercase tracking-widest ml-2">Let’s discuss your volume & setup</span>
                     </p>
                     <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-slate-400">
                         * Tokens never expire and carry forward on recharge
