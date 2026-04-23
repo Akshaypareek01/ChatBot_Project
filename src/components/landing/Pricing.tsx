@@ -51,7 +51,7 @@ const plans: Plan[] = [
         credits: 80_000,
         chats: 800,
         savings: 'Save 37%',
-        features: ['800 AI chats', 'SSO / SAML ready', 'Data residency on request', 'Solutions engineer'],
+        features: ['800 AI chats', 'Dedicated account manager', 'Custom onboarding', 'Priority support'],
     },
 ];
 

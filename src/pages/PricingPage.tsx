@@ -24,7 +24,7 @@ const FAQ = [
   { q: 'What counts as a chat?', a: 'Each conversation session with the chatbot counts as one chat. Messages within the same session do not add extra count.' },
   { q: 'Can I change plans later?', a: 'Yes. You can upgrade or downgrade from your dashboard. Upgrades apply immediately; downgrades apply at the next billing cycle.' },
   { q: 'Is there an annual discount?', a: 'Yes. Pay yearly and get 2 months free on paid plans.' },
-  { q: 'Need a custom plan?', a: 'Contact us for Enterprise or custom limits, SLA, and dedicated support.' }
+  { q: 'Need a custom plan?', a: 'Contact us for custom credit volumes, dedicated onboarding, and priority support.' }
 ];
 
 const PricingPage = () => {
@@ -139,7 +139,7 @@ const PricingPage = () => {
             <Card className="bg-primary/5 border-primary/20">
               <CardContent className="py-8 text-center">
                 <h3 className="text-lg font-semibold mb-2">Need a custom or enterprise plan?</h3>
-                <p className="text-muted-foreground text-sm mb-4">Higher limits, SLA, dedicated support.</p>
+                <p className="text-muted-foreground text-sm mb-4">Higher credit volumes, custom onboarding, priority support.</p>
                 <Link to="/user/support"><Button>Contact sales</Button></Link>
               </CardContent>
             </Card>

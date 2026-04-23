@@ -18,27 +18,23 @@ const Footer = () => {
             title: 'Company',
             links: [
                 { label: 'About', href: 'https://nvhotech.com/', external: true },
-                { label: 'Contact', href: 'https://nvhotech.com/book-appointment', external: true },
-                { label: 'Careers', href: '#' },
-                { label: 'Press', href: '#' },
+                { label: 'Contact sales', href: 'https://nvhotech.com/book-appointment', external: true },
+                { label: 'Book a demo', href: 'https://nvhotech.com/book-appointment', external: true },
             ],
         },
         {
             title: 'Resources',
             links: [
-                { label: 'Documentation', href: '#' },
-                { label: 'Changelog', href: '#' },
-                { label: 'Security', href: '#' },
-                { label: 'Status', href: '#' },
+                { label: 'Get started guide', href: '/register' },
+                { label: 'Support', href: '/user/support' },
+                { label: 'Security', href: '#security' },
             ],
         },
         {
             title: 'Legal',
             links: [
-                { label: 'Privacy Policy', href: '#' },
-                { label: 'Terms of Service', href: '#' },
-                { label: 'DPA', href: '#' },
-                { label: 'Cookies', href: '#' },
+                { label: 'Privacy Policy', href: '/privacy' },
+                { label: 'Terms of Service', href: '/terms' },
             ],
         },
     ];

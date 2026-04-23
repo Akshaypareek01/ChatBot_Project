@@ -24,14 +24,14 @@ const industries = [
     {
         icon: HeartPulse,
         title: 'Healthcare',
-        desc: 'HIPAA-aware intake, appointment triage, and patient messaging with audit trails.',
+        desc: 'Privacy-aware intake, appointment triage, and patient messaging with audit trails.',
         metric: '24/7 triage coverage',
     },
     {
         icon: Banknote,
         title: 'Financial Services',
-        desc: 'Compliance-grounded agents for KYC flows, policy Q&A, and tier-1 disputes.',
-        metric: 'SOC 2 Type II',
+        desc: 'Policy-grounded agents for KYC flows, FAQs, and tier-1 dispute handling.',
+        metric: 'Audit-ready logs',
     },
     {
         icon: Briefcase,
@@ -53,7 +53,7 @@ const Industries = () => {
                         Purpose-built for the industries you operate in.
                     </h2>
                     <p className="mt-5 text-base text-slate-600 leading-relaxed max-w-xl">
-                        Pre-trained vocabularies, workflow templates, and compliance presets — delivered out of the box.
+                        Pre-built vocabularies, workflow templates, and tone presets — delivered out of the box.
                     </p>
                 </div>
 

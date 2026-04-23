@@ -19,8 +19,8 @@ const features = [
     },
     {
         icon: LayoutDashboard,
-        title: 'Operations-grade console',
-        desc: 'Role-based access, evaluation suites, prompt versioning, and audit logs built for regulated enterprises.',
+        title: 'Operations console',
+        desc: 'Live conversations, usage analytics, knowledge base sync, and webhook-driven workflows — all in one place.',
     },
     {
         icon: CreditCard,
@@ -29,7 +29,7 @@ const features = [
     },
     {
         icon: ShieldCheck,
-        title: 'Zero-trust domain controls',
+        title: 'Domain & key protection',
         desc: 'Origin whitelisting, rate limits, and request signing prevent key abuse and unauthorized deployments.',
     },
     {
@@ -49,8 +49,8 @@ const features = [
     },
     {
         icon: Lock,
-        title: 'Enterprise-grade security',
-        desc: 'SOC 2 Type II, ISO 27001, GDPR & DPDP aligned. Data residency and customer-managed keys on request.',
+        title: 'Security built-in',
+        desc: 'Encrypted in transit and at rest. Tenant-level data isolation, domain whitelisting, and zero training on your conversations — ever.',
     },
 ];
 
@@ -69,7 +69,7 @@ const Capabilities = () => {
                         Engineered for the demands of modern enterprise.
                     </h2>
                     <p className="mt-5 text-base text-slate-600 leading-relaxed max-w-xl">
-                        Every capability on this page is production-ready, observable, and audited. No beta flags, no surprise invoices.
+                        Every capability on this page is production-ready and transparent. No beta flags, no surprise invoices.
                     </p>
                 </div>
 

@@ -74,7 +74,7 @@ const BrandPanel = ({ title, subtitle }: { title: string; subtitle: string }) =>
                 </div>
                 <div className="flex items-center gap-2.5">
                     <Check className="w-4 h-4 text-emerald-400 shrink-0" strokeWidth={2.5} />
-                    <span>SOC 2 · ISO 27001 · DPDP ready</span>
+                    <span>Encrypted · private · your data never trained on</span>
                 </div>
             </div>
         </div>
