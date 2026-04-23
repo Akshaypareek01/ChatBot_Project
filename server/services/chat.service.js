@@ -15,7 +15,17 @@ const openai = new OpenAI({
     apiKey: process.env.OPENAI_API_KEY,
 });
 
-const CONFIDENCE_THRESHOLD = 0.72;
+// Lowered from 0.72 → 0.55. Previous threshold was rejecting genuine matches
+// on shorter queries (e.g. "return policy?") where embeddings score lower even
+// when the KB clearly contains the answer. 0.55 keeps obvious-mismatch filtering
+// while recovering legitimate answers we were previously refusing.
+const CONFIDENCE_THRESHOLD = 0.55;
+
+// Retrieve more chunks so the LLM has enough evidence to answer, but we cap
+// each chunk's length below so total prompt stays bounded.
+const TOP_K = 8;
+const MAX_CHUNK_CHARS = 700; // ~175 tokens per chunk → ~1400 tokens of context max
+const MAX_COMPLETION_TOKENS = 350; // Hard cap on output — forces concise answers
 
 function isGreetingMessage(text) {
     if (!text || typeof text !== 'string') return false;
@@ -34,6 +44,40 @@ function buildGreetingReply(options = {}) {
 }
 const MEMORY_MESSAGES_LIMIT = 10;
 const DEFAULT_MODEL = 'gpt-4o-mini';
+
+/**
+ * System prompt for RAG answers.
+ *
+ * Fixes two problems we were seeing:
+ *   1) Bot refusing to answer even when the context clearly contains the info
+ *      (old prompt was too fearful about "not in context").
+ *   2) Long, rambling answers that burned output tokens on big user questions.
+ *
+ * Rules:
+ *   - Reply in the SAME LANGUAGE as the user's question (English / Hindi /
+ *     Hinglish / etc). This keeps the bot usable for Indian D2C audiences
+ *     without a config flag.
+ *   - If the answer IS present in the context (even partially), give it —
+ *     don't hide behind "not in context" for synonyms or rephrasings.
+ *   - Keep answers tight: 2–4 sentences max, ~60–120 words. Bullet lists only
+ *     when the user explicitly asks for steps or a comparison.
+ *   - End with a one-line "Summary:" only for answers longer than 3 sentences.
+ *   - Only fall back to "I don't have this information yet." when the context
+ *     genuinely does not cover the question.
+ */
+const buildRagSystemPrompt = (contextText) => `You are a helpful customer-support assistant answering questions for this specific business.
+
+RULES
+- Answer ONLY using the context below. Do NOT invent policies, prices, dates, URLs, or names.
+- Match the user's language exactly (English, Hindi, or Hinglish).
+- Be concise. 2-4 sentences, max ~120 words. No preamble like "Based on the context...".
+- If the answer is in the context, give it directly even if the user's wording differs (synonyms, typos, rephrasings are fine).
+- Use a short bulleted list ONLY when the user explicitly asks for steps, options, or a comparison.
+- If (and only if) your answer is longer than 3 sentences, end with a final line: "Summary: <one-sentence takeaway>".
+- If the context genuinely does not contain the answer, reply exactly: "I don't have this information yet."
+
+CONTEXT
+${contextText}`;
 
 /** Resolve OpenAI model from user preference (e.g. gpt-4o-mini, gpt-4o). */
 const resolveModel = (preferred) => {
@@ -121,7 +165,7 @@ const handleChat = async (userId, message) => {
         const queryEmbedding = await embeddingService.generateEmbedding(message);
 
         // 3. Vector Search (Filter by userId)
-        const similarDocs = await vectorService.searchVectors(userId, queryEmbedding, 5);
+        const similarDocs = await vectorService.searchVectors(userId, queryEmbedding, TOP_K);
 
         // 4. Check if we found context. If not, allow greeting replies.
         if (!similarDocs || similarDocs.length === 0) {
@@ -131,16 +175,12 @@ const handleChat = async (userId, message) => {
             return "I don't have this information yet.";
         }
 
-        // 5. Build Strict RAG Prompt
-        const contextText = similarDocs.map(doc => doc.content).join("\n\n---\n\n");
+        // 5. Build Strict RAG Prompt (with bounded context to control cost)
+        const contextText = similarDocs
+            .map(doc => (doc.content || '').slice(0, MAX_CHUNK_CHARS))
+            .join("\n\n---\n\n");
 
-        const systemPrompt = `You are an AI assistant for a specific user. 
-You must ONLY answer based on the provided context below.
-If the answer is not in the context, say "I don't have this information yet."
-Do not halluncinate or use outside knowledge.
-
-Context:
-${contextText}`;
+        const systemPrompt = buildRagSystemPrompt(contextText);
 
         // 6. Call OpenAI
         const completion = await openai.chat.completions.create({
@@ -150,7 +190,7 @@ ${contextText}`;
                 { role: 'user', content: message }
             ],
             temperature: 0.1,
-            max_tokens: 500
+            max_tokens: MAX_COMPLETION_TOKENS
         });
 
         let answer = completion.choices[0].message.content || '';
@@ -254,7 +294,7 @@ const handleChatStream = async (userId, message, onChunk, onComplete, options = 
         }
 
         const queryEmbedding = await embeddingService.generateEmbedding(message);
-        const similarDocs = await vectorService.searchVectors(userId, queryEmbedding, 5);
+        const similarDocs = await vectorService.searchVectors(userId, queryEmbedding, TOP_K);
 
         if (!similarDocs || similarDocs.length === 0) {
             if (isGreetingMessage(message)) {
@@ -292,14 +332,10 @@ const handleChatStream = async (userId, message, onChunk, onComplete, options = 
             send({ type: 'sentiment', value: sentiment });
         }).catch(() => {});
 
-        const contextText = similarDocs.map(doc => doc.content).join("\n\n---\n\n");
-        const systemPrompt = `You are an AI assistant for a specific user. 
-You must ONLY answer based on the provided context below.
-If the answer is not in the context, say "I don't have this information yet."
-Do not hallucinate or use outside knowledge.
-
-Context:
-${contextText}`;
+        const contextText = similarDocs
+            .map(doc => (doc.content || '').slice(0, MAX_CHUNK_CHARS))
+            .join("\n\n---\n\n");
+        const systemPrompt = buildRagSystemPrompt(contextText);
 
         const memorySlice = Array.isArray(previousMessages)
             ? previousMessages.slice(-MEMORY_MESSAGES_LIMIT)
@@ -315,7 +351,7 @@ ${contextText}`;
             model,
             messages: openaiMessages,
             temperature: 0.1,
-            max_tokens: 500,
+            max_tokens: MAX_COMPLETION_TOKENS,
             stream: true,
             stream_options: { include_usage: true }
         });
