@@ -1,12 +1,21 @@
-
 import React, { useState } from 'react';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Code, ExternalLink, Copy, Check, Info } from 'lucide-react';
+import {
+    Dialog,
+    DialogContent,
+    DialogTrigger,
+} from '@/components/ui/dialog';
+import {
+    Code2,
+    Copy,
+    Check,
+    Info,
+    X,
+    ArrowRight,
+    ChevronRight,
+} from 'lucide-react';
 import { toast } from 'sonner';
 import { API_URL } from '@/services/api';
+import { cn } from '@/lib/utils';
 
 interface TabData {
     tabId: string;
@@ -19,6 +28,7 @@ interface TabData {
 interface IntegrationItem {
     id: string;
     title: string;
+    shortTitle?: string;
     description: string;
     steps?: string[];
     code?: string;
@@ -27,18 +37,96 @@ interface IntegrationItem {
 }
 
 const getDefaultScriptUrl = () => {
-    // Use regex to only replace /api at the end of the string to avoid matching subdomains like 'apis'
     const baseUrl = API_URL.replace(/\/api$/, '');
     return `${baseUrl}/chatbot.js`;
 };
 
+/** Platform tile — small, monochrome initial badge with accent color. */
+const PlatformBadge: React.FC<{ id: string; className?: string }> = ({
+    id,
+    className,
+}) => {
+    const map: Record<string, { label: string; bg: string; fg: string }> = {
+        html: { label: '< >', bg: 'bg-orange-500/10', fg: 'text-orange-600' },
+        wordpress: { label: 'W', bg: 'bg-sky-500/10', fg: 'text-sky-600' },
+        react: { label: 'R', bg: 'bg-cyan-500/10', fg: 'text-cyan-600' },
+        nextjs: { label: 'N', bg: 'bg-slate-900/[0.06]', fg: 'text-slate-900' },
+        shopify: { label: 'S', bg: 'bg-emerald-500/10', fg: 'text-emerald-600' },
+        wix: { label: 'W', bg: 'bg-blue-500/10', fg: 'text-blue-600' },
+        squarespace: {
+            label: 'Sq',
+            bg: 'bg-slate-900/[0.06]',
+            fg: 'text-slate-900',
+        },
+        other: { label: '••', bg: 'bg-slate-900/[0.04]', fg: 'text-slate-500' },
+    };
+    const entry = map[id] ?? map.other;
+    return (
+        <div
+            className={cn(
+                'inline-flex items-center justify-center w-9 h-9 rounded-lg text-[13px] font-bold tracking-tight',
+                entry.bg,
+                entry.fg,
+                className
+            )}
+        >
+            {entry.label}
+        </div>
+    );
+};
+
+/** Syntax-highlighted script code block, matching ScriptGenerator. */
+const CodeBlock: React.FC<{
+    code: string;
+    filename?: string;
+    onCopy: () => void;
+    copied: boolean;
+}> = ({ code, filename, onCopy, copied }) => (
+    <div className="rounded-lg border border-slate-900/[0.08] bg-white overflow-hidden">
+        <div className="flex items-center justify-between px-3.5 h-9 border-b border-slate-900/[0.06] bg-[#FAFAFA]">
+            <div className="flex items-center gap-2 text-[11px] font-medium text-slate-500 font-mono">
+                {filename || 'snippet.html'}
+            </div>
+            <button
+                onClick={onCopy}
+                className={cn(
+                    'inline-flex items-center gap-1.5 h-6 px-2 rounded text-[11px] font-semibold tracking-tight transition-colors',
+                    copied
+                        ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                        : 'bg-white text-slate-600 border border-slate-900/[0.08] hover:text-slate-950 hover:border-slate-900/20'
+                )}
+            >
+                {copied ? (
+                    <>
+                        <Check className="w-3 h-3" strokeWidth={2.25} />
+                        Copied
+                    </>
+                ) : (
+                    <>
+                        <Copy className="w-3 h-3" strokeWidth={2} />
+                        Copy
+                    </>
+                )}
+            </button>
+        </div>
+        <pre className="px-3.5 py-3 text-[12px] font-mono leading-relaxed text-slate-800 whitespace-pre-wrap break-all overflow-x-auto">
+            <code>{code}</code>
+        </pre>
+    </div>
+);
+
 const IntegrationGuide = ({ userId }: { userId: string }) => {
     const [copied, setCopied] = useState<string | null>(null);
+    const [openId, setOpenId] = useState<string | null>(null);
     const scriptUrl = getDefaultScriptUrl();
 
+    const applyVars = (code: string) =>
+        code
+            .replace('{{USER_ID}}', userId)
+            .replace('https://api.yourdomain.com/chatbot.js', scriptUrl);
+
     const handleCopy = (code: string, id: string) => {
-        const finalCode = code.replace('{{USER_ID}}', userId).replace('https://api.yourdomain.com/chatbot.js', scriptUrl);
-        navigator.clipboard.writeText(finalCode);
+        navigator.clipboard.writeText(applyVars(code));
         setCopied(id);
         toast.success('Code copied to clipboard');
         setTimeout(() => setCopied(null), 2000);
@@ -46,308 +134,342 @@ const IntegrationGuide = ({ userId }: { userId: string }) => {
 
     const integrationData: IntegrationItem[] = [
         {
-            id: "html",
-            title: "HTML / Static Website",
-            description: "Plain HTML, PHP, static hosting",
+            id: 'html',
+            title: 'HTML / Static',
+            shortTitle: 'HTML',
+            description: 'Plain HTML, PHP, or static hosting',
             steps: [
-                "Open your index.html or main layout file",
-                "Paste the script just before the closing </body> tag",
-                "Save and deploy your website"
+                'Open your index.html or main layout file',
+                'Paste the script just before the closing </body> tag',
+                'Save and deploy your website',
             ],
             code: `<script\n  src="https://api.yourdomain.com/chatbot.js"\n  data-user-id="{{USER_ID}}"\n  data-bot-id="default"\n  defer\n></script>`,
             notes: [
-                "Works on any static or custom-built website",
-                "No framework or plugin required"
-            ]
+                'Works on any static or custom-built website',
+                'No framework or plugin required',
+            ],
         },
         {
-            id: "wordpress",
-            title: "WordPress",
-            description: "Gutenberg, Elementor, Classic Editor",
+            id: 'wordpress',
+            title: 'WordPress',
+            description: 'Gutenberg, Elementor, Classic Editor',
             steps: [
-                "Login to your WordPress Admin Dashboard",
-                "Open any page and add a Custom HTML block",
-                "Paste the script and click Save / Update"
+                'Login to your WordPress Admin Dashboard',
+                'Open any page and add a Custom HTML block',
+                'Paste the script and click Save / Update',
             ],
             code: `<script\n  src="https://api.yourdomain.com/chatbot.js"\n  data-user-id="{{USER_ID}}"\n  data-bot-id="default"\n  defer\n></script>`,
             notes: [
-                "You can also add this using a Header/Footer plugin",
-                "Clear cache if your site uses caching plugins"
-            ]
+                'You can also add this using a Header/Footer plugin',
+                'Clear cache if your site uses caching plugins',
+            ],
         },
         {
-            id: "react",
-            title: "React",
-            description: "Create React App, Vite, SPA projects",
+            id: 'react',
+            title: 'React',
+            description: 'CRA, Vite, SPA projects',
             steps: [
-                "Open the public/index.html file in your React project",
-                "Paste the script just before the closing </body> tag",
-                "Rebuild and redeploy your React app"
+                'Open the public/index.html file in your React project',
+                'Paste the script just before the closing </body> tag',
+                'Rebuild and redeploy your React app',
             ],
             code: `<script\n  src="https://api.yourdomain.com/chatbot.js"\n  data-user-id="{{USER_ID}}"\n  data-bot-id="default"\n  defer\n></script>`,
             notes: [
-                "Recommended to add in index.html instead of React components",
-                "Avoid adding the script multiple times"
-            ]
+                'Recommended to add in index.html instead of React components',
+                'Avoid adding the script multiple times',
+            ],
         },
         {
-            id: "nextjs",
-            title: "Next.js",
-            description: "App Router and Pages Router",
+            id: 'nextjs',
+            title: 'Next.js',
+            description: 'App Router and Pages Router',
             tabs: [
                 {
-                    tabId: "app-router",
-                    tabTitle: "App Router (Next 13+)",
+                    tabId: 'app-router',
+                    tabTitle: 'App Router (13+)',
                     steps: [
-                        "Open your layout.tsx or layout.jsx file",
-                        "Import the Next.js Script component",
-                        "Add the chatbot script using strategy='afterInteractive'"
+                        'Open your layout.tsx or layout.jsx file',
+                        'Import the Next.js Script component',
+                        "Add the chatbot script using strategy='afterInteractive'",
                     ],
                     code: `import Script from "next/script";\n\n<Script\n  src="https://api.yourdomain.com/chatbot.js"\n  data-user-id="{{USER_ID}}"\n  data-bot-id="default"\n  strategy="afterInteractive"\n/>`,
                     notes: [
-                        "Ensures the script runs only on the client side",
-                        "Prevents server-side rendering issues"
-                    ]
+                        'Ensures the script runs only on the client side',
+                        'Prevents server-side rendering issues',
+                    ],
                 },
                 {
-                    tabId: "pages-router",
-                    tabTitle: "Pages Router",
+                    tabId: 'pages-router',
+                    tabTitle: 'Pages Router',
                     steps: [
-                        "Open pages/_document.js",
-                        "Add the script before the closing </body> tag",
-                        "Save and redeploy your application"
+                        'Open pages/_document.js',
+                        'Add the script before the closing </body> tag',
+                        'Save and redeploy your application',
                     ],
                     code: `<script\n  src="https://api.yourdomain.com/chatbot.js"\n  data-user-id="{{USER_ID}}"\n  data-bot-id="default"\n  defer\n></script>`,
                     notes: [
-                        "Works for all older Next.js projects",
-                        "Do not place inside server-side code"
-                    ]
-                }
-            ]
+                        'Works for all older Next.js projects',
+                        'Do not place inside server-side code',
+                    ],
+                },
+            ],
         },
         {
-            id: "shopify",
-            title: "Shopify",
-            description: "Online store themes",
+            id: 'shopify',
+            title: 'Shopify',
+            description: 'Online store themes',
             steps: [
-                "Login to Shopify Admin",
-                "Go to Online Store → Themes",
-                "Edit theme.liquid file",
-                "Paste the script just before the closing </body> tag",
-                "Save your changes"
+                'Login to Shopify Admin',
+                'Go to Online Store → Themes',
+                'Edit theme.liquid file',
+                'Paste the script just before the closing </body> tag',
+                'Save your changes',
             ],
             code: `<script\n  src="https://api.yourdomain.com/chatbot.js"\n  data-user-id="{{USER_ID}}"\n  data-bot-id="default"\n  defer\n></script>`,
             notes: [
-                "This will load the chatbot on all store pages",
-                "No app installation required"
-            ]
+                'This will load the chatbot on all store pages',
+                'No app installation required',
+            ],
         },
         {
-            id: "wix",
-            title: "Wix",
-            description: "Wix website builder",
+            id: 'wix',
+            title: 'Wix',
+            description: 'Wix website builder',
             steps: [
-                "In Wix Editor, go to Settings → Custom Code",
-                "Add a new code snippet (Body - end)",
-                "Paste the script and apply to All pages or specific pages",
-                "Publish your site"
+                'In Wix Editor, go to Settings → Custom Code',
+                'Add a new code snippet (Body - end)',
+                'Paste the script and apply to all pages',
+                'Publish your site',
             ],
             code: `<script\n  src="https://api.yourdomain.com/chatbot.js"\n  data-user-id="{{USER_ID}}"\n  data-bot-id="default"\n  defer\n></script>`,
             notes: [
                 "Use 'Body - end' so the script loads after page content",
-                "Clear Wix cache after adding the code"
-            ]
+                'Clear Wix cache after adding the code',
+            ],
         },
         {
-            id: "squarespace",
-            title: "Squarespace",
-            description: "Squarespace 7 and 7.1",
+            id: 'squarespace',
+            title: 'Squarespace',
+            description: 'Squarespace 7 and 7.1',
             steps: [
-                "Go to Settings → Advanced → Code Injection",
-                "Paste the script in the Footer section",
-                "Save and refresh your site"
+                'Go to Settings → Advanced → Code Injection',
+                'Paste the script in the Footer section',
+                'Save and refresh your site',
             ],
             code: `<script\n  src="https://api.yourdomain.com/chatbot.js"\n  data-user-id="{{USER_ID}}"\n  data-bot-id="default"\n  defer\n></script>`,
             notes: [
-                "Footer code runs on every page",
-                "For Squarespace 7.1, use Code Injection in site-wide settings"
-            ]
+                'Footer code runs on every page',
+                'For Squarespace 7.1, use Code Injection site-wide settings',
+            ],
         },
         {
-            id: "other",
-            title: "Other / Custom Website",
-            description: "Any platform not listed above",
+            id: 'other',
+            title: 'Custom',
+            description: 'Any platform not listed above',
             steps: [
-                "Locate the main layout or footer file of your website",
-                "Paste the chatbot script before </body>",
-                "Deploy your website"
+                'Locate the main layout or footer file of your website',
+                'Paste the chatbot script before </body>',
+                'Deploy your website',
             ],
             code: `<script\n  src="https://api.yourdomain.com/chatbot.js"\n  data-user-id="{{USER_ID}}"\n  data-bot-id="default"\n  defer\n></script>`,
             notes: [
-                "Works on any platform that supports HTML",
-                "If unsure, contact your website developer"
-            ]
-        }
+                'Works on any platform that supports HTML',
+                'If unsure, contact your website developer',
+            ],
+        },
     ];
 
-    const getPlatformIcon = (id: string) => {
-        switch (id) {
-            case 'react': return <div className="w-12 h-12 flex items-center justify-center bg-[#61DAFB]/10 rounded-2xl text-[#61DAFB]"><Code className="w-6 h-6" /></div>;
-            case 'nextjs': return <div className="w-12 h-12 flex items-center justify-center bg-black/10 dark:bg-white/10 rounded-2xl text-black dark:text-white"><Code className="w-6 h-6" /></div>;
-            case 'wordpress': return <div className="w-12 h-12 flex items-center justify-center bg-[#21759b]/10 rounded-2xl text-[#21759b]"><ExternalLink className="w-6 h-6" /></div>;
-            case 'shopify': return <div className="w-12 h-12 flex items-center justify-center bg-[#95BF47]/10 rounded-2xl text-[#95BF47]"><ExternalLink className="w-6 h-6" /></div>;
-            case 'wix': return <div className="w-12 h-12 flex items-center justify-center bg-[#0C6EFC]/10 rounded-2xl text-[#0C6EFC]"><ExternalLink className="w-6 h-6" /></div>;
-            case 'squarespace': return <div className="w-12 h-12 flex items-center justify-center bg-[#000]/10 dark:bg-white/10 rounded-2xl text-[#000] dark:text-white"><ExternalLink className="w-6 h-6" /></div>;
-            case 'html': return <div className="w-12 h-12 flex items-center justify-center bg-[#E34F26]/10 rounded-2xl text-[#E34F26]"><Code className="w-6 h-6" /></div>;
-            default: return <div className="w-12 h-12 flex items-center justify-center bg-gray-500/10 rounded-2xl text-gray-500"><Code className="w-6 h-6" /></div>;
+    /** Sub-component: body of the modal for a given item. */
+    const IntegrationBody: React.FC<{ item: IntegrationItem }> = ({ item }) => {
+        const [activeTab, setActiveTab] = useState<string>(
+            item.tabs ? item.tabs[0].tabId : ''
+        );
+
+        const renderSection = (d: {
+            steps: string[];
+            code: string;
+            notes: string[];
+            copyKey: string;
+        }) => (
+            <div className="space-y-5">
+                {/* Steps */}
+                <div>
+                    <p className="text-[10.5px] font-semibold uppercase tracking-[0.14em] text-slate-500 mb-2.5">
+                        Steps
+                    </p>
+                    <ol className="space-y-2">
+                        {d.steps.map((step, idx) => (
+                            <li
+                                key={idx}
+                                className="flex items-start gap-2.5 text-[13px] text-slate-700 leading-relaxed"
+                            >
+                                <span className="mt-[3px] w-4 h-4 rounded-full bg-slate-900 text-white text-[10px] font-semibold flex items-center justify-center flex-shrink-0">
+                                    {idx + 1}
+                                </span>
+                                <span>{step}</span>
+                            </li>
+                        ))}
+                    </ol>
+                </div>
+
+                {/* Code */}
+                <div>
+                    <p className="text-[10.5px] font-semibold uppercase tracking-[0.14em] text-slate-500 mb-2.5">
+                        Script
+                    </p>
+                    <CodeBlock
+                        code={applyVars(d.code)}
+                        filename={`${item.id}.snippet`}
+                        onCopy={() => handleCopy(d.code, d.copyKey)}
+                        copied={copied === d.copyKey}
+                    />
+                </div>
+
+                {/* Notes */}
+                {d.notes.length > 0 && (
+                    <div className="rounded-lg border border-indigo-200/60 bg-indigo-50/40 px-3.5 py-3">
+                        <div className="flex items-center gap-1.5 mb-1.5">
+                            <Info
+                                className="w-3.5 h-3.5 text-indigo-600"
+                                strokeWidth={2}
+                            />
+                            <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-indigo-700">
+                                Implementation notes
+                            </p>
+                        </div>
+                        <ul className="space-y-1">
+                            {d.notes.map((n, idx) => (
+                                <li
+                                    key={idx}
+                                    className="text-[12.5px] text-indigo-900/80 leading-relaxed pl-0.5"
+                                >
+                                    · {n}
+                                </li>
+                            ))}
+                        </ul>
+                    </div>
+                )}
+            </div>
+        );
+
+        if (item.tabs) {
+            const activeData =
+                item.tabs.find((t) => t.tabId === activeTab) ?? item.tabs[0];
+            return (
+                <div className="space-y-5">
+                    {/* Segmented pill toggle */}
+                    <div className="inline-flex items-center gap-0.5 p-0.5 rounded-lg bg-slate-900/[0.04] border border-slate-900/[0.06]">
+                        {item.tabs.map((t) => (
+                            <button
+                                key={t.tabId}
+                                onClick={() => setActiveTab(t.tabId)}
+                                className={cn(
+                                    'px-3 h-7 rounded-md text-[12px] font-semibold tracking-tight transition-all',
+                                    activeTab === t.tabId
+                                        ? 'bg-white text-slate-950 shadow-[0_1px_2px_rgba(15,23,42,0.08)]'
+                                        : 'text-slate-600 hover:text-slate-900'
+                                )}
+                            >
+                                {t.tabTitle}
+                            </button>
+                        ))}
+                    </div>
+                    {renderSection({
+                        steps: activeData.steps,
+                        code: activeData.code,
+                        notes: activeData.notes,
+                        copyKey: `${item.id}-${activeData.tabId}`,
+                    })}
+                </div>
+            );
         }
+
+        return renderSection({
+            steps: item.steps || [],
+            code: item.code || '',
+            notes: item.notes || [],
+            copyKey: item.id,
+        });
     };
 
     return (
-        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4">
+        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2.5">
             {integrationData.map((item) => (
-                <Dialog key={item.id}>
+                <Dialog
+                    key={item.id}
+                    open={openId === item.id}
+                    onOpenChange={(o) => setOpenId(o ? item.id : null)}
+                >
                     <DialogTrigger asChild>
-                        <div className="group cursor-pointer flex flex-col items-center gap-3 p-4 rounded-[2rem] bg-background border border-muted-foreground/5 shadow-premium hover:shadow-2xl hover:-translate-y-2 transition-all duration-500">
-                            <div className="transform group-hover:scale-110 transition-transform duration-300">
-                                {getPlatformIcon(item.id)}
+                        <button
+                            type="button"
+                            className="group text-left rounded-lg bg-white border border-slate-900/[0.06] hover:border-slate-900/[0.12] hover:shadow-[0_8px_24px_-12px_rgba(15,23,42,0.12)] transition-all p-3.5"
+                        >
+                            <div className="flex items-start justify-between mb-2.5">
+                                <PlatformBadge id={item.id} />
+                                <ChevronRight
+                                    className="w-3.5 h-3.5 text-slate-300 group-hover:text-indigo-600 group-hover:translate-x-0.5 transition-all mt-1.5"
+                                    strokeWidth={2}
+                                />
                             </div>
-                            <div className="text-center">
-                                <span className="text-xs font-bold tracking-tight text-foreground/80 uppercase">{item.title === 'Other / Custom Website' ? 'Other' : item.title}</span>
-                            </div>
-                        </div>
+                            <p className="text-[13px] font-semibold tracking-tight text-slate-950 leading-tight">
+                                {item.shortTitle ?? item.title}
+                            </p>
+                            <p className="mt-0.5 text-[11.5px] text-slate-500 leading-snug line-clamp-2">
+                                {item.description}
+                            </p>
+                        </button>
                     </DialogTrigger>
-                    <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto rounded-[2rem]">
-                        <DialogHeader>
-                            <DialogTitle className="flex items-center gap-3 text-2xl font-black">
-                                {getPlatformIcon(item.id)}
-                                {item.title} Guide
-                            </DialogTitle>
-                            <DialogDescription>
-                                Follow these simple steps to add the AI Chatbot to your {item.title} site.
-                            </DialogDescription>
-                        </DialogHeader>
 
-                        {item.tabs ? (
-                            <Tabs defaultValue={item.tabs[0].tabId} className="w-full mt-4">
-                                <TabsList className="grid w-full grid-cols-2 mb-6">
-                                    {item.tabs.map(tab => (
-                                        <TabsTrigger key={tab.tabId} value={tab.tabId}>{tab.tabTitle}</TabsTrigger>
-                                    ))}
-                                </TabsList>
-                                {item.tabs.map(tab => (
-                                    <TabsContent key={tab.tabId} value={tab.tabId} className="space-y-6">
-                                        <div className="space-y-4">
-                                            <h4 className="font-semibold flex items-center gap-2">
-                                                <span className="flex items-center justify-center w-6 h-6 rounded-full bg-primary/10 text-primary text-xs font-bold">1</span>
-                                                Steps to Install
-                                            </h4>
-                                            <ol className="space-y-3 ml-2">
-                                                {tab.steps.map((step, idx) => (
-                                                    <li key={idx} className="flex gap-3 text-sm text-foreground/80">
-                                                        <span className="text-muted-foreground">•</span>
-                                                        {step}
-                                                    </li>
-                                                ))}
-                                            </ol>
-                                        </div>
-
-                                        <div className="space-y-3">
-                                            <div className="flex items-center justify-between">
-                                                <h4 className="font-semibold flex items-center gap-2">
-                                                    <span className="flex items-center justify-center w-6 h-6 rounded-full bg-primary/10 text-primary text-xs font-bold">2</span>
-                                                    Copy Script Code
-                                                </h4>
-                                                <Button
-                                                    variant="ghost"
-                                                    size="sm"
-                                                    onClick={() => handleCopy(tab.code, `${item.id}-${tab.tabId}`)}
-                                                    className="h-8 text-xs font-medium"
-                                                >
-                                                    {copied === `${item.id}-${tab.tabId}` ? (
-                                                        <><Check className="mr-1 w-3 h-3" /> Copied</>
-                                                    ) : (
-                                                        <><Copy className="mr-1 w-3 h-3" /> Copy Code</>
-                                                    )}
-                                                </Button>
-                                            </div>
-                                            <div className="relative group">
-                                                <div className="absolute -inset-0.5 bg-gradient-to-r from-primary/20 to-purple-500/20 rounded-lg blur opacity-25 group-hover:opacity-50 transition duration-1000"></div>
-                                                <pre className="relative bg-muted/80 backdrop-blur-xs p-4 rounded-lg overflow-x-auto text-xs border border-muted-foreground/10 font-mono leading-relaxed text-foreground/90">
-                                                    <code>{tab.code.replace('{{USER_ID}}', userId).replace('https://api.yourdomain.com/chatbot.js', scriptUrl)}</code>
-                                                </pre>
-                                            </div>
-                                        </div>
-
-                                        <div className="bg-blue-500/5 border border-blue-500/10 rounded-lg p-4 space-y-2">
-                                            <h5 className="flex items-center gap-2 text-xs font-bold text-blue-600 uppercase tracking-wider">
-                                                <Info className="w-3 h-3" /> Implementation Notes
-                                            </h5>
-                                            <ul className="space-y-1">
-                                                {tab.notes.map((note, idx) => (
-                                                    <li key={idx} className="text-xs text-blue-800/80">• {note}</li>
-                                                ))}
-                                            </ul>
-                                        </div>
-                                    </TabsContent>
-                                ))}
-                            </Tabs>
-                        ) : (
-                            <div className="space-y-6 mt-6">
-                                <div className="space-y-4">
-                                    <h4 className="font-semibold flex items-center gap-2">
-                                        <span className="flex items-center justify-center w-6 h-6 rounded-full bg-primary/10 text-primary text-xs font-bold">1</span>
-                                        Steps to Install
-                                    </h4>
-                                    <ol className="space-y-3 ml-2">
-                                        {item.steps?.map((step, idx) => (
-                                            <li key={idx} className="flex gap-3 text-sm text-foreground/80">
-                                                <span className="text-muted-foreground">•</span>
-                                                {step}
-                                            </li>
-                                        ))}
-                                    </ol>
-                                </div>
-
-                                <div className="space-y-3">
-                                    <div className="flex items-center justify-between">
-                                        <h4 className="font-semibold flex items-center gap-2">
-                                            <span className="flex items-center justify-center w-6 h-6 rounded-full bg-primary/10 text-primary text-xs font-bold">2</span>
-                                            Copy Script Code
-                                        </h4>
-                                        <Button
-                                            variant="ghost"
-                                            size="sm"
-                                            onClick={() => handleCopy(item.code!, item.id)}
-                                            className="h-8 text-xs font-medium"
-                                        >
-                                            {copied === item.id ? (
-                                                <><Check className="mr-1 w-3 h-3" /> Copied</>
-                                            ) : (
-                                                <><Copy className="mr-1 w-3 h-3" /> Copy Code</>
-                                            )}
-                                        </Button>
+                    <DialogContent
+                        className="max-w-2xl max-h-[90vh] overflow-y-auto p-0 rounded-xl border border-slate-900/[0.08] bg-white shadow-[0_24px_80px_-24px_rgba(15,23,42,0.25)]"
+                        onInteractOutside={() => setOpenId(null)}
+                    >
+                        {/* Header */}
+                        <div className="px-6 py-4 border-b border-slate-900/[0.06] flex items-start justify-between gap-4">
+                            <div className="flex items-center gap-3">
+                                <PlatformBadge id={item.id} />
+                                <div>
+                                    <div className="inline-flex items-center gap-2 text-[10px] font-semibold uppercase tracking-[0.16em] text-indigo-600 mb-0.5">
+                                        <span className="w-3 h-px bg-indigo-600" />
+                                        Install guide
                                     </div>
-                                    <div className="relative group">
-                                        <div className="absolute -inset-0.5 bg-gradient-to-r from-primary/20 to-purple-500/20 rounded-lg blur opacity-25 group-hover:opacity-50 transition duration-1000"></div>
-                                        <pre className="relative bg-muted/80 backdrop-blur-xs p-4 rounded-lg overflow-x-auto text-xs border border-muted-foreground/10 font-mono leading-relaxed text-foreground/90">
-                                            <code>{item.code?.replace('{{USER_ID}}', userId).replace('https://api.yourdomain.com/chatbot.js', scriptUrl)}</code>
-                                        </pre>
-                                    </div>
-                                </div>
-
-                                <div className="bg-blue-500/5 border border-blue-500/10 rounded-lg p-4 space-y-2">
-                                    <h5 className="flex items-center gap-2 text-xs font-bold text-blue-600 uppercase tracking-wider">
-                                        <Info className="w-3 h-3" /> Implementation Notes
-                                    </h5>
-                                    <ul className="space-y-1">
-                                        {item.notes?.map((note, idx) => (
-                                            <li key={idx} className="text-xs text-blue-800/80">• {note}</li>
-                                        ))}
-                                    </ul>
+                                    <h3 className="text-[16px] font-semibold tracking-[-0.01em] text-slate-950 leading-tight">
+                                        {item.title}
+                                    </h3>
+                                    <p className="text-[12px] text-slate-500 mt-0.5">
+                                        {item.description}
+                                    </p>
                                 </div>
                             </div>
-                        )}
+                            <button
+                                onClick={() => setOpenId(null)}
+                                className="w-7 h-7 rounded-md text-slate-400 hover:text-slate-900 hover:bg-slate-900/[0.04] flex items-center justify-center transition-colors flex-shrink-0"
+                                aria-label="Close"
+                            >
+                                <X className="w-4 h-4" strokeWidth={2} />
+                            </button>
+                        </div>
+
+                        {/* Body */}
+                        <div className="px-6 py-5">
+                            <IntegrationBody item={item} />
+                        </div>
+
+                        {/* Footer */}
+                        <div className="px-6 py-3 border-t border-slate-900/[0.06] bg-[#FAFAFA] flex items-center justify-between">
+                            <p className="inline-flex items-center gap-1.5 text-[11.5px] text-slate-500">
+                                <Code2 className="w-3 h-3" strokeWidth={2} />
+                                Your unique script is pre-filled — just copy & paste.
+                            </p>
+                            <button
+                                onClick={() => setOpenId(null)}
+                                className="inline-flex items-center gap-1 h-7 px-3 rounded-md bg-slate-950 text-white text-[12px] font-semibold hover:bg-slate-800 transition-colors"
+                            >
+                                Done
+                                <ArrowRight className="w-3 h-3" strokeWidth={2} />
+                            </button>
+                        </div>
                     </DialogContent>
                 </Dialog>
             ))}

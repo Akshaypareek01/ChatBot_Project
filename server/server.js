@@ -56,17 +56,100 @@ app.use(helmet({ crossOriginResourcePolicy: { policy: "cross-origin" } })); // S
 // app.use(cors({ origin: 'https://your-frontend-domain.com' }));
 app.use(cors());
 
-// Rate Limiting: 100 requests per 15 mins
-const limiter = rateLimit({
+/* -------------------------------------------------------------------------- */
+/* Trust proxy                                                                 */
+/* -------------------------------------------------------------------------- */
+// Deployment context: single EC2 instance. nginx may or may not be installed
+// in front of Node. We use the Express-recommended "only trust loopback /
+// private-range hops" setting, which is safe in both cases:
+//
+//   - If nginx is in front on the same EC2 → it forwards from 127.0.0.1
+//     (loopback), so X-Forwarded-For is trusted → req.ip = real client IP.
+//   - If Node is serving directly → no X-Forwarded-For header exists, so
+//     req.ip falls back to the socket IP (still the real client IP).
+//   - If an external attacker spoofs X-Forwarded-For → their origin is NOT
+//     loopback/private, so the header is IGNORED → they can't spoof their way
+//     into a different rate-limit bucket.
+//
+// This is strictly safer than `trust proxy: 1` and works across both setups
+// without reconfiguration. See https://expressjs.com/en/guide/behind-proxies.html
+app.set('trust proxy', 'loopback, linklocal, uniquelocal');
+
+/* -------------------------------------------------------------------------- */
+/* Rate limiters                                                               */
+/* -------------------------------------------------------------------------- */
+// Single global 100/15min was locking legitimate dashboard users out — the
+// dashboard makes 4+ API calls on load alone. We now split limiting by risk
+// class: strict on auth endpoints (brute-force surface), lenient on the
+// authenticated dashboard, and we skip limits entirely for things that must
+// never be dropped (payment webhooks, health checks, widget script).
+
+/** Do not rate-limit payment-provider webhooks, health checks, or public assets. */
+const skipUnlimitedPaths = (req) => {
+  const p = req.path || '';
+  // Strip /api or /api/v1 prefix — the limiter is mounted on those, so req.path
+  // is relative ("/users/login", "/payment/webhook", …).
+  return (
+    p === '/health' ||
+    p.startsWith('/payment/webhook') ||        // Cashfree callbacks — never block
+    p.startsWith('/webhooks/') ||              // Outgoing webhook retry callbacks
+    p === '/chatbot/widget-ping'               // Widget install verification
+  );
+};
+
+/** Generous limiter for the authenticated dashboard + widget API surface. */
+const generalLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
-  max: 100,
-  message: { message: 'Too many requests from this IP, please try again later.' },
-  skip: (req) => {
-    // Skip rate limiting for admin login
-    return req.path === '/admin/login';
+  max: 600, // ~40 req/min sustained per IP — covers a heavy dashboard user
+  standardHeaders: true,
+  legacyHeaders: false,
+  skip: skipUnlimitedPaths,
+  handler: (req, res) => {
+    const retryAfter = Math.max(1, Math.ceil((req.rateLimit?.resetTime?.getTime() - Date.now()) / 1000) || 60);
+    res.set('Retry-After', String(retryAfter));
+    return res.status(429).json({
+      message: 'Too many requests. Please wait a moment and try again.',
+      retryAfter
+    });
   }
 });
-app.use('/api', limiter);
+
+/** Strict limiter for auth routes — protects against credential stuffing. */
+const authLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 30,                           // 30 auth attempts per IP per 15 min
+  skipSuccessfulRequests: true,      // Only count failed attempts (2xx/3xx don't count)
+  standardHeaders: true,
+  legacyHeaders: false,
+  handler: (req, res) => {
+    const retryAfter = Math.max(1, Math.ceil((req.rateLimit?.resetTime?.getTime() - Date.now()) / 1000) || 60);
+    res.set('Retry-After', String(retryAfter));
+    return res.status(429).json({
+      message: 'Too many attempts. Please try again in a few minutes.',
+      retryAfter
+    });
+  }
+});
+
+// Auth endpoints — paths here match BOTH /api and /api/v1 because Express
+// treats /api/v1 as a subpath of /api. Mounting on /api covers both.
+const AUTH_PATHS = [
+  '/users/login',
+  '/users/register',
+  '/users/verify-otp',
+  '/users/resend-otp',
+  '/users/forgot-password',
+  '/users/reset-password',
+  '/admin/login',
+  '/admin/login/totp',
+];
+AUTH_PATHS.forEach((p) => {
+  app.use(`/api${p}`, authLimiter);
+  app.use(`/api/v1${p}`, authLimiter);
+});
+
+// Lenient limiter for everything else on the API
+app.use('/api', generalLimiter);
 app.use('/api', csrfGuard);
 
 // Capture raw body for request signing verification on /api/chat

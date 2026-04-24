@@ -39,6 +39,21 @@ api.interceptors.response.use(
   (res) => res,
   async (err) => {
     const original = err.config;
+
+    // Graceful 429 handling — normalise the error so toast messages render
+    // the backend-provided friendly text instead of a generic axios error.
+    if (err.response?.status === 429) {
+      const retryAfter =
+        err.response.data?.retryAfter ||
+        parseInt(err.response.headers?.['retry-after'] || '0', 10) ||
+        60;
+      const message =
+        err.response.data?.message ||
+        `Too many requests. Please try again in ${Math.ceil(retryAfter / 60)} minute(s).`;
+      err.response.data = { ...(err.response.data || {}), message, retryAfter };
+      return Promise.reject(err);
+    }
+
     if (err.response?.status !== 401 || original._retry) {
       return Promise.reject(err);
     }
