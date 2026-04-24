@@ -1,5 +1,9 @@
 const nodemailer = require('nodemailer');
-
+const { wrapEmailHtml, getEmailBranding } = require('./emailBranding');
+const { getBrandingAttachments } = require('./email/emailAssets');
+const { lowBalanceBody, emptyBalanceBody } = require('./email/templates/billingEmails');
+const { verificationOtpBody, passwordResetOtpBody } = require('./email/templates/authEmails');
+const { weeklyReportBody } = require('./email/templates/reportEmails');
 const transporter = nodemailer.createTransport({
     host: process.env.SMTP_HOST || 'smtp.zoho.com',
     port: parseInt(process.env.SMTP_PORT) || 465,
@@ -9,9 +13,10 @@ const transporter = nodemailer.createTransport({
         pass: process.env.SMTP_PASS,
     },
 });
-
 // Zoho requires the 'from' email to ALWAYS match the authenticated 'user' email.
 const safeFrom = `"ChatBot Support" <${process.env.SMTP_USER}>`;
+const { logoUrl: EMAIL_LOGO_URL, logoCid: EMAIL_LOGO_CID, brandName: EMAIL_BRAND_NAME } = getEmailBranding();
+const { logoCid: INLINE_LOGO_CID, attachments: BRAND_ATTACHMENTS } = getBrandingAttachments();
 
 const User = require('../models/User');
 const Plan = require('../models/Plan');
@@ -68,17 +73,14 @@ const sendLowBalanceEmail = async (userEmail, userName, currentBalance, userId =
             replyTo: sender.replyTo,
             to: userEmail,
             subject: 'Low Token Balance Alert',
-            html: `
-                <div style="font-family: sans-serif; padding: 20px; border: 1px solid #eee; border-radius: 10px;">
-                    <h2 style="color: #f39c12;">Low Token Balance!</h2>
-                    <p>Hello ${userName},</p>
-                    <p>Your chatbot token balance is running low. You currently have <strong>${currentBalance.toLocaleString()}</strong> tokens remaining.</p>
-                    <p>Please recharge soon to ensure your chatbot remains active without interruption.</p>
-                    <div style="margin-top: 20px;">
-                        <a href="${dashUrl}/transactions" style="background: #3498db; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px;">Recharge Now</a>
-                    </div>
-                </div>
-            `
+            attachments: BRAND_ATTACHMENTS,
+            html: wrapEmailHtml({
+                subject: 'Low Token Balance Alert',
+                brandName: EMAIL_BRAND_NAME,
+                logoUrl: EMAIL_LOGO_URL,
+                logoCid: EMAIL_LOGO_CID || INLINE_LOGO_CID,
+                bodyHtml: lowBalanceBody({ userName, currentBalance, dashUrl })
+            })
         };
 
         await transporter.sendMail(mailOptions);
@@ -102,17 +104,14 @@ const sendEmptyBalanceEmail = async (userEmail, userName, userId = null) => {
             replyTo: sender.replyTo,
             to: userEmail,
             subject: 'URGENT: Token Balance Empty',
-            html: `
-                <div style="font-family: sans-serif; padding: 20px; border: 1px solid #eee; border-radius: 10px;">
-                    <h2 style="color: #e74c3c;">Out of Tokens!</h2>
-                    <p>Hello ${userName},</p>
-                    <p>URGENT: Your chatbot tokens have expired. Your bot has <strong>stopped answering</strong>.</p>
-                    <p>Please recharge immediately to reactivate your AI services.</p>
-                    <div style="margin-top: 20px;">
-                        <a href="${dashUrl}/transactions" style="background: #e74c3c; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px;">Recharge Immediately</a>
-                    </div>
-                </div>
-            `
+            attachments: BRAND_ATTACHMENTS,
+            html: wrapEmailHtml({
+                subject: 'URGENT: Token Balance Empty',
+                brandName: EMAIL_BRAND_NAME,
+                logoUrl: EMAIL_LOGO_URL,
+                logoCid: EMAIL_LOGO_CID || INLINE_LOGO_CID,
+                bodyHtml: emptyBalanceBody({ userName, dashUrl })
+            })
         };
 
         await transporter.sendMail(mailOptions);
@@ -139,7 +138,11 @@ const sendPaymentSuccessEmail = async (userEmail, userName, amount, tokens, orde
             replyTo: sender.replyTo,
             to: userEmail,
             subject: `Invoice for Order #${orderId} - Payment Successful`,
-            html: `
+            html: wrapEmailHtml({
+                subject: `Invoice for Order #${orderId} - Payment Successful`,
+                brandName: EMAIL_BRAND_NAME,
+                logoUrl: EMAIL_LOGO_URL,
+                bodyHtml: `
                 <div style="font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; max-width: 600px; margin: auto; border: 1px solid #e0e0e0; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 10px rgba(0,0,0,0.05);">
                     <div style="background-color: #27ae60; padding: 30px; text-align: center; color: white;">
                         <h1 style="margin: 0; font-size: 24px;">Payment Successful!</h1>
@@ -195,7 +198,8 @@ const sendPaymentSuccessEmail = async (userEmail, userName, amount, tokens, orde
                         <p style="margin: 10px 0 0 0;">© 2026 Nvhotech Private Ltd. All rights reserved.</p>
                     </div>
                 </div>
-            `
+                `
+            })
         };
 
         await transporter.sendMail(mailOptions);
@@ -214,15 +218,20 @@ const sendPaymentFailureEmail = async (userEmail, userName, amount, orderId) => 
             from: safeFrom,
             to: userEmail,
             subject: 'Payment Failed - Order Update',
-            html: `
-                <div style="font-family: sans-serif; padding: 20px; border: 1px solid #eee; border-radius: 10px;">
-                    <h2 style="color: #e74c3c;">Payment Failed</h2>
-                    <p>Hello ${userName},</p>
-                    <p>Your payment attempt of <strong>₹${amount}</strong> for Order ID <strong>${orderId}</strong> has failed or was cancelled.</p>
-                    <p>If any money was deducted, it will be automatically refunded within 5-7 business days.</p>
-                    <p>Please try again or contact support if you face issues.</p>
-                </div>
-            `
+            html: wrapEmailHtml({
+                subject: 'Payment Failed - Order Update',
+                brandName: EMAIL_BRAND_NAME,
+                logoUrl: EMAIL_LOGO_URL,
+                bodyHtml: `
+                    <div style="font-family: sans-serif;">
+                        <h2 style="color: #e74c3c; margin: 0 0 12px;">Payment Failed</h2>
+                        <p>Hello ${userName},</p>
+                        <p>Your payment attempt of <strong>₹${amount}</strong> for Order ID <strong>${orderId}</strong> has failed or was cancelled.</p>
+                        <p>If any money was deducted, it will be automatically refunded within 5-7 business days.</p>
+                        <p>Please try again or contact support if you face issues.</p>
+                    </div>
+                `
+            })
         };
 
         await transporter.sendMail(mailOptions);
@@ -241,17 +250,14 @@ const sendVerificationEmail = async (userEmail, userName, otp) => {
             from: safeFrom,
             to: userEmail,
             subject: 'Verify Your Email - ChatBot',
-            html: `
-                <div style="font-family: sans-serif; padding: 20px; border: 1px solid #eee; border-radius: 10px;">
-                    <h2>Welcome to ChatBot!</h2>
-                    <p>Hello ${userName},</p>
-                    <p>Thank you for registering. Please use the following OTP to verify your email address:</p>
-                    <div style="background: #f8f9fa; padding: 15px; text-align: center; font-size: 24px; font-weight: bold; letter-spacing: 5px; color: #3498db; border-radius: 5px; margin: 20px 0;">
-                        ${otp}
-                    </div>
-                    <p>This OTP is valid for 10 minutes. If you did not request this, please ignore this email.</p>
-                </div>
-            `
+            attachments: BRAND_ATTACHMENTS,
+            html: wrapEmailHtml({
+                subject: 'Verify Your Email - ChatBot',
+                brandName: EMAIL_BRAND_NAME,
+                logoUrl: EMAIL_LOGO_URL,
+                logoCid: EMAIL_LOGO_CID || INLINE_LOGO_CID,
+                bodyHtml: verificationOtpBody({ userName, otp })
+            })
         };
 
         await transporter.sendMail(mailOptions);
@@ -270,17 +276,14 @@ const sendPasswordResetEmail = async (userEmail, userName, otp) => {
             from: safeFrom,
             to: userEmail,
             subject: 'Password Reset Request - ChatBot',
-            html: `
-                <div style="font-family: sans-serif; padding: 20px; border: 1px solid #eee; border-radius: 10px;">
-                    <h2>Password Reset Request</h2>
-                    <p>Hello ${userName},</p>
-                    <p>We received a request to reset your password. Use the following OTP to proceed:</p>
-                    <div style="background: #f8f9fa; padding: 15px; text-align: center; font-size: 24px; font-weight: bold; letter-spacing: 5px; color: #e74c3c; border-radius: 5px; margin: 20px 0;">
-                        ${otp}
-                    </div>
-                    <p>This OTP is valid for 10 minutes. If you did not request a password reset, please secure your account.</p>
-                </div>
-            `
+            attachments: BRAND_ATTACHMENTS,
+            html: wrapEmailHtml({
+                subject: 'Password Reset Request - ChatBot',
+                brandName: EMAIL_BRAND_NAME,
+                logoUrl: EMAIL_LOGO_URL,
+                logoCid: EMAIL_LOGO_CID || INLINE_LOGO_CID,
+                bodyHtml: passwordResetOtpBody({ userName, otp })
+            })
         };
 
         await transporter.sendMail(mailOptions);
@@ -305,17 +308,22 @@ const sendNewLeadEmail = async (ownerEmail, ownerName, lead) => {
             from: safeFrom,
             to: ownerEmail,
             subject: 'New lead captured from your chatbot',
-            html: `
-                <div style="font-family: sans-serif; padding: 20px;">
-                    <h2 style="color: #2563eb;">New lead</h2>
-                    <p>Hello ${ownerName || 'there'},</p>
-                    <p>A visitor just submitted their details on your chatbot:</p>
-                    <div style="background: #f8fafc; padding: 16px; border-radius: 8px; margin: 16px 0;">
-                        ${parts.join('<br/>')}
+            html: wrapEmailHtml({
+                subject: 'New lead captured from your chatbot',
+                brandName: EMAIL_BRAND_NAME,
+                logoUrl: EMAIL_LOGO_URL,
+                bodyHtml: `
+                    <div style="font-family: sans-serif;">
+                        <h2 style="color: #2563eb; margin: 0 0 12px;">New lead</h2>
+                        <p>Hello ${ownerName || 'there'},</p>
+                        <p>A visitor just submitted their details on your chatbot:</p>
+                        <div style="background: #f8fafc; padding: 14px; border-radius: 10px; margin: 14px 0; border: 1px solid #e2e8f0;">
+                            ${parts.join('<br/>')}
+                        </div>
+                        <p style="color: #64748b; font-size: 14px; margin-bottom: 0;">Check your Conversations in the dashboard to view the full chat.</p>
                     </div>
-                    <p style="color: #64748b; font-size: 14px;">Check your Conversations in the dashboard to view the full chat.</p>
-                </div>
-            `
+                `
+            })
         };
         await transporter.sendMail(mailOptions);
         console.log(`✅ New lead email sent to ${ownerEmail}`);
@@ -323,9 +331,6 @@ const sendNewLeadEmail = async (ownerEmail, ownerName, lead) => {
         console.error('❌ New lead email error:', error.message);
     }
 };
-
-const dashboardUrl = () => (process.env.Web_url || 'https://app.example.com').replace(/\/$/, '') + '/user';
-const loginUrl = () => (process.env.Web_url || 'https://app.example.com').replace(/\/$/, '') + '/login';
 
 /**
  * Phase 3.2: Onboarding email sequence — Day 1 (welcome + first steps).
@@ -340,19 +345,26 @@ const sendOnboardingDay1Email = async (userEmail, userName, userId = null) => {
             replyTo: sender.replyTo,
             to: userEmail,
             subject: 'Welcome! Here\'s how to get your chatbot live in 5 minutes',
-            html: `
-                <div style="font-family: sans-serif; padding: 20px; max-width: 560px;">
-                    <h2 style="color: #2563eb;">Welcome, ${userName || 'there'}!</h2>
-                    <p>Thanks for signing up. Your AI chatbot is ready — here’s how to get it on your site:</p>
-                    <ol style="line-height: 1.8;">
-                        <li><strong>Add your content</strong> — Scrape your website or upload a PDF in the Knowledge Base.</li>
-                        <li><strong>Customize</strong> — Set your brand name, colors, and welcome message in Widget settings.</li>
-                        <li><strong>Embed</strong> — Copy the script from your dashboard and paste it before &lt;/body&gt; on your site.</li>
-                    </ol>
-                    <p><a href="${dashUrl}" style="background: #2563eb; color: white; padding: 12px 24px; text-decoration: none; border-radius: 8px; display: inline-block;">Open dashboard</a></p>
-                    <p style="color: #64748b; font-size: 14px; margin-top: 24px;">If you need help, reply to this email.</p>
-                </div>
-            `
+            html: wrapEmailHtml({
+                subject: 'Welcome! Here\'s how to get your chatbot live in 5 minutes',
+                brandName: EMAIL_BRAND_NAME,
+                logoUrl: EMAIL_LOGO_URL,
+                bodyHtml: `
+                    <div style="font-family: sans-serif;">
+                        <h2 style="color: #2563eb; margin: 0 0 12px;">Welcome, ${userName || 'there'}!</h2>
+                        <p>Thanks for signing up. Your AI chatbot is ready — here’s how to get it on your site:</p>
+                        <ol style="line-height: 1.8;">
+                            <li><strong>Add your content</strong> — Scrape your website or upload a PDF in the Knowledge Base.</li>
+                            <li><strong>Customize</strong> — Set your brand name, colors, and welcome message in Widget settings.</li>
+                            <li><strong>Embed</strong> — Copy the script from your dashboard and paste it before &lt;/body&gt; on your site.</li>
+                        </ol>
+                        <p style="margin: 16px 0 0;">
+                            <a href="${dashUrl}" style="background: #2563eb; color: white; padding: 12px 18px; text-decoration: none; border-radius: 10px; display: inline-block;">Open dashboard</a>
+                        </p>
+                        <p style="color: #64748b; font-size: 14px; margin-top: 18px; margin-bottom: 0;">If you need help, reply to this email.</p>
+                    </div>
+                `
+            })
         });
         console.log(`✅ Onboarding Day 1 email sent to ${userEmail}`);
     } catch (error) {
@@ -373,18 +385,25 @@ const sendOnboardingDay3Email = async (userEmail, userName, userId = null) => {
             replyTo: sender.replyTo,
             to: userEmail,
             subject: '3 tips to get more from your chatbot',
-            html: `
-                <div style="font-family: sans-serif; padding: 20px; max-width: 560px;">
-                    <h2 style="color: #2563eb;">Hi ${userName || 'there'},</h2>
-                    <p>Quick tips to make your chatbot more useful:</p>
-                    <ul style="line-height: 1.8;">
-                        <li><strong>Add suggested questions</strong> — In Widget settings, add 3–5 starter questions so visitors know what to ask.</li>
-                        <li><strong>Turn on lead capture</strong> — Enable the pre-chat form to collect name and email before the conversation.</li>
-                        <li><strong>Check Analytics</strong> — See chat volume, satisfaction, and top questions in the Analytics page.</li>
-                    </ul>
-                    <p><a href="${dashUrl}" style="background: #2563eb; color: white; padding: 12px 24px; text-decoration: none; border-radius: 8px; display: inline-block;">Go to dashboard</a></p>
-                </div>
-            `
+            html: wrapEmailHtml({
+                subject: '3 tips to get more from your chatbot',
+                brandName: EMAIL_BRAND_NAME,
+                logoUrl: EMAIL_LOGO_URL,
+                bodyHtml: `
+                    <div style="font-family: sans-serif;">
+                        <h2 style="color: #2563eb; margin: 0 0 12px;">Hi ${userName || 'there'},</h2>
+                        <p>Quick tips to make your chatbot more useful:</p>
+                        <ul style="line-height: 1.8; margin: 10px 0 0; padding-left: 18px;">
+                            <li><strong>Add suggested questions</strong> — In Widget settings, add 3–5 starter questions so visitors know what to ask.</li>
+                            <li><strong>Turn on lead capture</strong> — Enable the pre-chat form to collect name and email before the conversation.</li>
+                            <li><strong>Check Analytics</strong> — See chat volume, satisfaction, and top questions in the Analytics page.</li>
+                        </ul>
+                        <p style="margin: 16px 0 0;">
+                            <a href="${dashUrl}" style="background: #2563eb; color: white; padding: 12px 18px; text-decoration: none; border-radius: 10px; display: inline-block;">Go to dashboard</a>
+                        </p>
+                    </div>
+                `
+            })
         });
         console.log(`✅ Onboarding Day 3 email sent to ${userEmail}`);
     } catch (error) {
@@ -405,19 +424,26 @@ const sendOnboardingDay7Email = async (userEmail, userName, userId = null) => {
             replyTo: sender.replyTo,
             to: userEmail,
             subject: 'How\'s your chatbot doing? We\'re here to help',
-            html: `
-                <div style="font-family: sans-serif; padding: 20px; max-width: 560px;">
-                    <h2 style="color: #2563eb;">Hi ${userName || 'there'},</h2>
-                    <p>You’ve been with us for a week. Here’s a quick checklist:</p>
-                    <ul style="line-height: 1.8;">
-                        <li>Is the widget live on your site? Check <strong>Domain Security</strong> if you restricted domains.</li>
-                        <li>Review <strong>Conversations</strong> and <strong>Analytics</strong> to see how visitors are using the bot.</li>
-                        <li>Need more credits? Top up anytime from <strong>Transactions</strong>.</li>
-                    </ul>
-                    <p><a href="${dashUrl}" style="background: #2563eb; color: white; padding: 12px 24px; text-decoration: none; border-radius: 8px; display: inline-block;">Open dashboard</a></p>
-                    <p style="color: #64748b; font-size: 14px; margin-top: 24px;">Reply to this email if you have questions — we’re happy to help.</p>
-                </div>
-            `
+            html: wrapEmailHtml({
+                subject: 'How\'s your chatbot doing? We\'re here to help',
+                brandName: EMAIL_BRAND_NAME,
+                logoUrl: EMAIL_LOGO_URL,
+                bodyHtml: `
+                    <div style="font-family: sans-serif;">
+                        <h2 style="color: #2563eb; margin: 0 0 12px;">Hi ${userName || 'there'},</h2>
+                        <p>You’ve been with us for a week. Here’s a quick checklist:</p>
+                        <ul style="line-height: 1.8; margin: 10px 0 0; padding-left: 18px;">
+                            <li>Is the widget live on your site? Check <strong>Domain Security</strong> if you restricted domains.</li>
+                            <li>Review <strong>Conversations</strong> and <strong>Analytics</strong> to see how visitors are using the bot.</li>
+                            <li>Need more credits? Top up anytime from <strong>Transactions</strong>.</li>
+                        </ul>
+                        <p style="margin: 16px 0 0;">
+                            <a href="${dashUrl}" style="background: #2563eb; color: white; padding: 12px 18px; text-decoration: none; border-radius: 10px; display: inline-block;">Open dashboard</a>
+                        </p>
+                        <p style="color: #64748b; font-size: 14px; margin-top: 18px; margin-bottom: 0;">Reply to this email if you have questions — we’re happy to help.</p>
+                    </div>
+                `
+            })
         });
         console.log(`✅ Onboarding Day 7 email sent to ${userEmail}`);
     } catch (error) {
@@ -433,27 +459,23 @@ const sendSummaryEmail = async (userEmail, userName, summary, userId = null) => 
     try {
         const sender = await getSenderForUser(userId);
         const dashUrl = await dashboardUrlForUser(userId);
-        const { period, conversations, messages, uniqueVisitors, leadsCaptured, satisfactionPercent } = summary;
+        const { period } = summary;
         await transporter.sendMail({
             from: sender.from,
             replyTo: sender.replyTo,
             to: userEmail,
+            attachments: BRAND_ATTACHMENTS,
             subject: `Your chatbot summary (${period})`,
-            html: `
-                <div style="font-family: sans-serif; padding: 20px; max-width: 560px;">
-                    <h2 style="color: #2563eb;">${period} summary</h2>
-                    <p>Hello ${userName || 'there'},</p>
-                    <p>Here’s how your chatbot performed:</p>
-                    <table style="width: 100%; border-collapse: collapse; margin: 16px 0;">
-                        <tr style="border-bottom: 1px solid #e2e8f0;"><td style="padding: 8px 0;">Conversations</td><td style="text-align: right; font-weight: 600;">${conversations ?? 0}</td></tr>
-                        <tr style="border-bottom: 1px solid #e2e8f0;"><td style="padding: 8px 0;">Messages</td><td style="text-align: right; font-weight: 600;">${messages ?? 0}</td></tr>
-                        <tr style="border-bottom: 1px solid #e2e8f0;"><td style="padding: 8px 0;">Unique visitors</td><td style="text-align: right; font-weight: 600;">${uniqueVisitors ?? 0}</td></tr>
-                        <tr style="border-bottom: 1px solid #e2e8f0;"><td style="padding: 8px 0;">Leads captured</td><td style="text-align: right; font-weight: 600;">${leadsCaptured ?? 0}</td></tr>
-                        ${satisfactionPercent != null ? `<tr><td style="padding: 8px 0;">Satisfaction</td><td style="text-align: right; font-weight: 600;">${satisfactionPercent}%</td></tr>` : ''}
-                    </table>
-                    <p><a href="${dashUrl}/analytics" style="background: #2563eb; color: white; padding: 12px 24px; text-decoration: none; border-radius: 8px; display: inline-block;">View analytics</a></p>
-                </div>
-            `
+            html: wrapEmailHtml({
+                subject: `Your chatbot summary (${period})`,
+                brandName: EMAIL_BRAND_NAME,
+                logoUrl: EMAIL_LOGO_URL,
+                logoCid: EMAIL_LOGO_CID || INLINE_LOGO_CID,
+                bodyHtml: weeklyReportBody(
+                    { ...summary, userName: userName || summary.userName || 'there' },
+                    { dashUrl }
+                )
+            })
         });
         console.log(`✅ Summary email sent to ${userEmail}`);
     } catch (error) {
