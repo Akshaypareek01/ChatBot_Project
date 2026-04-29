@@ -14,6 +14,7 @@
  */
 
 import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { toast } from 'sonner';
 import { Workflow, X } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -126,14 +127,29 @@ export default function ChatFlows() {
                     Array.isArray(f?.draftNodes) && f.draftNodes.length > 0
                         ? f.draftNodes
                         : f?.nodes;
-                setFlowDoc(
-                    normalizeFlow({
-                        startNodeId: f?.startNodeId,
-                        nodes: editingNodes,
-                        isActive: !!f?.isActive,
-                        variables: f?.variables ?? [],
-                    })
+
+                const hadPositions = (editingNodes ?? []).every(
+                    (n: any) => n?.position?.x !== undefined
                 );
+
+                const normalized = normalizeFlow({
+                    startNodeId: f?.startNodeId,
+                    nodes: editingNodes,
+                    isActive: !!f?.isActive,
+                    variables: f?.variables ?? [],
+                });
+                setFlowDoc(normalized);
+
+                // Persist auto-computed positions so nodes never pile up again
+                if (!hadPositions && selectedId) {
+                    updateFlow(selectedId, {
+                        name: f?.name || 'Untitled flow',
+                        startNodeId: normalized.startNodeId,
+                        nodes: normalized.nodes,
+                        variables: normalized.variables ?? [],
+                    }).catch(() => {/* silent — layout save is best-effort */});
+                }
+
                 setDirty(false);
                 setValidation(null);
             })
@@ -499,8 +515,8 @@ export default function ChatFlows() {
                 </section>
             </div>
 
-            {fullscreen && selectedId && (
-                <div className="fixed inset-0 z-50 bg-white flex flex-col">
+            {fullscreen && selectedId && createPortal(
+                <div className="fixed inset-0 z-[9999] bg-white flex flex-col">
                     <div className="h-14 px-5 border-b border-slate-900/[0.06] flex items-center justify-between flex-shrink-0">
                         <div className="flex items-center gap-3 min-w-0">
                             <div className="inline-flex items-center justify-center w-7 h-7 rounded-md bg-indigo-600/10 text-indigo-600 flex-shrink-0">
@@ -519,7 +535,8 @@ export default function ChatFlows() {
                         </button>
                     </div>
                     <div className="flex-1 min-h-0">{builder}</div>
-                </div>
+                </div>,
+                document.body
             )}
 
             <TemplateGallery

@@ -258,7 +258,7 @@ const UserLayout: React.FC<UserLayoutProps> = ({ children, onLogout, user }) => 
 
             {/* Main content */}
             <main className="flex-1 min-w-0 pt-14 md:pt-0">
-                <div className="px-5 sm:px-8 py-8 md:py-10 max-w-[1200px] mx-auto w-full">
+                <div className="px-4 sm:px-6 py-6 md:py-8 w-full">
                     {children}
                 </div>
             </main>

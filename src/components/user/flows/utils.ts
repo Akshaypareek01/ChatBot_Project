@@ -200,7 +200,7 @@ const sanitizeOption = (o: any): FlowOption => ({
  */
 export const normalizeFlow = (raw: any): FlowDocument => {
     const rawNodes = Array.isArray(raw?.nodes) ? raw.nodes : [];
-    const safeNodes: FlowNode[] = rawNodes.map((n: any, idx: number) => {
+    const safeNodes: FlowNode[] = rawNodes.map((n: any) => {
         const type = (n?.type || 'message') as FlowNodeType;
         const empty = createEmptyNode(type, String(n?.id || uid(type)));
         const merged: any = {
@@ -214,10 +214,9 @@ export const normalizeFlow = (raw: any): FlowDocument => {
             fallbackNextNodeId: n?.fallbackNextNodeId
                 ? String(n.fallbackNextNodeId)
                 : '',
-            position: n?.position || {
-                x: 120 + idx * 220,
-                y: 120 + (idx % 4) * 160,
-            },
+            // Position filled in after the full node array is built;
+            // set a sentinel so autoLayoutFlow can overwrite it when needed.
+            position: n?.position || null,
         };
 
         // copy through type-specific config blobs
@@ -234,8 +233,24 @@ export const normalizeFlow = (raw: any): FlowDocument => {
         return merged as FlowNode;
     });
 
-    const nodes = safeNodes.length ? safeNodes : createEmptyFlow().nodes;
-    const startNodeId = raw?.startNodeId || nodes[0]?.id || 'start';
+    const rawNodes2 = safeNodes.length ? safeNodes : createEmptyFlow().nodes;
+    const startNodeId = raw?.startNodeId || rawNodes2[0]?.id || 'start';
+
+    // Run BFS auto-layout when:
+    //   (a) any node is missing a position (template just cloned), OR
+    //   (b) all nodes share the same position (saved while piled up)
+    const positioned = rawNodes2.filter((n) => n.position);
+    const allSamePos =
+        positioned.length > 1 &&
+        positioned.every(
+            (n) =>
+                n.position!.x === positioned[0].position!.x &&
+                n.position!.y === positioned[0].position!.y
+        );
+    const needsLayout = rawNodes2.some((n) => !n.position) || allSamePos;
+    const nodes = needsLayout
+        ? autoLayoutFlow(rawNodes2 as FlowNode[], startNodeId)
+        : (rawNodes2 as FlowNode[]);
 
     const variables = Array.isArray(raw?.variables)
         ? raw.variables.map((v: any) => ({
@@ -253,6 +268,104 @@ export const normalizeFlow = (raw: any): FlowDocument => {
         variables,
     };
 };
+
+// ---------------------------------------------------------------------------
+// Auto-layout: BFS top-down positioning when nodes lack explicit positions.
+// ---------------------------------------------------------------------------
+
+const LAYOUT_W = 280;
+const LAYOUT_H = 100;
+const H_GAP    = 80;
+const V_GAP    = 110;
+
+/** Extract all direct successor IDs from any node type. */
+function getSuccessorIds(n: FlowNode): string[] {
+    const raw = n as any;
+    const ids: string[] = [];
+
+    if (Array.isArray(raw.options))
+        raw.options.forEach((o: any) => o?.nextNodeId && ids.push(o.nextNodeId));
+    if (raw.fallbackNextNodeId)             ids.push(raw.fallbackNextNodeId);
+    if (raw.capture?.nextNodeId)            ids.push(raw.capture.nextNodeId);
+    if (raw.capture?.fallbackNextNodeId)    ids.push(raw.capture.fallbackNextNodeId);
+    if (Array.isArray(raw.branch?.conditions))
+        raw.branch.conditions.forEach((c: any) => c?.nextNodeId && ids.push(c.nextNodeId));
+    if (raw.branch?.fallbackNextNodeId)     ids.push(raw.branch.fallbackNextNodeId);
+    if (raw.setVariable?.nextNodeId)        ids.push(raw.setVariable.nextNodeId);
+    if (raw.apiAction?.onSuccessNodeId)     ids.push(raw.apiAction.onSuccessNodeId);
+    if (raw.apiAction?.onErrorNodeId)       ids.push(raw.apiAction.onErrorNodeId);
+    if (raw.handoff?.fallbackNextNodeId)    ids.push(raw.handoff.fallbackNextNodeId);
+    if (raw.delay?.nextNodeId)              ids.push(raw.delay.nextNodeId);
+    if (raw.jump?.nextNodeId)               ids.push(raw.jump.nextNodeId);
+    if (raw.trigger?.nextNodeId)            ids.push(raw.trigger.nextNodeId);
+    if (raw.aiConfig?.nextNodeId)           ids.push(raw.aiConfig.nextNodeId);
+    if (Array.isArray(raw.cards))
+        raw.cards.forEach((c: any) =>
+            Array.isArray(c?.buttons) &&
+            c.buttons.forEach((b: any) => b?.nextNodeId && ids.push(b.nextNodeId))
+        );
+
+    return [...new Set(ids.filter(Boolean))];
+}
+
+/**
+ * Assigns x/y positions via BFS from `startNodeId` so nodes flow top-to-bottom
+ * with branches spread horizontally. Used when nodes come from templates or
+ * the backend without saved canvas positions.
+ */
+export function autoLayoutFlow(nodes: FlowNode[], startNodeId: string): FlowNode[] {
+    const nodeMap = new Map(nodes.map((n) => [n.id, n]));
+    const levelMap = new Map<string, number>();
+
+    const queue: string[] = [startNodeId];
+    levelMap.set(startNodeId, 0);
+    const visited = new Set<string>();
+
+    while (queue.length) {
+        const id = queue.shift()!;
+        if (visited.has(id)) continue;
+        visited.add(id);
+        const node = nodeMap.get(id);
+        if (!node) continue;
+        const level = levelMap.get(id) ?? 0;
+        for (const succId of getSuccessorIds(node)) {
+            if (!levelMap.has(succId)) levelMap.set(succId, level + 1);
+            if (!visited.has(succId)) queue.push(succId);
+        }
+    }
+
+    // Orphaned nodes placed after reachable ones
+    let orphanLevel = levelMap.size
+        ? Math.max(...Array.from(levelMap.values())) + 1
+        : 0;
+    nodes.forEach((n) => {
+        if (!levelMap.has(n.id)) levelMap.set(n.id, orphanLevel++);
+    });
+
+    const byLevel = new Map<number, string[]>();
+    levelMap.forEach((lvl, id) => {
+        if (!byLevel.has(lvl)) byLevel.set(lvl, []);
+        byLevel.get(lvl)!.push(id);
+    });
+
+    const posMap = new Map<string, { x: number; y: number }>();
+    Array.from(byLevel.keys())
+        .sort((a, b) => a - b)
+        .forEach((lvl) => {
+            const ids = byLevel.get(lvl)!;
+            const totalW = ids.length * LAYOUT_W + (ids.length - 1) * H_GAP;
+            const startX = 400 - totalW / 2;
+            const y = 80 + lvl * (LAYOUT_H + V_GAP);
+            ids.forEach((id, i) => {
+                posMap.set(id, { x: startX + i * (LAYOUT_W + H_GAP), y });
+            });
+        });
+
+    return nodes.map((n) => ({
+        ...n,
+        position: posMap.get(n.id) ?? { x: 80, y: 80 },
+    }));
+}
 
 /**
  * Walks every node and pulls out variable names that are written-to (capture,

@@ -37,6 +37,107 @@ const { getFlowAnalytics } = require('../services/flowAnalytics.service');
 // Helpers
 // ---------------------------------------------------------------------------
 
+// ---------------------------------------------------------------------------
+// Canvas auto-layout — assigns x/y positions via BFS so template nodes
+// render as a readable top-down graph instead of a pile-up.
+// ---------------------------------------------------------------------------
+
+const CARD_W  = 280;
+const CARD_H  = 100;
+const H_GAP   = 80;
+const V_GAP   = 110;
+
+/**
+ * Extract all direct successor node IDs from a single flow node.
+ * Handles every node type's "next" pointer fields.
+ *
+ * @param {object} node
+ * @returns {string[]}
+ */
+function getNodeSuccessors(node) {
+    const ids = [];
+    if (Array.isArray(node.options))
+        node.options.forEach(o => o?.nextNodeId && ids.push(o.nextNodeId));
+    if (node.fallbackNextNodeId)            ids.push(node.fallbackNextNodeId);
+    if (node.capture?.nextNodeId)           ids.push(node.capture.nextNodeId);
+    if (node.capture?.fallbackNextNodeId)   ids.push(node.capture.fallbackNextNodeId);
+    if (Array.isArray(node.branch?.conditions))
+        node.branch.conditions.forEach(c => c?.nextNodeId && ids.push(c.nextNodeId));
+    if (node.branch?.fallbackNextNodeId)    ids.push(node.branch.fallbackNextNodeId);
+    if (node.setVariable?.nextNodeId)       ids.push(node.setVariable.nextNodeId);
+    if (node.apiAction?.onSuccessNodeId)    ids.push(node.apiAction.onSuccessNodeId);
+    if (node.apiAction?.onErrorNodeId)      ids.push(node.apiAction.onErrorNodeId);
+    if (node.handoff?.fallbackNextNodeId)   ids.push(node.handoff.fallbackNextNodeId);
+    if (node.delay?.nextNodeId)             ids.push(node.delay.nextNodeId);
+    if (node.jump?.nextNodeId)              ids.push(node.jump.nextNodeId);
+    if (node.trigger?.nextNodeId)           ids.push(node.trigger.nextNodeId);
+    if (Array.isArray(node.cards))
+        node.cards.forEach(c =>
+            Array.isArray(c?.buttons) &&
+            c.buttons.forEach(b => b?.nextNodeId && ids.push(b.nextNodeId))
+        );
+    return [...new Set(ids.filter(Boolean))];
+}
+
+/**
+ * Return a copy of `nodes` with x/y positions assigned via BFS from
+ * `startNodeId`. Nodes already carrying a position are re-laid out so the
+ * full graph is always coherent (templates ship without positions).
+ *
+ * @param {object[]} nodes
+ * @param {string}   startNodeId
+ * @returns {object[]}
+ */
+function layoutNodes(nodes, startNodeId) {
+    const nodeMap = new Map(nodes.map(n => [n.id, n]));
+    const levelMap = new Map();
+
+    // BFS to assign depth levels
+    const queue = [startNodeId];
+    levelMap.set(startNodeId, 0);
+    const visited = new Set();
+
+    while (queue.length) {
+        const id = queue.shift();
+        if (visited.has(id)) continue;
+        visited.add(id);
+        const node = nodeMap.get(id);
+        if (!node) continue;
+        const level = levelMap.get(id) ?? 0;
+        for (const succId of getNodeSuccessors(node)) {
+            if (!levelMap.has(succId)) levelMap.set(succId, level + 1);
+            if (!visited.has(succId)) queue.push(succId);
+        }
+    }
+
+    // Orphaned nodes (not reachable from start) get placed at the bottom
+    let orphanLevel = levelMap.size
+        ? Math.max(...levelMap.values()) + 1
+        : 0;
+    nodes.forEach(n => { if (!levelMap.has(n.id)) levelMap.set(n.id, orphanLevel++); });
+
+    // Group by level
+    const byLevel = new Map();
+    levelMap.forEach((lvl, id) => {
+        if (!byLevel.has(lvl)) byLevel.set(lvl, []);
+        byLevel.get(lvl).push(id);
+    });
+
+    // Assign x/y: each level is centred around x = 400
+    const posMap = new Map();
+    [...byLevel.keys()].sort((a, b) => a - b).forEach(lvl => {
+        const ids = byLevel.get(lvl);
+        const totalW = ids.length * CARD_W + (ids.length - 1) * H_GAP;
+        const startX = 400 - totalW / 2;
+        const y = 80 + lvl * (CARD_H + V_GAP);
+        ids.forEach((id, i) => posMap.set(id, { x: startX + i * (CARD_W + H_GAP), y }));
+    });
+
+    return nodes.map(n => ({ ...n, position: posMap.get(n.id) ?? { x: 80, y: 80 } }));
+}
+
+// ---------------------------------------------------------------------------
+
 /**
  * Fail fast when the same node id appears twice or startNodeId is missing.
  *
@@ -239,6 +340,9 @@ const cloneTemplate = async (req, res) => {
             const defaultBot = await botService.ensureDefaultBot(req.userId);
             botId = defaultBot._id;
         }
+        const rawNodes = tpl.flow.nodes || [];
+        const laidOutNodes = layoutNodes(rawNodes, tpl.flow.startNodeId);
+
         const created = await ChatFlow.create({
             userId: req.userId,
             botId,
@@ -246,7 +350,7 @@ const cloneTemplate = async (req, res) => {
             description: tpl.flow.description || tpl.description || '',
             startNodeId: tpl.flow.startNodeId,
             nodes: [],
-            draftNodes: tpl.flow.nodes || [],
+            draftNodes: laidOutNodes,
             variables: tpl.flow.variables || [],
             status: 'draft',
             isActive: false

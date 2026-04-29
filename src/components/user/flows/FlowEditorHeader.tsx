@@ -1,7 +1,11 @@
 /**
  * Header for the editor pane: flow name, status pill, behavior-mode toggle,
  * and the lifecycle action buttons (Save / Publish / Unpublish / Delete /
- * Fullscreen). Pure presentation \u2014 the parent owns the data + handlers.
+ * Fullscreen). Pure presentation — the parent owns the data + handlers.
+ *
+ * Layout: always two rows so buttons never overlap on any screen size.
+ *   Row 1 — flow name + status pills (left) | behavior mode toggle (right)
+ *   Row 2 — panel toolbar (left) | lifecycle action buttons (right, flex-wrap)
  */
 
 import React from 'react';
@@ -78,41 +82,46 @@ export default function FlowEditorHeader({
     onDiscardDraft,
 }: Props) {
     return (
-        <div className="px-5 py-3.5 border-b border-slate-900/[0.06] flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-            <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-2 mb-1">
-                    <label className="text-[10.5px] font-semibold uppercase tracking-[0.14em] text-slate-400">
-                        Flow name
-                    </label>
-                    <StatusPill
-                        status={status}
-                        version={publishedVersion}
-                        publishedAt={publishedAt}
+        <div className="px-5 pt-3.5 pb-3 border-b border-slate-900/[0.06] flex flex-col gap-2.5">
+            {/* Row 1 — flow name (left) + behavior toggle (right) */}
+            <div className="flex items-start justify-between gap-3 flex-wrap">
+                <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 mb-1 flex-wrap">
+                        <label className="text-[10.5px] font-semibold uppercase tracking-[0.14em] text-slate-400">
+                            Flow name
+                        </label>
+                        <StatusPill
+                            status={status}
+                            version={publishedVersion}
+                            publishedAt={publishedAt}
+                        />
+                        {isDirty && (
+                            <span
+                                className="inline-flex items-center h-5 px-2 rounded-full text-[10px] font-semibold uppercase tracking-[0.1em] bg-amber-50 text-amber-800 border border-amber-200/60"
+                                title="You have unsaved changes in the draft"
+                            >
+                                Unsaved
+                            </span>
+                        )}
+                    </div>
+                    <input
+                        value={name}
+                        onChange={(e) => onNameChange(e.target.value)}
+                        placeholder="Flow name"
+                        className="w-full h-9 px-2.5 -mx-2.5 rounded-md bg-transparent border border-transparent hover:border-slate-900/[0.08] focus:bg-white focus:border-slate-900/[0.08] focus:outline-none focus:ring-2 focus:ring-indigo-500/25 text-[16px] font-semibold tracking-tight text-slate-950 transition-colors"
                     />
-                    {isDirty && (
-                        <span
-                            className="inline-flex items-center h-5 px-2 rounded-full text-[10px] font-semibold uppercase tracking-[0.1em] bg-amber-50 text-amber-800 border border-amber-200/60"
-                            title="You have unsaved changes in the draft"
-                        >
-                            Unsaved
-                        </span>
-                    )}
                 </div>
-                <input
-                    value={name}
-                    onChange={(e) => onNameChange(e.target.value)}
-                    placeholder="Flow name"
-                    className="w-full h-9 px-2.5 -mx-2.5 rounded-md bg-transparent border border-transparent hover:border-slate-900/[0.08] focus:bg-white focus:border-slate-900/[0.08] focus:outline-none focus:ring-2 focus:ring-indigo-500/25 text-[16px] font-semibold tracking-tight text-slate-950 transition-colors"
+
+                <BehaviorModeToggle
+                    mode={behaviorMode}
+                    onChange={onBehaviorModeChange}
+                    disabled={!isPublishedForCurrentBot}
                 />
             </div>
 
-            <BehaviorModeToggle
-                mode={behaviorMode}
-                onChange={onBehaviorModeChange}
-                disabled={!isPublishedForCurrentBot}
-            />
-
-            <div className="flex items-center gap-2 flex-shrink-0 flex-wrap">
+            {/* Row 2 — panel toolbar (left) + lifecycle buttons (right).
+                flex-wrap so buttons drop to the next line instead of overlapping. */}
+            <div className="flex items-center gap-2 flex-wrap">
                 {onTogglePanel && (
                     <PanelToolbar
                         activeTab={activePanelTab ?? null}
@@ -120,48 +129,58 @@ export default function FlowEditorHeader({
                         onToggle={onTogglePanel}
                     />
                 )}
+
+                {/* elastic spacer — pushes lifecycle buttons right on wide viewports */}
+                <div className="flex-1" />
+
                 <button
                     type="button"
                     onClick={onFullscreen}
-                    className="inline-flex items-center gap-1.5 h-9 px-3 rounded-md bg-white border border-slate-900/[0.08] text-[12.5px] font-semibold text-slate-700 hover:text-slate-950 hover:border-slate-900/20 transition-colors"
+                    className="inline-flex items-center gap-1.5 h-8 px-3 rounded-md bg-white border border-slate-900/[0.08] text-[12.5px] font-semibold text-slate-700 hover:text-slate-950 hover:border-slate-900/20 transition-colors"
+                    aria-label="Full screen"
                 >
                     <Maximize2 className="w-3.5 h-3.5" strokeWidth={2} />
-                    Full screen
+                    <span className="hidden sm:inline">Full screen</span>
                 </button>
+
                 <button
                     type="button"
                     onClick={onDelete}
-                    className="inline-flex items-center gap-1.5 h-9 px-3 rounded-md bg-white border border-rose-200/60 text-[12.5px] font-semibold text-rose-700 hover:text-rose-800 hover:border-rose-300 transition-colors"
+                    className="inline-flex items-center gap-1.5 h-8 px-3 rounded-md bg-white border border-rose-200/60 text-[12.5px] font-semibold text-rose-700 hover:text-rose-800 hover:border-rose-300 transition-colors"
+                    aria-label="Delete flow"
                 >
                     <Trash2 className="w-3.5 h-3.5" strokeWidth={2} />
-                    Delete
+                    <span className="hidden sm:inline">Delete</span>
                 </button>
+
                 {status === 'published' && onDiscardDraft && isDirty && (
                     <button
                         type="button"
                         onClick={onDiscardDraft}
                         title="Discard your unsaved changes and reload the last published version"
-                        className="inline-flex items-center gap-1.5 h-9 px-3 rounded-md bg-white border border-slate-900/[0.08] text-[12.5px] font-semibold text-slate-700 hover:text-slate-950 hover:border-slate-900/20 transition-colors"
+                        className="inline-flex items-center gap-1.5 h-8 px-3 rounded-md bg-white border border-slate-900/[0.08] text-[12.5px] font-semibold text-slate-700 hover:text-slate-950 hover:border-slate-900/20 transition-colors"
                     >
                         <RotateCcw className="w-3.5 h-3.5" strokeWidth={2} />
-                        Discard
+                        <span className="hidden sm:inline">Discard</span>
                     </button>
                 )}
+
                 <button
                     type="button"
                     onClick={onSave}
                     disabled={saving}
-                    className="inline-flex items-center gap-1.5 h-9 px-3.5 rounded-md bg-white border border-slate-900/[0.08] text-[12.5px] font-semibold text-slate-800 hover:text-slate-950 hover:border-slate-900/20 transition-colors disabled:opacity-60"
+                    className="inline-flex items-center gap-1.5 h-8 px-3.5 rounded-md bg-white border border-slate-900/[0.08] text-[12.5px] font-semibold text-slate-800 hover:text-slate-950 hover:border-slate-900/20 transition-colors disabled:opacity-60"
                 >
                     <Save className="w-3.5 h-3.5" strokeWidth={2} />
                     {saving ? 'Saving\u2026' : 'Save draft'}
                 </button>
+
                 {status === 'published' ? (
                     <button
                         type="button"
                         onClick={onUnpublish}
                         disabled={publishing}
-                        className="inline-flex items-center gap-1.5 h-9 px-3.5 rounded-md bg-white border border-slate-900/[0.08] text-[12.5px] font-semibold text-slate-800 hover:text-slate-950 hover:border-slate-900/20 transition-colors disabled:opacity-60"
+                        className="inline-flex items-center gap-1.5 h-8 px-3.5 rounded-md bg-white border border-slate-900/[0.08] text-[12.5px] font-semibold text-slate-800 hover:text-slate-950 hover:border-slate-900/20 transition-colors disabled:opacity-60"
                     >
                         <PowerOff className="w-3.5 h-3.5" strokeWidth={2} />
                         {publishing ? 'Working\u2026' : 'Unpublish'}
@@ -171,7 +190,7 @@ export default function FlowEditorHeader({
                         type="button"
                         onClick={onPublish}
                         disabled={publishing}
-                        className="inline-flex items-center gap-1.5 h-9 px-3.5 rounded-md bg-slate-950 text-white text-[12.5px] font-semibold hover:bg-slate-800 transition-colors disabled:opacity-60"
+                        className="inline-flex items-center gap-1.5 h-8 px-3.5 rounded-md bg-slate-950 text-white text-[12.5px] font-semibold hover:bg-slate-800 transition-colors disabled:opacity-60"
                     >
                         <UploadCloud className="w-3.5 h-3.5" strokeWidth={2} />
                         {publishing ? 'Publishing\u2026' : 'Publish'}
@@ -220,7 +239,7 @@ const BehaviorModeToggle: React.FC<{
     disabled?: boolean;
 }> = ({ mode, onChange, disabled }) => {
     return (
-        <div className="flex flex-col gap-1">
+        <div className="flex flex-col gap-1 flex-shrink-0">
             <span className="text-[10.5px] font-semibold uppercase tracking-[0.14em] text-slate-400">
                 Bot behavior
             </span>
@@ -270,15 +289,15 @@ const ModeButton: React.FC<{
 );
 
 /**
- * Compact toolbar that lives next to "Full screen" — three pill buttons that
- * open the matching tab in the side panel. Clicking the active one closes it.
+ * Compact toolbar that lives in row 2 — four pill buttons that open the
+ * matching tab in the side panel. Clicking the active one closes it.
  */
 const PanelToolbar: React.FC<{
     activeTab: SidePanelTab | null;
     validationCount?: number;
     onToggle: (tab: SidePanelTab) => void;
 }> = ({ activeTab, validationCount, onToggle }) => (
-    <div className="inline-flex items-center p-0.5 bg-slate-900/[0.05] rounded-lg">
+    <div className="inline-flex items-center p-0.5 bg-slate-900/[0.05] rounded-lg flex-shrink-0">
         <PanelToolbarButton
             tab="variables"
             label="Vars"
