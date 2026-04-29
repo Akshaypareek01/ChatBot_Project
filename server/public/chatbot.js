@@ -472,6 +472,91 @@
     };
   };
 
+  // -----------------------------------------------------------------------
+  // Enterprise Flow Builder — chunk renderers
+  // -----------------------------------------------------------------------
+
+  /**
+   * Render a horizontal list of cards. Each card supports:
+   *   - imageUrl, title, subtitle
+   *   - buttons[] with kind: 'postback' | 'url' (postback = send label as
+   *     a visitor message; url = open in new tab; call_api = treated as
+   *     postback for now since the server-side action lives in the flow).
+   *
+   * @param {HTMLElement} target the chatBody element
+   * @param {object[]} cards array of card definitions
+   * @param {(label: string) => void} onPostback handler when the user picks
+   *   a postback-style button.
+   */
+  const renderFlowCards = (target, cards, onPostback) => {
+    const themePrimary = (target && target.dataset && target.dataset.primaryColor) || '#2563EB';
+    const wrap = document.createElement('div');
+    wrap.style.cssText = 'display:flex;flex-direction:column;gap:10px;margin-top:8px;';
+    cards.slice(0, 8).forEach(function (c) {
+      const card = document.createElement('div');
+      card.style.cssText =
+        'background:#ffffff;border:1px solid rgba(15,23,42,0.10);border-radius:12px;' +
+        'overflow:hidden;box-shadow:0 6px 18px rgba(15,23,42,0.06);';
+      if (c.imageUrl) {
+        const img = document.createElement('img');
+        img.src = String(c.imageUrl);
+        img.alt = String(c.title || '');
+        img.style.cssText = 'width:100%;height:120px;object-fit:cover;display:block;';
+        card.appendChild(img);
+      }
+      const body = document.createElement('div');
+      body.style.cssText = 'padding:12px 14px;';
+      if (c.title) {
+        const h = document.createElement('div');
+        h.textContent = String(c.title);
+        h.style.cssText = 'font-weight:700;font-size:14px;color:#0F172A;line-height:1.3;';
+        body.appendChild(h);
+      }
+      if (c.subtitle) {
+        const s = document.createElement('div');
+        s.textContent = String(c.subtitle);
+        s.style.cssText = 'margin-top:4px;font-size:12.5px;color:#475569;line-height:1.4;';
+        body.appendChild(s);
+      }
+      if (Array.isArray(c.buttons) && c.buttons.length) {
+        const btnRow = document.createElement('div');
+        btnRow.style.cssText = 'display:flex;flex-wrap:wrap;gap:6px;margin-top:10px;';
+        c.buttons.slice(0, 4).forEach(function (b) {
+          const btn = document.createElement(b.kind === 'url' ? 'a' : 'button');
+          btn.textContent = String(b.label || '');
+          btn.style.cssText =
+            'padding:6px 12px;border-radius:999px;border:1px solid ' + themePrimary + '55;' +
+            'background:' + themePrimary + '12;color:' + themePrimary + ';cursor:pointer;font-size:12px;' +
+            'font-weight:600;text-decoration:none;display:inline-flex;align-items:center;';
+          if (b.kind === 'url' && b.url) {
+            btn.setAttribute('href', String(b.url));
+            btn.setAttribute('target', '_blank');
+            btn.setAttribute('rel', 'noopener noreferrer');
+          } else {
+            btn.onclick = function () { try { onPostback(String(b.label || '')); } catch (e) {} };
+          }
+          btnRow.appendChild(btn);
+        });
+        body.appendChild(btnRow);
+      }
+      card.appendChild(body);
+      wrap.appendChild(card);
+    });
+    target.appendChild(wrap);
+    target.scrollTop = target.scrollHeight;
+  };
+
+  /** Render an inline error pill in the chat body. */
+  const renderFlowError = (target, text) => {
+    const el = document.createElement('div');
+    el.textContent = String(text || '');
+    el.style.cssText =
+      'padding:10px 12px;border-radius:10px;background:#FEF2F2;border:1px solid #FECACA;' +
+      'color:#B91C1C;font-size:13px;line-height:1.5;margin-top:6px;';
+    target.appendChild(el);
+    target.scrollTop = target.scrollHeight;
+  };
+
   // Helper: Neural Typing Indicator
   const addTyping = (target) => {
     const themePrimary = (target && target.dataset && target.dataset.primaryColor) || '#2563EB';
@@ -885,6 +970,102 @@
       var lastSentMessage = null;
       var inHandoffMode = false;
       var handoffSocket = null;
+      // Buffer of visitor messages typed AFTER inHandoffMode flipped on but
+      // BEFORE handoffSocket finished its retry loop. Flushed by
+      // joinHandoffSocket() once the connection lands.
+      var pendingHandoffMessages = [];
+
+      /**
+       * Open the agent handoff Socket.IO channel for the current conversation.
+       * Idempotent — calling again while already connected is a no-op. Used by
+       * both the explicit "Talk to Human" button AND the Enterprise Flow
+       * Builder's `handoff` chunk emitted by the runtime when an
+       * `action_handoff` node executes (the server has already flipped
+       * Conversation.status to 'escalated').
+       *
+       * Retries with exponential backoff to absorb the rare race where the
+       * widget receives the `handoff` SSE chunk slightly before the DB write
+       * marking the conversation 'escalated' has propagated.
+       *
+       * @param {string|null} cid conversation id
+       */
+      const joinHandoffSocket = async (cid) => {
+        if (!cid || handoffSocket) return;
+        if (typeof io === 'undefined') {
+          try {
+            await new Promise(function (resolve, reject) {
+              var sc = document.createElement('script');
+              sc.src = baseUrl + '/socket.io/socket.io.js';
+              sc.onload = resolve;
+              sc.onerror = reject;
+              document.head.appendChild(sc);
+            });
+          } catch (e) {
+            console.warn('[chatbot] socket.io load failed', e);
+            return;
+          }
+        }
+
+        const attemptDelays = [0, 250, 600, 1200, 2400];
+        for (var i = 0; i < attemptDelays.length; i++) {
+          if (attemptDelays[i] > 0) {
+            await new Promise(function (r) { setTimeout(r, attemptDelays[i]); });
+          }
+          if (handoffSocket) return;
+          var connected = await new Promise(function (resolve) {
+            var s = io(baseUrl, {
+              path: '/socket.io',
+              auth: { widgetToken: data.widgetToken, conversationId: cid },
+              reconnection: false,
+              timeout: 4000,
+            });
+            var settled = false;
+            s.on('connect', function () {
+              if (settled) return;
+              settled = true;
+              handoffSocket = s;
+              resolve(true);
+            });
+            s.on('connect_error', function () {
+              if (settled) return;
+              settled = true;
+              try { s.close(); } catch (e) {}
+              resolve(false);
+            });
+          });
+          if (connected) break;
+        }
+
+        if (!handoffSocket) {
+          console.warn('[chatbot] joinHandoffSocket failed after retries');
+          return;
+        }
+        // Flush any messages the visitor typed while the socket was
+        // connecting. The server stores them and replays to the agent on
+        // their `agent_join`.
+        if (pendingHandoffMessages.length) {
+          var queued = pendingHandoffMessages.splice(0);
+          queued.forEach(function (q) {
+            handoffSocket.emit('handoff_message', { conversationId: cid, content: q, role: 'visitor' }, function () {});
+          });
+        }
+        handoffSocket.on('agent_joined', function () {
+          inHandoffMode = true;
+          addMessage(chatBody, 'bot', 'An agent has joined. You can chat below.');
+          chatBody.scrollTop = chatBody.scrollHeight;
+        });
+        handoffSocket.on('handoff_message', function (p) {
+          if (p && p.role === 'agent') {
+            addMessage(chatBody, 'bot', p.content);
+            chatBody.scrollTop = chatBody.scrollHeight;
+          }
+        });
+        handoffSocket.on('agent_left', function () {
+          inHandoffMode = false;
+          addMessage(chatBody, 'bot', 'Agent left. You can continue with the chatbot.');
+          chatBody.scrollTop = chatBody.scrollHeight;
+        });
+      };
 
       const handleSend = async (optionalText) => {
         const isDomEvent =
@@ -898,8 +1079,13 @@
         if (!text) return;
         input.value = '';
 
-        if (inHandoffMode && handoffSocket) {
-          handoffSocket.emit('handoff_message', { conversationId: getConversationId(), content: text, role: 'visitor' }, function () {});
+        if (inHandoffMode) {
+          if (handoffSocket) {
+            handoffSocket.emit('handoff_message', { conversationId: getConversationId(), content: text, role: 'visitor' }, function () {});
+          } else {
+            // Socket still mid-connect — queue and let joinHandoffSocket flush.
+            pendingHandoffMessages.push(text);
+          }
           addMessage(chatBody, 'user', text);
           chatBody.scrollTop = chatBody.scrollHeight;
           return;
@@ -1056,7 +1242,7 @@
                 }
                 streamEl = null;
               }
-              if (obj.type === 'buttons' && Array.isArray(obj.buttons) && obj.buttons.length && streamEl) {
+              if (obj.type === 'buttons' && Array.isArray(obj.buttons) && obj.buttons.length) {
                 var wrap = document.createElement('div');
                 wrap.style.cssText = 'display:flex;flex-wrap:wrap;gap:8px;margin-top:10px;';
                 var themePrimary = (chatBody && chatBody.dataset && chatBody.dataset.primaryColor) || '#2563EB';
@@ -1070,7 +1256,66 @@
                   };
                   wrap.appendChild(btn);
                 });
-                streamEl.container.appendChild(wrap);
+                if (streamEl) {
+                  streamEl.container.appendChild(wrap);
+                } else {
+                  // Buttons can arrive before any text on a flow turn (e.g. a
+                  // capture node with options). Make sure we still render them.
+                  if (loader && loader.parentElement) loader.remove();
+                  chatBody.appendChild(wrap);
+                  chatBody.scrollTop = chatBody.scrollHeight;
+                }
+              }
+              // Enterprise Flow Builder chunks (cards / link / typing / handoff / error).
+              if (obj.type === 'cards' && Array.isArray(obj.cards) && obj.cards.length) {
+                if (!streamStarted) { if (loader && loader.parentElement) loader.remove(); streamStarted = true; }
+                renderFlowCards(chatBody, obj.cards, function (label) {
+                  input.value = label;
+                  sendBtn.click();
+                });
+              }
+              if (obj.type === 'link' && obj.url) {
+                if (!streamStarted) { if (loader && loader.parentElement) loader.remove(); streamStarted = true; }
+                var linkWrap = document.createElement('div');
+                linkWrap.style.cssText = 'margin-top:8px;';
+                var themePrimaryL = (chatBody && chatBody.dataset && chatBody.dataset.primaryColor) || '#2563EB';
+                var anchor = document.createElement('a');
+                anchor.href = obj.url;
+                anchor.target = '_blank';
+                anchor.rel = 'noopener noreferrer';
+                anchor.textContent = obj.label || obj.url;
+                anchor.style.cssText =
+                  'display:inline-flex;align-items:center;gap:6px;padding:8px 12px;border-radius:8px;' +
+                  'background:' + themePrimaryL + '12;color:' + themePrimaryL + ';text-decoration:none;' +
+                  'border:1px solid ' + themePrimaryL + '55;font-weight:600;font-size:13px;';
+                linkWrap.appendChild(anchor);
+                if (streamEl) streamEl.container.appendChild(linkWrap);
+                else { chatBody.appendChild(linkWrap); chatBody.scrollTop = chatBody.scrollHeight; }
+              }
+              if (obj.type === 'typing') {
+                // The standard `loader` already shows typing dots while we
+                // wait for the first chunk; we treat `typing` chunks emitted
+                // mid-stream as a no-op. We could insert a synthetic delay
+                // here, but the runtime already paces deterministic chunks.
+              }
+              if (obj.type === 'handoff') {
+                if (loader && loader.parentElement) loader.remove();
+                streamStarted = true;
+                if (streamEl) { try { streamEl.finish(); } catch (e) {} streamEl = null; }
+                addMessage(chatBody, 'bot', obj.message || 'Connecting you with a human agent…');
+                // Flip to handoff mode immediately so visitor messages typed
+                // BEFORE an agent joins are routed via socket (server stores
+                // them for the agent to see when they connect) rather than
+                // back to the bot. Prefer the conversationId echoed by the
+                // runtime — it's guaranteed to be the DB id post-escalation.
+                inHandoffMode = true;
+                joinHandoffSocket(obj.conversationId || getConversationId());
+              }
+              if (obj.type === 'error' && obj.text) {
+                if (loader && loader.parentElement) loader.remove();
+                streamStarted = true;
+                if (streamEl) { try { streamEl.finish(); } catch (e) {} streamEl = null; }
+                renderFlowError(chatBody, obj.text);
               }
               if (obj.type === 'token' && obj.content != null) {
                 if (!streamStarted) {
@@ -1309,32 +1554,7 @@
           }
           addMessage(chatBody, 'bot', 'Connecting you to an agent...');
           chatBody.scrollTop = chatBody.scrollHeight;
-          if (typeof io === 'undefined') {
-            await new Promise(function (resolve, reject) {
-              var sc = document.createElement('script');
-              sc.src = baseUrl + '/socket.io/socket.io.js';
-              sc.onload = resolve;
-              sc.onerror = reject;
-              document.head.appendChild(sc);
-            });
-          }
-          handoffSocket = io(baseUrl, { path: '/socket.io', auth: { widgetToken: data.widgetToken, conversationId: cid } });
-          handoffSocket.on('agent_joined', function () {
-            inHandoffMode = true;
-            addMessage(chatBody, 'bot', 'An agent has joined. You can chat below.');
-            chatBody.scrollTop = chatBody.scrollHeight;
-          });
-          handoffSocket.on('handoff_message', function (p) {
-            if (p.role === 'agent') {
-              addMessage(chatBody, 'bot', p.content);
-              chatBody.scrollTop = chatBody.scrollHeight;
-            }
-          });
-          handoffSocket.on('agent_left', function () {
-            inHandoffMode = false;
-            addMessage(chatBody, 'bot', 'Agent left. You can continue with the chatbot.');
-            chatBody.scrollTop = chatBody.scrollHeight;
-          });
+          await joinHandoffSocket(cid);
         } catch (err) {
           addMessage(chatBody, 'bot', 'Connection error. Please try again.');
         }

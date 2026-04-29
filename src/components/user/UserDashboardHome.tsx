@@ -255,7 +255,7 @@ const UserDashboardHome = () => {
                         Profile
                     </SecondaryButton>
                     <PrimaryButton
-                        onClick={() => navigate('/user/transactions')}
+                        onClick={() => navigate('/user/billing')}
                         icon={<Wallet className="w-4 h-4" strokeWidth={2} />}
                     >
                         Add credits
@@ -281,7 +281,7 @@ const UserDashboardHome = () => {
                     icon={Wallet}
                     accent
                     warn={lowCredits}
-                    onClick={() => navigate('/user/transactions')}
+                    onClick={() => navigate('/user/billing')}
                 />
                 <StatCard
                     label="Knowledge base"
@@ -313,7 +313,7 @@ const UserDashboardHome = () => {
                     }
                     icon={Zap}
                     warn={planUsage?.isOverChatLimit || planUsage?.isOverSourcesLimit}
-                    onClick={() => navigate('/user/plan')}
+                    onClick={() => navigate('/user/billing')}
                 />
             </div>
 
@@ -392,7 +392,7 @@ const UserDashboardHome = () => {
                                 </h3>
                             </div>
                             <button
-                                onClick={() => navigate('/user/transactions')}
+                                onClick={() => navigate('/user/billing')}
                                 className="inline-flex items-center gap-1 text-[11.5px] font-semibold text-slate-500 hover:text-slate-900 transition-colors"
                             >
                                 View all <ArrowRight className="w-3 h-3" />

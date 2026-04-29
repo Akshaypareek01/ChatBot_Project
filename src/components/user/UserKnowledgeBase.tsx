@@ -1,1058 +1,1447 @@
-
 import React, { useState, useEffect } from 'react';
-import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Textarea } from '@/components/ui/textarea';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Plus, Search, Edit, Trash2, Save, X, MessageSquare, Filter, FileUp, Globe, Loader2, Database, File, ExternalLink, Wallet, FileText, RefreshCw, Sparkles } from 'lucide-react';
+import {
+    Plus,
+    Search,
+    Edit3,
+    Trash2,
+    Save,
+    X,
+    MessageSquare,
+    FileUp,
+    Globe,
+    Loader2,
+    Database,
+    File as FileIcon,
+    ExternalLink,
+    Wallet,
+    FileText,
+    RefreshCw,
+    Sparkles,
+    Filter,
+    ArrowRight,
+    Check,
+    AlertTriangle,
+} from 'lucide-react';
 import { toast } from 'sonner';
-import { Badge } from '@/components/ui/badge';
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { getCurrentUserQAs, createUserQA, updateUserQA, deleteUserQA, getSuggestedQAs, addSuggestedQAToQA, dismissSuggestedQA, uploadFile, scrapeWebsite, getScrapeStatus, addPasteSource, updateSource, getUserSources, getSourcesHealth } from '@/services/api';
+import {
+    Dialog,
+    DialogContent,
+} from '@/components/ui/dialog';
+import {
+    getCurrentUserQAs,
+    createUserQA,
+    updateUserQA,
+    deleteUserQA,
+    getSuggestedQAs,
+    addSuggestedQAToQA,
+    dismissSuggestedQA,
+    uploadFile,
+    scrapeWebsite,
+    getScrapeStatus,
+    addPasteSource,
+    updateSource,
+    getUserSources,
+    getSourcesHealth,
+} from '@/services/api';
+import { cn } from '@/lib/utils';
 
 interface QA {
-  _id: string;
-  question: string;
-  answer: string;
-  category: string;
-  frequency: number;
-  createdAt: string;
-  updatedAt: string;
+    _id: string;
+    question: string;
+    answer: string;
+    category: string;
+    frequency: number;
+    createdAt: string;
+    updatedAt: string;
 }
 
 interface Source {
-  _id: string;
-  type: 'file' | 'website' | 'paste';
-  fileName?: string;
-  fileSize?: number;
-  url?: string;
-  pasteTitle?: string;
-  scrapeSchedule?: string;
-  lastScrapedAt?: string | null;
-  pageCount?: number;
-  status: string;
-  createdAt: string;
-  updatedAt: string;
+    _id: string;
+    type: 'file' | 'website' | 'paste';
+    fileName?: string;
+    fileSize?: number;
+    url?: string;
+    pasteTitle?: string;
+    scrapeSchedule?: string;
+    lastScrapedAt?: string | null;
+    pageCount?: number;
+    status: string;
+    createdAt: string;
+    updatedAt: string;
 }
 
 interface KBHealth {
-  totalChunks: number;
-  totalSources: number;
-  lastUpdated: string | null;
-  byType?: Record<string, number>;
+    totalChunks: number;
+    totalSources: number;
+    lastUpdated: string | null;
+    byType?: Record<string, number>;
 }
 
 interface SuggestedQAItem {
-  _id: string;
-  question: string;
-  source: 'no_context' | 'low_confidence' | 'manual';
-  conversationId?: string;
-  createdAt: string;
+    _id: string;
+    question: string;
+    source: 'no_context' | 'low_confidence' | 'manual';
+    conversationId?: string;
+    createdAt: string;
 }
 
-const UserKnowledgeBase = () => {
-  const [qas, setQAs] = useState<QA[]>([]);
-  const [searchTerm, setSearchTerm] = useState('');
-  const [categoryFilter, setCategoryFilter] = useState('All');
-  const [editing, setEditing] = useState<string | null>(null);
-  const [formData, setFormData] = useState<Partial<QA>>({
-    question: '',
-    answer: '',
-    category: 'General'
-  });
-  const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
-  const [isLoading, setIsLoading] = useState(true);
+const CATEGORIES = ['General', 'Orders', 'Returns', 'Shipping', 'Support', 'Pricing', 'Technical'];
 
-  // File Upload State
-  const [file, setFile] = useState<File | null>(null);
-  const [isUploading, setIsUploading] = useState(false);
+type TabId = 'qa' | 'upload' | 'scrape' | 'paste' | 'sources' | 'suggested';
 
-  // Scrape State
-  const [scrapeUrl, setScrapeUrl] = useState('');
-  const [scrapeMaxDepth, setScrapeMaxDepth] = useState<number>(1);
-  const [isScraping, setIsScraping] = useState(false);
-  const [scrapeJobId, setScrapeJobId] = useState<string | null>(null);
-  const [scrapeProgress, setScrapeProgress] = useState<string | null>(null);
+const TABS: { id: TabId; label: string; icon: React.ElementType }[] = [
+    { id: 'qa', label: 'Q&A pairs', icon: MessageSquare },
+    { id: 'upload', label: 'Upload file', icon: FileUp },
+    { id: 'scrape', label: 'Scrape website', icon: Globe },
+    { id: 'paste', label: 'Paste text', icon: FileText },
+    { id: 'sources', label: 'Data sources', icon: Database },
+    { id: 'suggested', label: 'Suggested', icon: Sparkles },
+];
 
-  // Paste State
-  const [pasteTitle, setPasteTitle] = useState('');
-  const [pasteContent, setPasteContent] = useState('');
-  const [isPasting, setIsPasting] = useState(false);
+/* -------------------------------------------------------------------------- */
+/* Shared primitives                                                           */
+/* -------------------------------------------------------------------------- */
 
-  // Sources & KB Health
-  const [sources, setSources] = useState<Source[]>([]);
-  const [kbHealth, setKbHealth] = useState<KBHealth | null>(null);
-  const [isLoadingSources, setIsLoadingSources] = useState(false);
-  const [activeTab, setActiveTab] = useState('qa');
-  const [suggestedList, setSuggestedList] = useState<SuggestedQAItem[]>([]);
-  const [isLoadingSuggested, setIsLoadingSuggested] = useState(false);
-  const [addToQAModalId, setAddToQAModalId] = useState<string | null>(null);
-  const [addToQAAnswer, setAddToQAAnswer] = useState('');
+const FieldLabel: React.FC<{ htmlFor?: string; children: React.ReactNode }> = ({
+    htmlFor,
+    children,
+}) => (
+    <label
+        htmlFor={htmlFor}
+        className="block text-[10.5px] font-semibold uppercase tracking-[0.14em] text-slate-500 mb-1.5"
+    >
+        {children}
+    </label>
+);
 
-  const categories = ['General', 'Orders', 'Returns', 'Shipping', 'Support', 'Pricing', 'Technical'];
+const TextInput: React.FC<React.InputHTMLAttributes<HTMLInputElement>> = ({
+    className,
+    ...rest
+}) => (
+    <input
+        {...rest}
+        className={cn(
+            'w-full h-9 px-3 rounded-md bg-white border border-slate-900/[0.08] text-[13px] text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500/60 transition-colors',
+            className
+        )}
+    />
+);
 
-  useEffect(() => {
-    fetchQAs();
-  }, []);
+const TextArea: React.FC<React.TextareaHTMLAttributes<HTMLTextAreaElement>> = ({
+    className,
+    ...rest
+}) => (
+    <textarea
+        {...rest}
+        className={cn(
+            'w-full px-3 py-2.5 rounded-md bg-white border border-slate-900/[0.08] text-[13px] text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500/60 transition-colors resize-y leading-relaxed',
+            className
+        )}
+    />
+);
 
-  // Fetch sources when Data Sources tab is selected
-  useEffect(() => {
-    if (activeTab === 'sources') {
-      fetchSources();
-    }
-  }, [activeTab]);
+const PrimaryBtn: React.FC<
+    React.ButtonHTMLAttributes<HTMLButtonElement> & { icon?: React.ReactNode }
+> = ({ children, icon, className, ...props }) => (
+    <button
+        {...props}
+        className={cn(
+            'inline-flex items-center gap-2 h-9 px-3.5 rounded-md bg-slate-950 text-white text-[13px] font-semibold tracking-tight hover:bg-slate-800 transition-colors disabled:opacity-60 disabled:cursor-not-allowed',
+            className
+        )}
+    >
+        {icon}
+        {children}
+    </button>
+);
 
-  useEffect(() => {
-    if (activeTab === 'suggested') {
-      fetchSuggested();
-    }
-  }, [activeTab]);
+const GhostBtn: React.FC<
+    React.ButtonHTMLAttributes<HTMLButtonElement> & { icon?: React.ReactNode }
+> = ({ children, icon, className, ...props }) => (
+    <button
+        {...props}
+        className={cn(
+            'inline-flex items-center gap-1.5 h-9 px-3 rounded-md bg-white border border-slate-900/[0.08] text-[13px] font-semibold tracking-tight text-slate-700 hover:text-slate-950 hover:border-slate-900/20 transition-colors disabled:opacity-60 disabled:cursor-not-allowed',
+            className
+        )}
+    >
+        {icon}
+        {children}
+    </button>
+);
 
-  const fetchSuggested = async () => {
-    setIsLoadingSuggested(true);
-    try {
-      const data = await getSuggestedQAs();
-      setSuggestedList(Array.isArray(data) ? data : []);
-    } catch {
-      setSuggestedList([]);
-    } finally {
-      setIsLoadingSuggested(false);
-    }
-  };
-
-  const fetchQAs = async () => {
-    setIsLoading(true);
-    try {
-      const data = await getCurrentUserQAs();
-      setQAs(data);
-    } catch (error) {
-      console.error('Error fetching QAs:', error);
-      toast.error('Failed to load your Q&A entries');
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const fetchSources = async () => {
-    setIsLoadingSources(true);
-    try {
-      const [sourcesRes, healthRes] = await Promise.all([
-        getUserSources(),
-        getSourcesHealth().catch(() => null)
-      ]);
-      setSources(sourcesRes.sources || []);
-      setKbHealth(healthRes || null);
-    } catch (error) {
-      console.error('Error fetching sources:', error);
-      toast.error('Failed to load sources');
-    } finally {
-      setIsLoadingSources(false);
-    }
-  };
-
-  const filteredQAs = qas.filter(qa => {
-    const matchesSearch = qa.question.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      qa.answer.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesCategory = categoryFilter === 'All' || qa.category === categoryFilter;
-    return matchesSearch && matchesCategory;
-  });
-
-  const handleInputChange = (
-    e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>
-  ) => {
-    const { name, value } = e.target;
-    setFormData(prev => ({ ...prev, [name]: value }));
-  };
-
-  const handleSelectChange = (value: string) => {
-    setFormData(prev => ({ ...prev, category: value }));
-  };
-
-  const handleFilterChange = (value: string) => {
-    setCategoryFilter(value);
-  };
-
-  const handleAddQA = async () => {
-    if (!formData.question || !formData.answer || !formData.category) {
-      toast.error('Please fill out all fields');
-      return;
-    }
-
-    try {
-      const newQA = await createUserQA({
-        question: formData.question,
-        answer: formData.answer,
-        category: formData.category
-      });
-
-      setQAs(prev => [...prev, newQA]);
-      setFormData({ question: '', answer: '', category: 'General' });
-      setIsAddDialogOpen(false);
-      toast.success('Question and answer added successfully');
-    } catch (error) {
-      console.error('Error adding QA:', error);
-      toast.error('Failed to add question and answer');
-    }
-  };
-
-  const handleEditQA = (id: string) => {
-    const qaToEdit = qas.find(qa => qa._id === id);
-    if (qaToEdit) {
-      setFormData(qaToEdit);
-      setEditing(id);
-    }
-  };
-
-  const handleSaveEdit = async () => {
-    if (!formData.question || !formData.answer || !formData.category || !editing) {
-      toast.error('Please fill out all fields');
-      return;
-    }
-
-    try {
-      await updateUserQA(editing, {
-        question: formData.question,
-        answer: formData.answer,
-        category: formData.category
-      });
-
-      setQAs(prev => prev.map(qa =>
-        qa._id === editing
-          ? {
-            ...qa,
-            question: formData.question || '',
-            answer: formData.answer || '',
-            category: formData.category || 'General',
-            updatedAt: new Date().toISOString()
-          }
-          : qa
-      ));
-
-      setEditing(null);
-      setFormData({ question: '', answer: '', category: 'General' });
-      toast.success('Question and answer updated successfully');
-    } catch (error) {
-      console.error('Error updating QA:', error);
-      toast.error('Failed to update question and answer');
-    }
-  };
-
-  const handleCancelEdit = () => {
-    setEditing(null);
-    setFormData({ question: '', answer: '', category: 'General' });
-  };
-
-  const handleDeleteQA = async (id: string) => {
-    try {
-      await deleteUserQA(id);
-      setQAs(prev => prev.filter(qa => qa._id !== id));
-      toast.success('Question and answer deleted successfully');
-    } catch (error) {
-      console.error('Error deleting QA:', error);
-      toast.error('Failed to delete question and answer');
-    }
-  };
-
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files && e.target.files[0]) {
-      setFile(e.target.files[0]);
-    }
-  };
-
-  const handleUploadFile = async () => {
-    if (!file) {
-      toast.error('Please select a file to upload');
-      return;
-    }
-
-    setIsUploading(true);
-    try {
-      await uploadFile(file);
-      toast.success('File uploaded and processed successfully');
-      setFile(null);
-      // Reset file input
-      const fileInput = document.getElementById('file-upload') as HTMLInputElement;
-      if (fileInput) fileInput.value = '';
-      // Refresh sources list
-      fetchSources();
-    } catch (error: any) {
-      console.error('Error uploading file:', error);
-      toast.error(error.message || 'Failed to upload file');
-    } finally {
-      setIsUploading(false);
-    }
-  };
-
-  const handleScrapeWebsite = async () => {
-    if (!scrapeUrl) {
-      toast.error('Please enter a URL');
-      return;
-    }
-
-    setIsScraping(true);
-    setScrapeJobId(null);
-    setScrapeProgress(null);
-    try {
-      const res = await scrapeWebsite(scrapeUrl, { maxDepth: scrapeMaxDepth });
-      if (res.jobId) {
-        setScrapeJobId(res.jobId);
-        setScrapeProgress('Discovering pages...');
-        const poll = async () => {
-          try {
-            const status = await getScrapeStatus(res.jobId);
-            if (status.status === 'done') {
-              setScrapeProgress(null);
-              setScrapeJobId(null);
-              setIsScraping(false);
-              toast.success('Website scraped and processed successfully');
-              setScrapeUrl('');
-              fetchSources();
-              return;
-            }
-            if (status.status === 'failed') {
-              setScrapeProgress(null);
-              setScrapeJobId(null);
-              setIsScraping(false);
-              toast.error(status.error || 'Scraping failed');
-              return;
-            }
-            const msg = status.pagesFound != null
-              ? `Pages: ${status.pagesScraped ?? 0} / ${status.pagesFound}${status.status === 'indexing' ? ' (indexing...)' : ''}`
-              : 'Discovering pages...';
-            setScrapeProgress(msg);
-            setTimeout(poll, 2000);
-          } catch (e) {
-            setScrapeProgress(null);
-            setScrapeJobId(null);
-            setIsScraping(false);
-            toast.error('Failed to check scrape status');
-          }
-        };
-        poll();
-      } else {
-        toast.success('Website scraped and processed successfully');
-        setScrapeUrl('');
-        fetchSources();
-      }
-    } catch (error: any) {
-      console.error('Error scraping website:', error);
-      toast.error(error.message || 'Failed to scrape website');
-    } finally {
-      if (!res?.jobId) setIsScraping(false);
-    }
-  };
-
-  const handlePasteSubmit = async () => {
-    if (!pasteContent.trim()) {
-      toast.error('Please enter some text');
-      return;
-    }
-    setIsPasting(true);
-    try {
-      await addPasteSource(pasteTitle.trim() || 'Pasted text', pasteContent.trim());
-      toast.success('Pasted text added to knowledge base');
-      setPasteTitle('');
-      setPasteContent('');
-      fetchSources();
-    } catch (error: any) {
-      toast.error(error.message || 'Failed to add pasted text');
-    } finally {
-      setIsPasting(false);
-    }
-  };
-
-  const handleScrapeScheduleChange = async (sourceId: string, schedule: string) => {
-    try {
-      await updateSource(sourceId, { scrapeSchedule: schedule });
-      setSources((prev) =>
-        prev.map((s) => (s._id === sourceId ? { ...s, scrapeSchedule: schedule } : s))
-      );
-      toast.success('Schedule updated');
-    } catch (error: any) {
-      toast.error(error.message || 'Failed to update schedule');
-    }
-  };
-
-  return (
-    <div className="space-y-8">
-      <div>
-        <h1 className="text-2xl font-semibold mb-2">Knowledge Base</h1>
-        <p className="text-muted-foreground">Manage your chatbot's knowledge sources.</p>
-      </div>
-
-      {/* Token Pricing Information Card */}
-      <Card className="border-primary/20 bg-primary/5">
-        <CardHeader>
-          <CardTitle className="text-lg flex items-center gap-2">
-            <Wallet className="h-5 w-5 text-primary" />
-            Token Pricing
-          </CardTitle>
-          <CardDescription>
-            Understand the token costs for each action
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <div className="flex items-start gap-3 p-3 rounded-lg bg-background/50">
-              <MessageSquare className="h-5 w-5 text-blue-500 mt-0.5" />
-              <div>
-                <p className="font-medium text-sm">Chat Message</p>
-                <p className="text-2xl font-bold text-primary">~1 Token</p>
-                <p className="text-xs text-muted-foreground">per word</p>
-              </div>
+const SectionCard: React.FC<{
+    title: string;
+    desc?: string;
+    icon: React.ElementType;
+    children: React.ReactNode;
+    className?: string;
+}> = ({ title, desc, icon: Icon, children, className }) => (
+    <div
+        className={cn(
+            'rounded-xl border border-slate-900/[0.06] bg-white overflow-hidden',
+            className
+        )}
+    >
+        <div className="px-5 py-4 border-b border-slate-900/[0.06] flex items-start gap-2.5">
+            <div className="w-7 h-7 rounded-md bg-slate-900/[0.04] text-slate-700 flex items-center justify-center flex-shrink-0 mt-0.5">
+                <Icon className="w-[14px] h-[14px]" strokeWidth={1.75} />
             </div>
-            <div className="flex items-start gap-3 p-3 rounded-lg bg-background/50">
-              <FileUp className="h-5 w-5 text-purple-500 mt-0.5" />
-              <div>
-                <p className="font-medium text-sm">File Upload</p>
-                <p className="text-2xl font-bold text-primary">10,000</p>
-                <p className="text-xs text-muted-foreground">Tokens per file</p>
-              </div>
-            </div>
-            <div className="flex items-start gap-3 p-3 rounded-lg bg-background/50">
-              <Globe className="h-5 w-5 text-green-500 mt-0.5" />
-              <div>
-                <p className="font-medium text-sm">Web Scrape</p>
-                <p className="text-2xl font-bold text-primary">5,000</p>
-                <p className="text-xs text-muted-foreground">Tokens per URL</p>
-              </div>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
-
-      <Tabs value={activeTab} onValueChange={setActiveTab}>
-        <TabsList>
-          <TabsTrigger value="qa">
-            <MessageSquare className="h-4 w-4 mr-2" />
-            Q&A Pairs
-          </TabsTrigger>
-          <TabsTrigger value="upload">
-            <FileUp className="h-4 w-4 mr-2" />
-            File Upload
-          </TabsTrigger>
-          <TabsTrigger value="scrape">
-            <Globe className="h-4 w-4 mr-2" />
-            Website Scraping
-          </TabsTrigger>
-          <TabsTrigger value="paste">
-            <FileText className="h-4 w-4 mr-2" />
-            Paste Text
-          </TabsTrigger>
-          <TabsTrigger value="sources">
-            <Database className="h-4 w-4 mr-2" />
-            Data Sources
-          </TabsTrigger>
-          <TabsTrigger value="suggested">
-            <Sparkles className="h-4 w-4 mr-2" />
-            Suggested Q&A
-          </TabsTrigger>
-        </TabsList>
-
-        <TabsContent value="qa" className="mt-6">
-          {/* Filters and Search */}
-          <div className="flex flex-col sm:flex-row gap-4 mb-6">
-            <div className="relative flex-1">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-              <Input
-                placeholder="Search questions or answers..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="pl-10"
-              />
-            </div>
-
-            <div className="flex gap-4">
-              <div className="w-48">
-                <Select value={categoryFilter} onValueChange={handleFilterChange}>
-                  <SelectTrigger>
-                    <div className="flex items-center gap-2">
-                      <Filter className="h-4 w-4" />
-                      <SelectValue placeholder="Category" />
-                    </div>
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="All">All Categories</SelectItem>
-                    {categories.map((category) => (
-                      <SelectItem key={category} value={category}>{category}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-
-              <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
-                <DialogTrigger asChild>
-                  <Button className="whitespace-nowrap">
-                    <Plus className="h-4 w-4 mr-2" />
-                    Add Question
-                  </Button>
-                </DialogTrigger>
-                <DialogContent className="sm:max-w-[600px]">
-                  <DialogHeader>
-                    <DialogTitle>Add New Question & Answer</DialogTitle>
-                    <DialogDescription>
-                      Create a new entry for your chatbot's knowledge base.
-                    </DialogDescription>
-                  </DialogHeader>
-
-                  <div className="grid gap-4 py-4">
-                    <div className="space-y-2">
-                      <Label htmlFor="question">Question</Label>
-                      <Input
-                        id="question"
-                        name="question"
-                        value={formData.question}
-                        onChange={handleInputChange}
-                        placeholder="Enter the question"
-                      />
-                    </div>
-
-                    <div className="space-y-2">
-                      <Label htmlFor="answer">Answer</Label>
-                      <Textarea
-                        id="answer"
-                        name="answer"
-                        value={formData.answer}
-                        onChange={handleInputChange}
-                        placeholder="Enter the answer"
-                        rows={5}
-                      />
-                    </div>
-
-                    <div className="space-y-2">
-                      <Label htmlFor="category">Category</Label>
-                      <Select
-                        value={formData.category}
-                        onValueChange={handleSelectChange}
-                      >
-                        <SelectTrigger id="category">
-                          <SelectValue placeholder="Select a category" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {categories.map((category) => (
-                            <SelectItem key={category} value={category}>{category}</SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                  </div>
-
-                  <DialogFooter>
-                    <Button variant="outline" onClick={() => setIsAddDialogOpen(false)}>
-                      Cancel
-                    </Button>
-                    <Button onClick={handleAddQA}>
-                      Add Q&A
-                    </Button>
-                  </DialogFooter>
-                </DialogContent>
-              </Dialog>
-            </div>
-          </div>
-
-          {/* QA Table */}
-          <Card className="shadow-soft">
-            <CardContent className="p-0 overflow-x-auto">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead className="w-[300px]">Question</TableHead>
-                    <TableHead className="w-[300px]">Answer</TableHead>
-                    <TableHead>Category</TableHead>
-                    <TableHead className="text-center">Frequency</TableHead>
-                    <TableHead className="text-right">Actions</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {isLoading ? (
-                    <TableRow>
-                      <TableCell colSpan={5} className="text-center py-8">
-                        <div className="flex flex-col items-center justify-center text-muted-foreground">
-                          <div className="loading-spinner mb-2"></div>
-                          <p>Loading questions...</p>
-                        </div>
-                      </TableCell>
-                    </TableRow>
-                  ) : filteredQAs.length === 0 ? (
-                    <TableRow>
-                      <TableCell colSpan={5} className="text-center py-8">
-                        <div className="flex flex-col items-center justify-center text-muted-foreground">
-                          <MessageSquare className="h-8 w-8 mb-2 opacity-50" />
-                          <p>No questions found</p>
-                          <p className="text-sm">Try adjusting your search or add a new question</p>
-                        </div>
-                      </TableCell>
-                    </TableRow>
-                  ) : (
-                    filteredQAs.map((qa) => (
-                      <TableRow key={qa._id}>
-                        <TableCell className="font-medium align-top">
-                          {editing === qa._id ? (
-                            <Input
-                              name="question"
-                              value={formData.question}
-                              onChange={handleInputChange}
-                              className="mb-2"
-                            />
-                          ) : (
-                            qa.question
-                          )}
-                        </TableCell>
-                        <TableCell className="align-top">
-                          {editing === qa._id ? (
-                            <Textarea
-                              name="answer"
-                              value={formData.answer}
-                              onChange={handleInputChange}
-                              rows={3}
-                              className="mb-2"
-                            />
-                          ) : (
-                            <div className="max-h-20 overflow-hidden text-ellipsis">
-                              {qa.answer}
-                            </div>
-                          )}
-                        </TableCell>
-                        <TableCell className="align-top">
-                          {editing === qa._id ? (
-                            <Select
-                              value={formData.category}
-                              onValueChange={handleSelectChange}
-                            >
-                              <SelectTrigger>
-                                <SelectValue placeholder="Category" />
-                              </SelectTrigger>
-                              <SelectContent>
-                                {categories.map((category) => (
-                                  <SelectItem key={category} value={category}>{category}</SelectItem>
-                                ))}
-                              </SelectContent>
-                            </Select>
-                          ) : (
-                            <Badge variant="outline" className="bg-muted/50">
-                              {qa.category}
-                            </Badge>
-                          )}
-                        </TableCell>
-                        <TableCell className="text-center align-top">
-                          {qa.frequency}
-                        </TableCell>
-                        <TableCell className="text-right space-x-2 align-top">
-                          {editing === qa._id ? (
-                            <>
-                              <Button size="icon" variant="ghost" onClick={handleCancelEdit}>
-                                <X className="h-4 w-4" />
-                              </Button>
-                              <Button size="icon" variant="ghost" onClick={handleSaveEdit}>
-                                <Save className="h-4 w-4" />
-                              </Button>
-                            </>
-                          ) : (
-                            <>
-                              <Button size="icon" variant="ghost" onClick={() => handleEditQA(qa._id)}>
-                                <Edit className="h-4 w-4" />
-                              </Button>
-                              <Button size="icon" variant="ghost" onClick={() => handleDeleteQA(qa._id)}>
-                                <Trash2 className="h-4 w-4" />
-                              </Button>
-                            </>
-                          )}
-                        </TableCell>
-                      </TableRow>
-                    ))
-                  )}
-                </TableBody>
-              </Table>
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        <TabsContent value="upload" className="mt-6">
-          <Card>
-            <CardHeader>
-              <CardTitle>Data Upload</CardTitle>
-              <CardDescription>
-                Upload documents (PDF, DOCX, TXT, CSV, MD, XLSX) to train your chatbot. Max 10MB per file.
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="grid w-full max-w-sm items-center gap-1.5">
-                <Label htmlFor="file-upload">Document</Label>
-                <Input id="file-upload" type="file" onChange={handleFileChange} accept=".pdf,.doc,.docx,.txt,.csv,.md,.xlsx" />
-              </div>
-              <Button onClick={handleUploadFile} disabled={!file || isUploading}>
-                {isUploading ? (
-                  <>
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    Processing...
-                  </>
-                ) : (
-                  <>
-                    <FileUp className="mr-2 h-4 w-4" />
-                    Upload & Train
-                  </>
-                )}
-              </Button>
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        <TabsContent value="scrape" className="mt-6">
-          <Card>
-            <CardHeader>
-              <CardTitle>Website Scraping</CardTitle>
-              <CardDescription>
-                Enter a URL to scrape. Depth 1 = single page; 2–3 = follow same-origin links (more pages).
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="grid w-full max-w-md items-center gap-1.5">
-                <Label htmlFor="url-scrape">Website URL</Label>
-                <Input
-                  id="url-scrape"
-                  type="url"
-                  placeholder="https://example.com/about"
-                  value={scrapeUrl}
-                  onChange={(e) => setScrapeUrl(e.target.value)}
-                />
-              </div>
-              <div className="grid w-full max-w-xs items-center gap-1.5">
-                <Label>Depth (pages)</Label>
-                <Select value={String(scrapeMaxDepth)} onValueChange={(v) => setScrapeMaxDepth(Number(v))}>
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="1">1 – Single page</SelectItem>
-                    <SelectItem value="2">2 – Up to ~10 pages</SelectItem>
-                    <SelectItem value="3">3 – Up to ~30 pages</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              {scrapeProgress && (
-                <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                  {scrapeProgress}
-                </div>
-              )}
-              <Button onClick={handleScrapeWebsite} disabled={!scrapeUrl || isScraping}>
-                {isScraping || scrapeJobId ? (
-                  <>
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    {scrapeJobId ? 'Processing...' : 'Scraping...'}
-                  </>
-                ) : (
-                  <>
-                    <Globe className="mr-2 h-4 w-4" />
-                    Scrape & Train
-                  </>
-                )}
-              </Button>
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        <TabsContent value="paste" className="mt-6">
-          <Card>
-            <CardHeader>
-              <CardTitle>Paste Text</CardTitle>
-              <CardDescription>
-                Add raw text to your knowledge base (e.g. FAQs, policies). No file upload needed.
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="grid w-full max-w-md items-center gap-1.5">
-                <Label htmlFor="paste-title">Title (optional)</Label>
-                <Input
-                  id="paste-title"
-                  placeholder="e.g. FAQ 2024"
-                  value={pasteTitle}
-                  onChange={(e) => setPasteTitle(e.target.value)}
-                />
-              </div>
-              <div className="grid w-full gap-1.5">
-                <Label htmlFor="paste-content">Content</Label>
-                <Textarea
-                  id="paste-content"
-                  placeholder="Paste or type your content here..."
-                  value={pasteContent}
-                  onChange={(e) => setPasteContent(e.target.value)}
-                  rows={8}
-                  className="resize-y"
-                />
-              </div>
-              <Button onClick={handlePasteSubmit} disabled={!pasteContent.trim() || isPasting}>
-                {isPasting ? (
-                  <>
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    Adding...
-                  </>
-                ) : (
-                  <>
-                    <FileText className="mr-2 h-4 w-4" />
-                    Add to Knowledge Base
-                  </>
-                )}
-              </Button>
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        <TabsContent value="sources" className="mt-6">
-          {kbHealth != null && (
-            <Card className="mb-6 border-primary/20 bg-primary/5">
-              <CardHeader>
-                <CardTitle className="text-lg flex items-center gap-2">
-                  <RefreshCw className="h-5 w-5 text-primary" />
-                  Knowledge Base Health
-                </CardTitle>
-                <CardDescription>Chunks and sources used for answers</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                  <div className="p-3 rounded-lg bg-background/50">
-                    <p className="text-sm text-muted-foreground">Total chunks</p>
-                    <p className="text-2xl font-bold">{kbHealth.totalChunks ?? 0}</p>
-                  </div>
-                  <div className="p-3 rounded-lg bg-background/50">
-                    <p className="text-sm text-muted-foreground">Total sources</p>
-                    <p className="text-2xl font-bold">{kbHealth.totalSources ?? 0}</p>
-                  </div>
-                  <div className="p-3 rounded-lg bg-background/50">
-                    <p className="text-sm text-muted-foreground">Last updated</p>
-                    <p className="text-lg font-medium">
-                      {kbHealth.lastUpdated
-                        ? new Date(kbHealth.lastUpdated).toLocaleString()
-                        : 'Never'}
+            <div>
+                <h3 className="text-[13.5px] font-semibold tracking-tight text-slate-950">
+                    {title}
+                </h3>
+                {desc && (
+                    <p className="text-[12px] text-slate-500 mt-0.5 leading-snug">
+                        {desc}
                     </p>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          )}
-          <Card>
-            <CardHeader>
-              <CardTitle>Your Data Sources</CardTitle>
-              <CardDescription>
-                View all files, websites, and pasted text. Set re-scrape schedule for websites.
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              {isLoadingSources ? (
-                <div className="flex items-center justify-center py-12">
-                  <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
-                </div>
-              ) : sources.length === 0 ? (
-                <div className="text-center py-12 text-muted-foreground">
-                  <Database className="h-12 w-12 mx-auto mb-4 opacity-50" />
-                  <p className="text-lg font-medium">No data sources yet</p>
-                  <p className="text-sm">Upload files, scrape websites, or paste text to get started</p>
-                </div>
-              ) : (
-                <div className="space-y-4">
-                  {sources.map((source) => (
-                    <div
-                      key={source._id}
-                      className="border rounded-lg p-4 hover:bg-muted/50 transition-colors"
-                    >
-                      <div className="flex items-start justify-between">
-                        <div className="flex items-start gap-3 flex-1">
-                          <div className="mt-1">
-                            {source.type === 'file' ? (
-                              <File className="h-5 w-5 text-blue-500" />
-                            ) : source.type === 'paste' ? (
-                              <FileText className="h-5 w-5 text-amber-500" />
-                            ) : (
-                              <Globe className="h-5 w-5 text-green-500" />
-                            )}
-                          </div>
-                          <div className="flex-1 min-w-0">
-                            <div className="flex items-center gap-2 mb-1 flex-wrap">
-                              <h4 className="font-medium truncate">
-                                {source.type === 'file'
-                                  ? source.fileName
-                                  : source.type === 'paste'
-                                    ? source.pasteTitle || 'Pasted text'
-                                    : source.url}
-                              </h4>
-                              <Badge variant={
-                                source.status === 'indexed' || source.status === 'processed_and_deleted'
-                                  ? 'default'
-                                  : source.status === 'failed'
-                                    ? 'destructive'
-                                    : 'secondary'
-                              }>
-                                {source.status}
-                              </Badge>
-                            </div>
-                            <div className="flex items-center gap-4 text-sm text-muted-foreground flex-wrap">
-                              <span className="capitalize">{source.type}</span>
-                              {source.fileSize != null && (
-                                <span>{(source.fileSize / 1024).toFixed(2)} KB</span>
-                              )}
-                              {source.type === 'website' && source.pageCount != null && (
-                                <span>{source.pageCount} page(s)</span>
-                              )}
-                              <span>{new Date(source.createdAt).toLocaleDateString()}</span>
-                            </div>
-                            {source.type === 'website' && (
-                              <>
-                                {source.url && (
-                                  <a
-                                    href={source.url}
-                                    target="_blank"
-                                    rel="noopener noreferrer"
-                                    className="text-sm text-primary hover:underline flex items-center gap-1 mt-2"
-                                  >
-                                    Visit website
-                                    <ExternalLink className="h-3 w-3" />
-                                  </a>
-                                )}
-                                <div className="mt-2 flex items-center gap-2">
-                                  <Label className="text-xs text-muted-foreground">Re-scrape</Label>
-                                  <Select
-                                    value={source.scrapeSchedule || 'none'}
-                                    onValueChange={(v) => handleScrapeScheduleChange(source._id, v)}
-                                  >
-                                    <SelectTrigger className="w-[130px] h-8">
-                                      <SelectValue />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                      <SelectItem value="none">None</SelectItem>
-                                      <SelectItem value="daily">Daily</SelectItem>
-                                      <SelectItem value="weekly">Weekly</SelectItem>
-                                    </SelectContent>
-                                  </Select>
-                                </div>
-                              </>
-                            )}
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        <TabsContent value="suggested" className="mt-6">
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Sparkles className="h-5 w-5" />
-                Suggested Q&A
-              </CardTitle>
-              <CardDescription>
-                Questions visitors asked that had no or low-confidence answers. Add an answer to turn them into Q&A pairs.
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              {isLoadingSuggested ? (
-                <div className="flex items-center justify-center py-12">
-                  <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
-                </div>
-              ) : suggestedList.length === 0 ? (
-                <div className="text-center py-12 text-muted-foreground">
-                  <Sparkles className="h-12 w-12 mx-auto mb-4 opacity-50" />
-                  <p className="text-lg font-medium">No suggestions yet</p>
-                  <p className="text-sm">When the bot gets questions it can&apos;t answer well, they&apos;ll appear here</p>
-                </div>
-              ) : (
-                <div className="space-y-3">
-                  {suggestedList.map((s) => (
-                    <div
-                      key={s._id}
-                      className="border rounded-lg p-4 flex items-start justify-between gap-4"
-                    >
-                      <div className="flex-1 min-w-0">
-                        <p className="font-medium text-sm text-muted-foreground mb-1">
-                          {s.source === 'low_confidence' ? 'Low confidence' : s.source === 'no_context' ? 'No context' : 'Manual'}
-                        </p>
-                        <p className="break-words">{s.question}</p>
-                      </div>
-                      <div className="flex gap-2 shrink-0">
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={() => {
-                            setAddToQAModalId(s._id);
-                            setAddToQAAnswer('');
-                          }}
-                        >
-                          Add to Q&A
-                        </Button>
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          onClick={async () => {
-                            try {
-                              await dismissSuggestedQA(s._id);
-                              setSuggestedList((prev) => prev.filter((x) => x._id !== s._id));
-                              toast.success('Dismissed');
-                            } catch {
-                              toast.error('Failed to dismiss');
-                            }
-                          }}
-                        >
-                          Dismiss
-                        </Button>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </CardContent>
-          </Card>
-
-          <Dialog open={!!addToQAModalId} onOpenChange={(open) => !open && setAddToQAModalId(null)}>
-            <DialogContent>
-              <DialogHeader>
-                <DialogTitle>Add to Q&A</DialogTitle>
-                <DialogDescription>Provide an answer. It will be added to your Q&A pairs.</DialogDescription>
-              </DialogHeader>
-              <div className="space-y-2">
-                <Label>Answer</Label>
-                <Textarea
-                  placeholder="Your answer..."
-                  value={addToQAAnswer}
-                  onChange={(e) => setAddToQAAnswer(e.target.value)}
-                  rows={4}
-                />
-              </div>
-              <DialogFooter>
-                <Button variant="outline" onClick={() => setAddToQAModalId(null)}>
-                  Cancel
-                </Button>
-                <Button
-                  onClick={async () => {
-                    if (!addToQAModalId) return;
-                    try {
-                      await addSuggestedQAToQA(addToQAModalId, addToQAAnswer.trim());
-                      setSuggestedList((prev) => prev.filter((x) => x._id !== addToQAModalId));
-                      setAddToQAModalId(null);
-                      setAddToQAAnswer('');
-                      fetchQAs();
-                      toast.success('Added to Q&A');
-                    } catch {
-                      toast.error('Failed to add');
-                    }
-                  }}
-                >
-                  Add
-                </Button>
-              </DialogFooter>
-            </DialogContent>
-          </Dialog>
-        </TabsContent>
-      </Tabs>
+                )}
+            </div>
+        </div>
+        <div className="p-5">{children}</div>
     </div>
-  );
+);
+
+const sourceStatusPill = (status: string) => {
+    const s = status.toLowerCase();
+    if (s === 'indexed' || s === 'processed_and_deleted')
+        return 'bg-emerald-50 text-emerald-700 border-emerald-200';
+    if (s === 'failed' || s === 'error')
+        return 'bg-rose-50 text-rose-700 border-rose-200';
+    if (s === 'processing' || s === 'pending' || s === 'indexing')
+        return 'bg-amber-50 text-amber-700 border-amber-200';
+    return 'bg-slate-100 text-slate-600 border-slate-200';
+};
+
+const suggestedSourceLabel = (s: SuggestedQAItem['source']) => {
+    switch (s) {
+        case 'low_confidence':
+            return { label: 'Low confidence', cls: 'bg-amber-50 text-amber-700 border-amber-200' };
+        case 'no_context':
+            return { label: 'No context', cls: 'bg-rose-50 text-rose-700 border-rose-200' };
+        default:
+            return { label: 'Manual', cls: 'bg-slate-100 text-slate-600 border-slate-200' };
+    }
+};
+
+/* -------------------------------------------------------------------------- */
+/* Page                                                                        */
+/* -------------------------------------------------------------------------- */
+
+const UserKnowledgeBase = () => {
+    const [qas, setQAs] = useState<QA[]>([]);
+    const [searchTerm, setSearchTerm] = useState('');
+    const [categoryFilter, setCategoryFilter] = useState('All');
+    const [editing, setEditing] = useState<string | null>(null);
+    const [formData, setFormData] = useState<Partial<QA>>({
+        question: '',
+        answer: '',
+        category: 'General',
+    });
+    const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
+    const [isLoading, setIsLoading] = useState(true);
+
+    // Upload
+    const [file, setFile] = useState<File | null>(null);
+    const [isUploading, setIsUploading] = useState(false);
+
+    // Scrape
+    const [scrapeUrl, setScrapeUrl] = useState('');
+    const [scrapeMaxDepth, setScrapeMaxDepth] = useState<number>(1);
+    const [isScraping, setIsScraping] = useState(false);
+    const [scrapeJobId, setScrapeJobId] = useState<string | null>(null);
+    const [scrapeProgress, setScrapeProgress] = useState<string | null>(null);
+
+    // Paste
+    const [pasteTitle, setPasteTitle] = useState('');
+    const [pasteContent, setPasteContent] = useState('');
+    const [isPasting, setIsPasting] = useState(false);
+
+    // Sources & health
+    const [sources, setSources] = useState<Source[]>([]);
+    const [kbHealth, setKbHealth] = useState<KBHealth | null>(null);
+    const [isLoadingSources, setIsLoadingSources] = useState(false);
+
+    const [activeTab, setActiveTab] = useState<TabId>('qa');
+    const [suggestedList, setSuggestedList] = useState<SuggestedQAItem[]>([]);
+    const [isLoadingSuggested, setIsLoadingSuggested] = useState(false);
+    const [addToQAModalId, setAddToQAModalId] = useState<string | null>(null);
+    const [addToQAAnswer, setAddToQAAnswer] = useState('');
+
+    useEffect(() => {
+        fetchQAs();
+    }, []);
+
+    useEffect(() => {
+        if (activeTab === 'sources') fetchSources();
+    }, [activeTab]);
+
+    useEffect(() => {
+        if (activeTab === 'suggested') fetchSuggested();
+    }, [activeTab]);
+
+    const fetchSuggested = async () => {
+        setIsLoadingSuggested(true);
+        try {
+            const data = await getSuggestedQAs();
+            setSuggestedList(Array.isArray(data) ? data : []);
+        } catch {
+            setSuggestedList([]);
+        } finally {
+            setIsLoadingSuggested(false);
+        }
+    };
+
+    const fetchQAs = async () => {
+        setIsLoading(true);
+        try {
+            const data = await getCurrentUserQAs();
+            setQAs(data);
+        } catch {
+            toast.error('Failed to load your Q&A entries');
+        } finally {
+            setIsLoading(false);
+        }
+    };
+
+    const fetchSources = async () => {
+        setIsLoadingSources(true);
+        try {
+            const [sourcesRes, healthRes] = await Promise.all([
+                getUserSources(),
+                getSourcesHealth().catch(() => null),
+            ]);
+            setSources(sourcesRes.sources || []);
+            setKbHealth(healthRes || null);
+        } catch {
+            toast.error('Failed to load sources');
+        } finally {
+            setIsLoadingSources(false);
+        }
+    };
+
+    const filteredQAs = qas.filter((qa) => {
+        const matchesSearch =
+            qa.question.toLowerCase().includes(searchTerm.toLowerCase()) ||
+            qa.answer.toLowerCase().includes(searchTerm.toLowerCase());
+        const matchesCategory =
+            categoryFilter === 'All' || qa.category === categoryFilter;
+        return matchesSearch && matchesCategory;
+    });
+
+    const handleInputChange = (
+        e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>
+    ) => {
+        const { name, value } = e.target;
+        setFormData((prev) => ({ ...prev, [name]: value }));
+    };
+
+    const handleAddQA = async () => {
+        if (!formData.question || !formData.answer || !formData.category) {
+            toast.error('Please fill out all fields');
+            return;
+        }
+        try {
+            const newQA = await createUserQA({
+                question: formData.question,
+                answer: formData.answer,
+                category: formData.category,
+            });
+            setQAs((prev) => [...prev, newQA]);
+            setFormData({ question: '', answer: '', category: 'General' });
+            setIsAddDialogOpen(false);
+            toast.success('Q&A added');
+        } catch {
+            toast.error('Failed to add Q&A');
+        }
+    };
+
+    const handleEditQA = (id: string) => {
+        const qa = qas.find((q) => q._id === id);
+        if (qa) {
+            setFormData(qa);
+            setEditing(id);
+        }
+    };
+
+    const handleSaveEdit = async () => {
+        if (!formData.question || !formData.answer || !formData.category || !editing) {
+            toast.error('Please fill out all fields');
+            return;
+        }
+        try {
+            await updateUserQA(editing, {
+                question: formData.question,
+                answer: formData.answer,
+                category: formData.category,
+            });
+            setQAs((prev) =>
+                prev.map((qa) =>
+                    qa._id === editing
+                        ? {
+                              ...qa,
+                              question: formData.question || '',
+                              answer: formData.answer || '',
+                              category: formData.category || 'General',
+                              updatedAt: new Date().toISOString(),
+                          }
+                        : qa
+                )
+            );
+            setEditing(null);
+            setFormData({ question: '', answer: '', category: 'General' });
+            toast.success('Q&A updated');
+        } catch {
+            toast.error('Failed to update Q&A');
+        }
+    };
+
+    const handleCancelEdit = () => {
+        setEditing(null);
+        setFormData({ question: '', answer: '', category: 'General' });
+    };
+
+    const handleDeleteQA = async (id: string) => {
+        if (!confirm('Delete this Q&A pair?')) return;
+        try {
+            await deleteUserQA(id);
+            setQAs((prev) => prev.filter((qa) => qa._id !== id));
+            toast.success('Q&A deleted');
+        } catch {
+            toast.error('Failed to delete Q&A');
+        }
+    };
+
+    const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        if (e.target.files && e.target.files[0]) setFile(e.target.files[0]);
+    };
+
+    const handleUploadFile = async () => {
+        if (!file) {
+            toast.error('Please select a file to upload');
+            return;
+        }
+        setIsUploading(true);
+        try {
+            await uploadFile(file);
+            toast.success('File uploaded and processed');
+            setFile(null);
+            const input = document.getElementById('file-upload') as HTMLInputElement;
+            if (input) input.value = '';
+            fetchSources();
+        } catch (error: any) {
+            toast.error(error.message || 'Failed to upload file');
+        } finally {
+            setIsUploading(false);
+        }
+    };
+
+    const handleScrapeWebsite = async () => {
+        if (!scrapeUrl) {
+            toast.error('Please enter a URL');
+            return;
+        }
+        setIsScraping(true);
+        setScrapeJobId(null);
+        setScrapeProgress(null);
+        let jobIdResult: string | null = null;
+        try {
+            const res = await scrapeWebsite(scrapeUrl, { maxDepth: scrapeMaxDepth });
+            if (res.jobId) {
+                jobIdResult = res.jobId;
+                setScrapeJobId(res.jobId);
+                setScrapeProgress('Discovering pages…');
+                const poll = async () => {
+                    try {
+                        const status = await getScrapeStatus(res.jobId);
+                        if (status.status === 'done') {
+                            setScrapeProgress(null);
+                            setScrapeJobId(null);
+                            setIsScraping(false);
+                            toast.success('Website scraped and processed');
+                            setScrapeUrl('');
+                            fetchSources();
+                            return;
+                        }
+                        if (status.status === 'failed') {
+                            setScrapeProgress(null);
+                            setScrapeJobId(null);
+                            setIsScraping(false);
+                            toast.error(status.error || 'Scraping failed');
+                            return;
+                        }
+                        const msg =
+                            status.pagesFound != null
+                                ? `Pages: ${status.pagesScraped ?? 0} / ${
+                                      status.pagesFound
+                                  }${status.status === 'indexing' ? ' (indexing…)' : ''}`
+                                : 'Discovering pages…';
+                        setScrapeProgress(msg);
+                        setTimeout(poll, 2000);
+                    } catch {
+                        setScrapeProgress(null);
+                        setScrapeJobId(null);
+                        setIsScraping(false);
+                        toast.error('Failed to check scrape status');
+                    }
+                };
+                poll();
+            } else {
+                toast.success('Website scraped and processed');
+                setScrapeUrl('');
+                fetchSources();
+            }
+        } catch (error: any) {
+            toast.error(error.message || 'Failed to scrape website');
+        } finally {
+            if (!jobIdResult) setIsScraping(false);
+        }
+    };
+
+    const handlePasteSubmit = async () => {
+        if (!pasteContent.trim()) {
+            toast.error('Please enter some text');
+            return;
+        }
+        setIsPasting(true);
+        try {
+            await addPasteSource(pasteTitle.trim() || 'Pasted text', pasteContent.trim());
+            toast.success('Added to knowledge base');
+            setPasteTitle('');
+            setPasteContent('');
+            fetchSources();
+        } catch (error: any) {
+            toast.error(error.message || 'Failed to add pasted text');
+        } finally {
+            setIsPasting(false);
+        }
+    };
+
+    const handleScrapeScheduleChange = async (sourceId: string, schedule: string) => {
+        try {
+            await updateSource(sourceId, { scrapeSchedule: schedule });
+            setSources((prev) =>
+                prev.map((s) =>
+                    s._id === sourceId ? { ...s, scrapeSchedule: schedule } : s
+                )
+            );
+            toast.success('Schedule updated');
+        } catch (error: any) {
+            toast.error(error.message || 'Failed to update schedule');
+        }
+    };
+
+    return (
+        <div className="space-y-7">
+            {/* Page header */}
+            <div>
+                <div className="inline-flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-indigo-600 mb-2">
+                    <span className="w-6 h-px bg-indigo-600" /> Knowledge
+                </div>
+                <h1 className="text-3xl sm:text-[34px] font-semibold tracking-[-0.02em] text-slate-950 leading-[1.05]">
+                    Knowledge base
+                </h1>
+                <p className="mt-2 text-[13.5px] text-slate-600">
+                    Train your chatbot with Q&A pairs, files, websites, or pasted text.
+                </p>
+            </div>
+
+            {/* Token pricing card */}
+            <div className="rounded-xl border border-indigo-200/60 bg-indigo-50/30 p-5">
+                <div className="flex items-start gap-2.5 mb-4">
+                    <div className="w-7 h-7 rounded-md bg-indigo-600/10 text-indigo-600 flex items-center justify-center flex-shrink-0 mt-0.5">
+                        <Wallet className="w-[14px] h-[14px]" strokeWidth={2} />
+                    </div>
+                    <div>
+                        <h3 className="text-[13.5px] font-semibold tracking-tight text-slate-950">
+                            Credit pricing
+                        </h3>
+                        <p className="text-[12px] text-slate-600 mt-0.5">
+                            Approximate credit costs per training action.
+                        </p>
+                    </div>
+                </div>
+                <div className="grid gap-3 grid-cols-1 md:grid-cols-3">
+                    {[
+                        {
+                            icon: MessageSquare,
+                            color: 'bg-indigo-500/10 text-indigo-600',
+                            label: 'Chat message',
+                            value: '~1',
+                            unit: 'credit / word',
+                        },
+                        {
+                            icon: FileUp,
+                            color: 'bg-violet-500/10 text-violet-600',
+                            label: 'File upload',
+                            value: '10,000',
+                            unit: 'credits / file',
+                        },
+                        {
+                            icon: Globe,
+                            color: 'bg-emerald-500/10 text-emerald-600',
+                            label: 'Website scrape',
+                            value: '5,000',
+                            unit: 'credits / URL',
+                        },
+                    ].map((p) => (
+                        <div
+                            key={p.label}
+                            className="rounded-lg bg-white border border-slate-900/[0.06] px-4 py-3"
+                        >
+                            <div className="flex items-center gap-2 mb-2">
+                                <div
+                                    className={cn(
+                                        'w-6 h-6 rounded-md flex items-center justify-center',
+                                        p.color
+                                    )}
+                                >
+                                    <p.icon className="w-[13px] h-[13px]" strokeWidth={2} />
+                                </div>
+                                <p className="text-[10.5px] font-semibold uppercase tracking-[0.14em] text-slate-500">
+                                    {p.label}
+                                </p>
+                            </div>
+                            <div className="flex items-baseline gap-1.5">
+                                <span className="text-[20px] font-semibold tracking-[-0.01em] text-slate-950 leading-none">
+                                    {p.value}
+                                </span>
+                                <span className="text-[11.5px] text-slate-500">{p.unit}</span>
+                            </div>
+                        </div>
+                    ))}
+                </div>
+            </div>
+
+            {/* Tab nav */}
+            <div className="overflow-x-auto -mx-1 px-1">
+                <div className="inline-flex items-center gap-0.5 p-0.5 rounded-lg bg-slate-900/[0.04] border border-slate-900/[0.06]">
+                    {TABS.map((t) => (
+                        <button
+                            key={t.id}
+                            onClick={() => setActiveTab(t.id)}
+                            className={cn(
+                                'inline-flex items-center gap-1.5 px-3 h-8 rounded-md text-[12px] font-semibold tracking-tight transition-all whitespace-nowrap',
+                                activeTab === t.id
+                                    ? 'bg-white text-slate-950 shadow-[0_1px_2px_rgba(15,23,42,0.08)]'
+                                    : 'text-slate-600 hover:text-slate-900'
+                            )}
+                        >
+                            <t.icon className="w-3.5 h-3.5" strokeWidth={2} />
+                            {t.label}
+                            {t.id === 'qa' && qas.length > 0 && (
+                                <span className="tabular-nums text-[10.5px] text-slate-500">
+                                    {qas.length}
+                                </span>
+                            )}
+                            {t.id === 'suggested' && suggestedList.length > 0 && (
+                                <span className="ml-0.5 inline-flex items-center justify-center min-w-[18px] h-[18px] px-1 rounded-full bg-amber-500/15 text-amber-700 text-[10px] font-bold">
+                                    {suggestedList.length}
+                                </span>
+                            )}
+                        </button>
+                    ))}
+                </div>
+            </div>
+
+            {/* Q&A tab */}
+            {activeTab === 'qa' && (
+                <div className="space-y-4">
+                    {/* Toolbar */}
+                    <div className="flex flex-wrap items-center gap-2.5">
+                        <div className="relative flex-1 min-w-[240px]">
+                            <Search
+                                className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400"
+                                strokeWidth={2}
+                            />
+                            <input
+                                placeholder="Search questions or answers…"
+                                value={searchTerm}
+                                onChange={(e) => setSearchTerm(e.target.value)}
+                                className="w-full h-9 pl-8 pr-3 rounded-md bg-white border border-slate-900/[0.08] text-[13px] text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500/60 transition-colors"
+                            />
+                        </div>
+                        <div className="inline-flex items-center gap-1.5 h-9 px-2.5 rounded-md bg-white border border-slate-900/[0.08]">
+                            <Filter className="w-3.5 h-3.5 text-slate-400" strokeWidth={2} />
+                            <select
+                                value={categoryFilter}
+                                onChange={(e) => setCategoryFilter(e.target.value)}
+                                className="bg-transparent text-[12.5px] font-medium text-slate-700 focus:outline-none"
+                            >
+                                <option value="All">All categories</option>
+                                {CATEGORIES.map((c) => (
+                                    <option key={c} value={c}>
+                                        {c}
+                                    </option>
+                                ))}
+                            </select>
+                        </div>
+                        <PrimaryBtn
+                            onClick={() => {
+                                setFormData({ question: '', answer: '', category: 'General' });
+                                setIsAddDialogOpen(true);
+                            }}
+                            icon={<Plus className="w-3.5 h-3.5" strokeWidth={2.25} />}
+                        >
+                            Add Q&A
+                        </PrimaryBtn>
+                    </div>
+
+                    {/* List */}
+                    <div className="rounded-xl border border-slate-900/[0.06] bg-white overflow-hidden">
+                        {isLoading ? (
+                            <div className="py-16 flex items-center justify-center">
+                                <div className="w-6 h-6 border-2 border-slate-200 border-t-slate-900 rounded-full animate-spin" />
+                            </div>
+                        ) : filteredQAs.length === 0 ? (
+                            <div className="py-16 text-center">
+                                <div className="inline-flex items-center justify-center w-10 h-10 rounded-full bg-slate-900/[0.04] text-slate-400 mb-3">
+                                    <MessageSquare className="w-4 h-4" strokeWidth={1.75} />
+                                </div>
+                                <p className="text-[13px] text-slate-700 font-medium">
+                                    No Q&A pairs yet
+                                </p>
+                                <p className="text-[12.5px] text-slate-500 mt-0.5">
+                                    {searchTerm || categoryFilter !== 'All'
+                                        ? 'Try adjusting your search or filter.'
+                                        : 'Click “Add Q&A” to create your first entry.'}
+                                </p>
+                            </div>
+                        ) : (
+                            <ul className="divide-y divide-slate-900/[0.06]">
+                                {filteredQAs.map((qa) =>
+                                    editing === qa._id ? (
+                                        <li key={qa._id} className="px-5 py-4 bg-[#FAFAFA]">
+                                            <div className="space-y-3">
+                                                <div>
+                                                    <FieldLabel htmlFor="edit-q">
+                                                        Question
+                                                    </FieldLabel>
+                                                    <TextInput
+                                                        id="edit-q"
+                                                        name="question"
+                                                        value={formData.question || ''}
+                                                        onChange={handleInputChange}
+                                                    />
+                                                </div>
+                                                <div>
+                                                    <FieldLabel htmlFor="edit-a">
+                                                        Answer
+                                                    </FieldLabel>
+                                                    <TextArea
+                                                        id="edit-a"
+                                                        name="answer"
+                                                        rows={3}
+                                                        value={formData.answer || ''}
+                                                        onChange={handleInputChange}
+                                                    />
+                                                </div>
+                                                <div className="flex flex-wrap items-end gap-2.5">
+                                                    <div className="w-44">
+                                                        <FieldLabel>Category</FieldLabel>
+                                                        <div className="inline-flex items-center h-9 w-full px-3 rounded-md bg-white border border-slate-900/[0.08]">
+                                                            <select
+                                                                value={
+                                                                    formData.category || 'General'
+                                                                }
+                                                                onChange={(e) =>
+                                                                    setFormData((p) => ({
+                                                                        ...p,
+                                                                        category: e.target.value,
+                                                                    }))
+                                                                }
+                                                                className="bg-transparent text-[13px] text-slate-900 w-full focus:outline-none"
+                                                            >
+                                                                {CATEGORIES.map((c) => (
+                                                                    <option key={c} value={c}>
+                                                                        {c}
+                                                                    </option>
+                                                                ))}
+                                                            </select>
+                                                        </div>
+                                                    </div>
+                                                    <div className="flex items-center gap-1.5 ml-auto">
+                                                        <GhostBtn
+                                                            onClick={handleCancelEdit}
+                                                            icon={<X className="w-3.5 h-3.5" strokeWidth={2} />}
+                                                        >
+                                                            Cancel
+                                                        </GhostBtn>
+                                                        <PrimaryBtn
+                                                            onClick={handleSaveEdit}
+                                                            icon={<Save className="w-3.5 h-3.5" strokeWidth={2} />}
+                                                        >
+                                                            Save
+                                                        </PrimaryBtn>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </li>
+                                    ) : (
+                                        <li
+                                            key={qa._id}
+                                            className="group px-5 py-3.5 hover:bg-slate-900/[0.02] transition-colors"
+                                        >
+                                            <div className="flex items-start justify-between gap-4">
+                                                <div className="min-w-0 flex-1">
+                                                    <div className="flex items-center gap-2 mb-1 flex-wrap">
+                                                        <p className="text-[13.5px] font-semibold tracking-tight text-slate-950">
+                                                            {qa.question}
+                                                        </p>
+                                                        <span className="inline-flex items-center px-1.5 h-[18px] rounded-full bg-slate-100 text-slate-600 border border-slate-200 text-[10.5px] font-semibold uppercase tracking-[0.08em] leading-none">
+                                                            {qa.category}
+                                                        </span>
+                                                        {qa.frequency > 0 && (
+                                                            <span
+                                                                className="inline-flex items-center gap-1 text-[10.5px] text-slate-500 font-semibold"
+                                                                title="Times used"
+                                                            >
+                                                                · {qa.frequency}× used
+                                                            </span>
+                                                        )}
+                                                    </div>
+                                                    <p className="text-[12.5px] text-slate-600 leading-relaxed line-clamp-2">
+                                                        {qa.answer}
+                                                    </p>
+                                                </div>
+                                                <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0">
+                                                    <button
+                                                        onClick={() => handleEditQA(qa._id)}
+                                                        className="w-7 h-7 rounded-md text-slate-400 hover:text-slate-900 hover:bg-slate-900/[0.04] flex items-center justify-center transition-colors"
+                                                        aria-label="Edit"
+                                                    >
+                                                        <Edit3 className="w-3.5 h-3.5" strokeWidth={2} />
+                                                    </button>
+                                                    <button
+                                                        onClick={() => handleDeleteQA(qa._id)}
+                                                        className="w-7 h-7 rounded-md text-slate-400 hover:text-rose-600 hover:bg-rose-50 flex items-center justify-center transition-colors"
+                                                        aria-label="Delete"
+                                                    >
+                                                        <Trash2 className="w-3.5 h-3.5" strokeWidth={2} />
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        </li>
+                                    )
+                                )}
+                            </ul>
+                        )}
+                    </div>
+
+                    {/* Add modal */}
+                    <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
+                        <DialogContent className="max-w-xl p-0 rounded-xl border border-slate-900/[0.08] bg-white shadow-[0_24px_80px_-24px_rgba(15,23,42,0.25)]">
+                            <div className="px-6 py-4 border-b border-slate-900/[0.06] flex items-start justify-between gap-4">
+                                <div>
+                                    <div className="inline-flex items-center gap-2 text-[10px] font-semibold uppercase tracking-[0.16em] text-indigo-600 mb-0.5">
+                                        <span className="w-3 h-px bg-indigo-600" />
+                                        New entry
+                                    </div>
+                                    <h3 className="text-[16px] font-semibold tracking-[-0.01em] text-slate-950 leading-tight">
+                                        Add a Q&A pair
+                                    </h3>
+                                    <p className="text-[12px] text-slate-500 mt-0.5">
+                                        Train your bot with a question and the exact answer it should give.
+                                    </p>
+                                </div>
+                                <button
+                                    onClick={() => setIsAddDialogOpen(false)}
+                                    className="w-7 h-7 rounded-md text-slate-400 hover:text-slate-900 hover:bg-slate-900/[0.04] flex items-center justify-center transition-colors flex-shrink-0"
+                                >
+                                    <X className="w-4 h-4" strokeWidth={2} />
+                                </button>
+                            </div>
+                            <div className="px-6 py-5 space-y-4">
+                                <div>
+                                    <FieldLabel htmlFor="new-q">Question</FieldLabel>
+                                    <TextInput
+                                        id="new-q"
+                                        name="question"
+                                        placeholder="What does your bot get asked?"
+                                        value={formData.question || ''}
+                                        onChange={handleInputChange}
+                                    />
+                                </div>
+                                <div>
+                                    <FieldLabel htmlFor="new-a">Answer</FieldLabel>
+                                    <TextArea
+                                        id="new-a"
+                                        name="answer"
+                                        rows={5}
+                                        placeholder="What should the bot answer?"
+                                        value={formData.answer || ''}
+                                        onChange={handleInputChange}
+                                    />
+                                </div>
+                                <div>
+                                    <FieldLabel htmlFor="new-cat">Category</FieldLabel>
+                                    <div className="inline-flex items-center h-9 w-full px-3 rounded-md bg-white border border-slate-900/[0.08]">
+                                        <select
+                                            id="new-cat"
+                                            value={formData.category || 'General'}
+                                            onChange={(e) =>
+                                                setFormData((p) => ({
+                                                    ...p,
+                                                    category: e.target.value,
+                                                }))
+                                            }
+                                            className="bg-transparent text-[13px] text-slate-900 w-full focus:outline-none"
+                                        >
+                                            {CATEGORIES.map((c) => (
+                                                <option key={c} value={c}>
+                                                    {c}
+                                                </option>
+                                            ))}
+                                        </select>
+                                    </div>
+                                </div>
+                            </div>
+                            <div className="px-6 py-3 border-t border-slate-900/[0.06] bg-[#FAFAFA] flex items-center justify-end gap-2">
+                                <GhostBtn onClick={() => setIsAddDialogOpen(false)}>
+                                    Cancel
+                                </GhostBtn>
+                                <PrimaryBtn onClick={handleAddQA}>Add Q&A</PrimaryBtn>
+                            </div>
+                        </DialogContent>
+                    </Dialog>
+                </div>
+            )}
+
+            {/* Upload tab */}
+            {activeTab === 'upload' && (
+                <SectionCard
+                    title="Upload a document"
+                    desc="PDF, DOCX, TXT, CSV, MD or XLSX. 10 MB max per file."
+                    icon={FileUp}
+                >
+                    <div className="space-y-4 max-w-md">
+                        <div>
+                            <FieldLabel htmlFor="file-upload">Document</FieldLabel>
+                            <label
+                                htmlFor="file-upload"
+                                className="flex items-center gap-3 px-3 py-3 rounded-md border border-dashed border-slate-300 hover:border-indigo-400 bg-[#FAFAFA] cursor-pointer transition-colors"
+                            >
+                                <div className="w-8 h-8 rounded-md bg-white border border-slate-900/[0.06] flex items-center justify-center flex-shrink-0">
+                                    <FileUp className="w-4 h-4 text-slate-500" strokeWidth={1.75} />
+                                </div>
+                                <div className="min-w-0">
+                                    <p className="text-[13px] font-medium text-slate-900 truncate">
+                                        {file ? file.name : 'Click to choose a file'}
+                                    </p>
+                                    <p className="text-[11.5px] text-slate-500">
+                                        {file
+                                            ? `${(file.size / 1024).toFixed(1)} KB`
+                                            : 'PDF · DOCX · TXT · CSV · MD · XLSX'}
+                                    </p>
+                                </div>
+                                <input
+                                    id="file-upload"
+                                    type="file"
+                                    onChange={handleFileChange}
+                                    accept=".pdf,.doc,.docx,.txt,.csv,.md,.xlsx"
+                                    className="sr-only"
+                                />
+                            </label>
+                        </div>
+                        <PrimaryBtn
+                            onClick={handleUploadFile}
+                            disabled={!file || isUploading}
+                            icon={
+                                isUploading ? (
+                                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                                ) : (
+                                    <FileUp className="w-3.5 h-3.5" strokeWidth={2} />
+                                )
+                            }
+                        >
+                            {isUploading ? 'Processing…' : 'Upload & train'}
+                        </PrimaryBtn>
+                    </div>
+                </SectionCard>
+            )}
+
+            {/* Scrape tab */}
+            {activeTab === 'scrape' && (
+                <SectionCard
+                    title="Scrape a website"
+                    desc="Depth 1 = single page · 2–3 = follow same-origin links."
+                    icon={Globe}
+                >
+                    <div className="space-y-4 max-w-md">
+                        <div>
+                            <FieldLabel htmlFor="scrape-url">Website URL</FieldLabel>
+                            <TextInput
+                                id="scrape-url"
+                                type="url"
+                                placeholder="https://example.com/about"
+                                value={scrapeUrl}
+                                onChange={(e) => setScrapeUrl(e.target.value)}
+                            />
+                        </div>
+                        <div>
+                            <FieldLabel>Depth</FieldLabel>
+                            <div className="inline-flex items-center gap-0.5 p-0.5 rounded-lg bg-slate-900/[0.04] border border-slate-900/[0.06]">
+                                {[
+                                    { v: 1, label: '1 page' },
+                                    { v: 2, label: '~10 pages' },
+                                    { v: 3, label: '~30 pages' },
+                                ].map((d) => (
+                                    <button
+                                        key={d.v}
+                                        onClick={() => setScrapeMaxDepth(d.v)}
+                                        className={cn(
+                                            'px-3 h-7 rounded-md text-[12px] font-semibold tracking-tight transition-all',
+                                            scrapeMaxDepth === d.v
+                                                ? 'bg-white text-slate-950 shadow-[0_1px_2px_rgba(15,23,42,0.08)]'
+                                                : 'text-slate-600 hover:text-slate-900'
+                                        )}
+                                    >
+                                        {d.label}
+                                    </button>
+                                ))}
+                            </div>
+                        </div>
+                        {scrapeProgress && (
+                            <div className="rounded-md border border-indigo-200/60 bg-indigo-50/40 px-3 py-2 flex items-center gap-2 text-[12.5px] text-indigo-900">
+                                <Loader2 className="w-3.5 h-3.5 animate-spin text-indigo-600" />
+                                {scrapeProgress}
+                            </div>
+                        )}
+                        <PrimaryBtn
+                            onClick={handleScrapeWebsite}
+                            disabled={!scrapeUrl || isScraping}
+                            icon={
+                                isScraping || scrapeJobId ? (
+                                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                                ) : (
+                                    <Globe className="w-3.5 h-3.5" strokeWidth={2} />
+                                )
+                            }
+                        >
+                            {isScraping || scrapeJobId
+                                ? scrapeJobId
+                                    ? 'Processing…'
+                                    : 'Scraping…'
+                                : 'Scrape & train'}
+                        </PrimaryBtn>
+                    </div>
+                </SectionCard>
+            )}
+
+            {/* Paste tab */}
+            {activeTab === 'paste' && (
+                <SectionCard
+                    title="Paste raw text"
+                    desc="Drop in FAQs, policies, or any text. No file upload needed."
+                    icon={FileText}
+                >
+                    <div className="space-y-4">
+                        <div className="max-w-md">
+                            <FieldLabel htmlFor="paste-title">Title (optional)</FieldLabel>
+                            <TextInput
+                                id="paste-title"
+                                placeholder="e.g. FAQ 2024"
+                                value={pasteTitle}
+                                onChange={(e) => setPasteTitle(e.target.value)}
+                            />
+                        </div>
+                        <div>
+                            <FieldLabel htmlFor="paste-content">Content</FieldLabel>
+                            <TextArea
+                                id="paste-content"
+                                placeholder="Paste or type your content here…"
+                                value={pasteContent}
+                                onChange={(e) => setPasteContent(e.target.value)}
+                                rows={10}
+                            />
+                        </div>
+                        <PrimaryBtn
+                            onClick={handlePasteSubmit}
+                            disabled={!pasteContent.trim() || isPasting}
+                            icon={
+                                isPasting ? (
+                                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                                ) : (
+                                    <FileText className="w-3.5 h-3.5" strokeWidth={2} />
+                                )
+                            }
+                        >
+                            {isPasting ? 'Adding…' : 'Add to knowledge base'}
+                        </PrimaryBtn>
+                    </div>
+                </SectionCard>
+            )}
+
+            {/* Sources tab */}
+            {activeTab === 'sources' && (
+                <div className="space-y-5">
+                    {/* Health stats */}
+                    {kbHealth != null && (
+                        <div className="grid gap-3 grid-cols-1 sm:grid-cols-3">
+                            <div className="rounded-lg bg-white border border-slate-900/[0.06] px-4 py-3.5">
+                                <div className="flex items-center justify-between mb-2">
+                                    <p className="text-[10.5px] font-semibold uppercase tracking-[0.14em] text-slate-500">
+                                        Total chunks
+                                    </p>
+                                    <div className="w-6 h-6 rounded-md bg-indigo-600/10 text-indigo-600 flex items-center justify-center">
+                                        <Database className="w-[13px] h-[13px]" strokeWidth={1.75} />
+                                    </div>
+                                </div>
+                                <p className="text-[20px] font-semibold tracking-[-0.01em] text-slate-950 leading-[1.15]">
+                                    {(kbHealth.totalChunks ?? 0).toLocaleString()}
+                                </p>
+                            </div>
+                            <div className="rounded-lg bg-white border border-slate-900/[0.06] px-4 py-3.5">
+                                <div className="flex items-center justify-between mb-2">
+                                    <p className="text-[10.5px] font-semibold uppercase tracking-[0.14em] text-slate-500">
+                                        Total sources
+                                    </p>
+                                    <div className="w-6 h-6 rounded-md bg-slate-900/[0.04] text-slate-700 flex items-center justify-center">
+                                        <FileIcon className="w-[13px] h-[13px]" strokeWidth={1.75} />
+                                    </div>
+                                </div>
+                                <p className="text-[20px] font-semibold tracking-[-0.01em] text-slate-950 leading-[1.15]">
+                                    {(kbHealth.totalSources ?? 0).toLocaleString()}
+                                </p>
+                            </div>
+                            <div className="rounded-lg bg-white border border-slate-900/[0.06] px-4 py-3.5">
+                                <div className="flex items-center justify-between mb-2">
+                                    <p className="text-[10.5px] font-semibold uppercase tracking-[0.14em] text-slate-500">
+                                        Last updated
+                                    </p>
+                                    <div className="w-6 h-6 rounded-md bg-slate-900/[0.04] text-slate-700 flex items-center justify-center">
+                                        <RefreshCw className="w-[13px] h-[13px]" strokeWidth={1.75} />
+                                    </div>
+                                </div>
+                                <p className="text-[14px] font-semibold tracking-tight text-slate-950 leading-[1.15]">
+                                    {kbHealth.lastUpdated
+                                        ? new Date(kbHealth.lastUpdated).toLocaleString('en-IN', {
+                                              day: '2-digit',
+                                              month: 'short',
+                                              hour: '2-digit',
+                                              minute: '2-digit',
+                                          })
+                                        : 'Never'}
+                                </p>
+                            </div>
+                        </div>
+                    )}
+
+                    <SectionCard
+                        title="Your data sources"
+                        desc="Files, websites, and pasted text. Set re-scrape schedule for websites."
+                        icon={Database}
+                    >
+                        {isLoadingSources ? (
+                            <div className="flex items-center justify-center py-10">
+                                <div className="w-6 h-6 border-2 border-slate-200 border-t-slate-900 rounded-full animate-spin" />
+                            </div>
+                        ) : sources.length === 0 ? (
+                            <div className="py-10 text-center">
+                                <div className="inline-flex items-center justify-center w-10 h-10 rounded-full bg-slate-900/[0.04] text-slate-400 mb-3">
+                                    <Database className="w-4 h-4" strokeWidth={1.75} />
+                                </div>
+                                <p className="text-[13px] text-slate-700 font-medium">
+                                    No data sources yet
+                                </p>
+                                <p className="text-[12.5px] text-slate-500 mt-0.5">
+                                    Upload, scrape, or paste — they'll appear here.
+                                </p>
+                            </div>
+                        ) : (
+                            <ul className="divide-y divide-slate-900/[0.06] -mx-5">
+                                {sources.map((source) => {
+                                    const Icon =
+                                        source.type === 'file'
+                                            ? FileIcon
+                                            : source.type === 'paste'
+                                            ? FileText
+                                            : Globe;
+                                    const iconCls =
+                                        source.type === 'file'
+                                            ? 'bg-violet-500/10 text-violet-600'
+                                            : source.type === 'paste'
+                                            ? 'bg-amber-500/10 text-amber-600'
+                                            : 'bg-emerald-500/10 text-emerald-600';
+                                    const title =
+                                        source.type === 'file'
+                                            ? source.fileName
+                                            : source.type === 'paste'
+                                            ? source.pasteTitle || 'Pasted text'
+                                            : source.url;
+                                    return (
+                                        <li key={source._id} className="px-5 py-3.5">
+                                            <div className="flex items-start gap-3">
+                                                <div
+                                                    className={cn(
+                                                        'w-8 h-8 rounded-md flex items-center justify-center flex-shrink-0 mt-0.5',
+                                                        iconCls
+                                                    )}
+                                                >
+                                                    <Icon className="w-4 h-4" strokeWidth={1.75} />
+                                                </div>
+                                                <div className="min-w-0 flex-1">
+                                                    <div className="flex items-center gap-2 flex-wrap">
+                                                        <p className="text-[13px] font-semibold tracking-tight text-slate-950 truncate">
+                                                            {title}
+                                                        </p>
+                                                        <span
+                                                            className={cn(
+                                                                'inline-flex items-center px-1.5 h-[18px] rounded-full border text-[10px] font-semibold uppercase tracking-[0.08em] leading-none',
+                                                                sourceStatusPill(source.status)
+                                                            )}
+                                                        >
+                                                            {source.status}
+                                                        </span>
+                                                    </div>
+                                                    <div className="mt-1 flex items-center gap-2 text-[11.5px] text-slate-500 flex-wrap">
+                                                        <span className="capitalize">
+                                                            {source.type}
+                                                        </span>
+                                                        {source.fileSize != null && (
+                                                            <>
+                                                                <span>·</span>
+                                                                <span>
+                                                                    {(source.fileSize / 1024).toFixed(1)} KB
+                                                                </span>
+                                                            </>
+                                                        )}
+                                                        {source.type === 'website' &&
+                                                            source.pageCount != null && (
+                                                                <>
+                                                                    <span>·</span>
+                                                                    <span>
+                                                                        {source.pageCount}{' '}
+                                                                        page(s)
+                                                                    </span>
+                                                                </>
+                                                            )}
+                                                        <span>·</span>
+                                                        <span>
+                                                            {new Date(
+                                                                source.createdAt
+                                                            ).toLocaleDateString('en-IN', {
+                                                                day: '2-digit',
+                                                                month: 'short',
+                                                            })}
+                                                        </span>
+                                                    </div>
+                                                    {source.type === 'website' && (
+                                                        <div className="mt-2 flex items-center gap-2 flex-wrap">
+                                                            {source.url && (
+                                                                <a
+                                                                    href={source.url}
+                                                                    target="_blank"
+                                                                    rel="noopener noreferrer"
+                                                                    className="inline-flex items-center gap-1 text-[11.5px] text-indigo-600 hover:text-indigo-700 font-medium"
+                                                                >
+                                                                    Visit
+                                                                    <ExternalLink className="w-3 h-3" strokeWidth={2} />
+                                                                </a>
+                                                            )}
+                                                            <span className="w-px h-3 bg-slate-900/[0.08]" />
+                                                            <span className="text-[10.5px] font-semibold uppercase tracking-[0.14em] text-slate-500">
+                                                                Re-scrape
+                                                            </span>
+                                                            <div className="inline-flex items-center gap-0.5 p-0.5 rounded-md bg-slate-900/[0.04] border border-slate-900/[0.06]">
+                                                                {[
+                                                                    { v: 'none', label: 'Off' },
+                                                                    { v: 'daily', label: 'Daily' },
+                                                                    {
+                                                                        v: 'weekly',
+                                                                        label: 'Weekly',
+                                                                    },
+                                                                ].map((s) => (
+                                                                    <button
+                                                                        key={s.v}
+                                                                        onClick={() =>
+                                                                            handleScrapeScheduleChange(
+                                                                                source._id,
+                                                                                s.v
+                                                                            )
+                                                                        }
+                                                                        className={cn(
+                                                                            'px-2 h-6 rounded text-[11px] font-semibold tracking-tight transition-all',
+                                                                            (source.scrapeSchedule ||
+                                                                                'none') === s.v
+                                                                                ? 'bg-white text-slate-950 shadow-[0_1px_2px_rgba(15,23,42,0.08)]'
+                                                                                : 'text-slate-600 hover:text-slate-900'
+                                                                        )}
+                                                                    >
+                                                                        {s.label}
+                                                                    </button>
+                                                                ))}
+                                                            </div>
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            </div>
+                                        </li>
+                                    );
+                                })}
+                            </ul>
+                        )}
+                    </SectionCard>
+                </div>
+            )}
+
+            {/* Suggested tab */}
+            {activeTab === 'suggested' && (
+                <SectionCard
+                    title="Suggested Q&A"
+                    desc="Questions visitors asked that the bot couldn't answer well. Add answers to improve."
+                    icon={Sparkles}
+                >
+                    {isLoadingSuggested ? (
+                        <div className="flex items-center justify-center py-10">
+                            <div className="w-6 h-6 border-2 border-slate-200 border-t-slate-900 rounded-full animate-spin" />
+                        </div>
+                    ) : suggestedList.length === 0 ? (
+                        <div className="py-10 text-center">
+                            <div className="inline-flex items-center justify-center w-10 h-10 rounded-full bg-slate-900/[0.04] text-slate-400 mb-3">
+                                <Sparkles className="w-4 h-4" strokeWidth={1.75} />
+                            </div>
+                            <p className="text-[13px] text-slate-700 font-medium">
+                                No suggestions yet
+                            </p>
+                            <p className="text-[12.5px] text-slate-500 mt-0.5">
+                                When the bot can't answer well, those questions land here.
+                            </p>
+                        </div>
+                    ) : (
+                        <ul className="divide-y divide-slate-900/[0.06] -mx-5">
+                            {suggestedList.map((s) => {
+                                const meta = suggestedSourceLabel(s.source);
+                                return (
+                                    <li
+                                        key={s._id}
+                                        className="px-5 py-3.5 flex items-start justify-between gap-3"
+                                    >
+                                        <div className="flex items-start gap-3 min-w-0 flex-1">
+                                            <div className="w-8 h-8 rounded-md bg-amber-500/10 text-amber-600 flex items-center justify-center flex-shrink-0 mt-0.5">
+                                                <AlertTriangle
+                                                    className="w-3.5 h-3.5"
+                                                    strokeWidth={2}
+                                                />
+                                            </div>
+                                            <div className="min-w-0">
+                                                <div className="flex items-center gap-1.5 mb-1">
+                                                    <span
+                                                        className={cn(
+                                                            'inline-flex items-center px-1.5 h-[18px] rounded-full border text-[10px] font-semibold uppercase tracking-[0.08em] leading-none',
+                                                            meta.cls
+                                                        )}
+                                                    >
+                                                        {meta.label}
+                                                    </span>
+                                                </div>
+                                                <p className="text-[13px] text-slate-800 break-words leading-snug">
+                                                    {s.question}
+                                                </p>
+                                            </div>
+                                        </div>
+                                        <div className="flex items-center gap-1.5 flex-shrink-0">
+                                            <PrimaryBtn
+                                                className="h-8 px-3 text-[12px]"
+                                                onClick={() => {
+                                                    setAddToQAModalId(s._id);
+                                                    setAddToQAAnswer('');
+                                                }}
+                                                icon={
+                                                    <Plus className="w-3 h-3" strokeWidth={2.25} />
+                                                }
+                                            >
+                                                Add to Q&A
+                                            </PrimaryBtn>
+                                            <button
+                                                onClick={async () => {
+                                                    try {
+                                                        await dismissSuggestedQA(s._id);
+                                                        setSuggestedList((prev) =>
+                                                            prev.filter((x) => x._id !== s._id)
+                                                        );
+                                                        toast.success('Dismissed');
+                                                    } catch {
+                                                        toast.error('Failed to dismiss');
+                                                    }
+                                                }}
+                                                className="inline-flex items-center h-8 px-2.5 rounded-md bg-white border border-slate-900/[0.08] text-[12px] font-semibold text-slate-600 hover:text-slate-900 hover:border-slate-900/20 transition-colors"
+                                            >
+                                                Dismiss
+                                            </button>
+                                        </div>
+                                    </li>
+                                );
+                            })}
+                        </ul>
+                    )}
+
+                    {/* Add suggested → Q&A modal */}
+                    <Dialog
+                        open={!!addToQAModalId}
+                        onOpenChange={(open) => !open && setAddToQAModalId(null)}
+                    >
+                        <DialogContent className="max-w-lg p-0 rounded-xl border border-slate-900/[0.08] bg-white shadow-[0_24px_80px_-24px_rgba(15,23,42,0.25)]">
+                            <div className="px-6 py-4 border-b border-slate-900/[0.06] flex items-start justify-between gap-4">
+                                <div>
+                                    <h3 className="text-[16px] font-semibold tracking-[-0.01em] text-slate-950 leading-tight">
+                                        Add to Q&A
+                                    </h3>
+                                    <p className="text-[12px] text-slate-500 mt-0.5">
+                                        Provide an answer. The pair will be added to your Q&A list.
+                                    </p>
+                                </div>
+                                <button
+                                    onClick={() => setAddToQAModalId(null)}
+                                    className="w-7 h-7 rounded-md text-slate-400 hover:text-slate-900 hover:bg-slate-900/[0.04] flex items-center justify-center transition-colors flex-shrink-0"
+                                >
+                                    <X className="w-4 h-4" strokeWidth={2} />
+                                </button>
+                            </div>
+                            <div className="px-6 py-5">
+                                <FieldLabel htmlFor="suggest-ans">Answer</FieldLabel>
+                                <TextArea
+                                    id="suggest-ans"
+                                    rows={5}
+                                    placeholder="Your answer…"
+                                    value={addToQAAnswer}
+                                    onChange={(e) => setAddToQAAnswer(e.target.value)}
+                                />
+                            </div>
+                            <div className="px-6 py-3 border-t border-slate-900/[0.06] bg-[#FAFAFA] flex items-center justify-end gap-2">
+                                <GhostBtn onClick={() => setAddToQAModalId(null)}>
+                                    Cancel
+                                </GhostBtn>
+                                <PrimaryBtn
+                                    onClick={async () => {
+                                        if (!addToQAModalId) return;
+                                        try {
+                                            await addSuggestedQAToQA(
+                                                addToQAModalId,
+                                                addToQAAnswer.trim()
+                                            );
+                                            setSuggestedList((prev) =>
+                                                prev.filter((x) => x._id !== addToQAModalId)
+                                            );
+                                            setAddToQAModalId(null);
+                                            setAddToQAAnswer('');
+                                            fetchQAs();
+                                            toast.success('Added to Q&A');
+                                        } catch {
+                                            toast.error('Failed to add');
+                                        }
+                                    }}
+                                    icon={<Check className="w-3.5 h-3.5" strokeWidth={2.25} />}
+                                >
+                                    Add
+                                </PrimaryBtn>
+                            </div>
+                        </DialogContent>
+                    </Dialog>
+                </SectionCard>
+            )}
+        </div>
+    );
 };
 
 export default UserKnowledgeBase;

@@ -1,12 +1,48 @@
 /**
- * Phase 5.6: Chat Flows / Decision Trees
- * CRUD + templates for user flows.
+ * Phase 5.6 / Enterprise Flow Builder \u2014 chat flow controller.
+ *
+ * REST surface (mounted under /api by userRoutes):
+ *
+ *   GET    /users/flows/templates          \u2014 list of starter templates (summaries).
+ *   POST   /users/flows/templates/:id      \u2014 clone a template into a new flow.
+ *   GET    /users/flows                    \u2014 list flows for current user (+botId filter).
+ *   POST   /users/flows                    \u2014 create a new flow.
+ *   GET    /users/flows/:id                \u2014 read a flow.
+ *   PUT    /users/flows/:id                \u2014 save (replaces fields).
+ *   DELETE /users/flows/:id                \u2014 delete.
+ *   POST   /users/flows/:id/validate       \u2014 lint draft (or published, via ?stage=).
+ *   POST   /users/flows/:id/test           \u2014 dry-run with scripted messages.
+ *   POST   /users/flows/:id/publish        \u2014 freeze draft \u2192 published; bumps version.
+ *   POST   /users/flows/:id/unpublish      \u2014 published \u2192 draft; clears Bot.activeFlowId.
+ *
+ * Heavy lifting lives in:
+ *   services/flowValidator.service.js
+ *   services/flowTester.service.js
+ *   services/flowTemplates/*
+ *
+ * The controller stays thin (request shaping + persistence + 4xx/5xx) so each
+ * concern can be unit-tested in isolation.
  */
 
-const mongoose = require('mongoose');
 const ChatFlow = require('../models/ChatFlow');
+const Bot = require('../models/Bot');
+const Secret = require('../models/Secret');
 const botService = require('../services/bot.service');
+const flowTemplates = require('../services/flowTemplates');
+const { validateFlow } = require('../services/flowValidator.service');
+const { runTest } = require('../services/flowTester.service');
+const { getFlowAnalytics } = require('../services/flowAnalytics.service');
 
+// ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
+
+/**
+ * Fail fast when the same node id appears twice or startNodeId is missing.
+ *
+ * @param {object} flow - any object that has `nodes[]` and `startNodeId`.
+ * @throws {Error}
+ */
 function ensureNodeIds(flow) {
     const ids = new Set();
     for (const n of flow.nodes || []) {
@@ -17,6 +53,42 @@ function ensureNodeIds(flow) {
     if (!ids.has(flow.startNodeId)) throw new Error('startNodeId must exist in nodes');
 }
 
+/**
+ * Pick which node array to operate on based on `?stage=draft|published`.
+ * Defaults to `draftNodes` (or `nodes` when there are no drafts yet).
+ *
+ * @param {object} flow
+ * @param {'draft'|'published'} [stage]
+ * @returns {Array<object>}
+ */
+function pickStageNodes(flow, stage) {
+    if (stage === 'published') return flow.nodes || [];
+    if (Array.isArray(flow.draftNodes) && flow.draftNodes.length > 0) return flow.draftNodes;
+    return flow.nodes || [];
+}
+
+async function loadFlowOr404(req, res) {
+    const flow = await ChatFlow.findOne({ _id: req.params.id, userId: req.userId });
+    if (!flow) {
+        res.status(404).json({ message: 'Flow not found' });
+        return null;
+    }
+    return flow;
+}
+
+async function loadKnownSecretNames(userId) {
+    const docs = await Secret.find({ userId }).select('name').lean();
+    return new Set(docs.map((d) => d.name));
+}
+
+// ---------------------------------------------------------------------------
+// CRUD
+// ---------------------------------------------------------------------------
+
+/**
+ * List the current user's flows. Supports `?botId=`. Includes lifecycle
+ * fields so the UI can show drafts vs published at a glance.
+ */
 const listFlows = async (req, res) => {
     try {
         let botId = req.query.botId || null;
@@ -25,7 +97,7 @@ const listFlows = async (req, res) => {
             botId = defaultBot._id;
         }
         const flows = await ChatFlow.find({ userId: req.userId, botId })
-            .select('name isActive startNodeId version createdAt updatedAt')
+            .select('name status isActive startNodeId version publishedVersion publishedAt createdAt updatedAt')
             .sort({ updatedAt: -1 })
             .lean();
         return res.status(200).json({ flows });
@@ -44,6 +116,11 @@ const getFlow = async (req, res) => {
     }
 };
 
+/**
+ * Create a flow. New flows start as `draft` (status='draft') with the
+ * provided nodes living in `draftNodes`. The `nodes` array (the published
+ * snapshot) stays empty until the first publish.
+ */
 const createFlow = async (req, res) => {
     try {
         let botId = req.body?.botId || null;
@@ -51,34 +128,65 @@ const createFlow = async (req, res) => {
             const defaultBot = await botService.ensureDefaultBot(req.userId);
             botId = defaultBot._id;
         }
-        const { name, nodes, startNodeId, isActive } = req.body || {};
+        const { name, nodes, startNodeId, description, variables } = req.body || {};
         if (!name) return res.status(400).json({ message: 'name is required' });
-        const flow = { userId: req.userId, botId, name: String(name), nodes: Array.isArray(nodes) ? nodes : [], startNodeId: String(startNodeId || ''), isActive: !!isActive };
-        ensureNodeIds(flow);
-        if (flow.isActive) {
-            await ChatFlow.updateMany({ userId: req.userId, botId, isActive: true }, { $set: { isActive: false } });
-        }
-        const created = await ChatFlow.create(flow);
+
+        const draftNodes = Array.isArray(nodes) ? nodes : [];
+        const merged = { startNodeId: String(startNodeId || ''), nodes: draftNodes };
+        ensureNodeIds(merged);
+
+        const created = await ChatFlow.create({
+            userId: req.userId,
+            botId,
+            name: String(name),
+            description: description || '',
+            startNodeId: merged.startNodeId,
+            nodes: [],
+            draftNodes,
+            variables: Array.isArray(variables) ? variables : [],
+            status: 'draft',
+            isActive: false
+        });
         return res.status(201).json(created);
     } catch (error) {
         return res.status(400).json({ message: error.message || 'Invalid flow' });
     }
 };
 
+/**
+ * Save a flow.
+ *
+ * - When `nodes` is sent, we save it to `draftNodes` (drafts always edit drafts).
+ * - When `published_nodes` is sent, we overwrite `nodes` directly (used by
+ *   migration tools, never the UI).
+ * - Setting `isActive: true` is preserved for back-compat but the new
+ *   resolver prefers `Bot.activeFlowId`.
+ */
 const updateFlow = async (req, res) => {
     try {
-        const existing = await ChatFlow.findOne({ _id: req.params.id, userId: req.userId });
-        if (!existing) return res.status(404).json({ message: 'Flow not found' });
+        const existing = await loadFlowOr404(req, res);
+        if (!existing) return;
         const updates = {};
         if (req.body.name != null) updates.name = String(req.body.name);
+        if (req.body.description != null) updates.description = String(req.body.description);
         if (req.body.startNodeId != null) updates.startNodeId = String(req.body.startNodeId);
-        if (req.body.nodes != null) updates.nodes = Array.isArray(req.body.nodes) ? req.body.nodes : existing.nodes;
+        if (req.body.variables != null) updates.variables = Array.isArray(req.body.variables) ? req.body.variables : existing.variables;
+        if (req.body.nodes != null) updates.draftNodes = Array.isArray(req.body.nodes) ? req.body.nodes : existing.draftNodes;
+        if (req.body.published_nodes != null) updates.nodes = Array.isArray(req.body.published_nodes) ? req.body.published_nodes : existing.nodes;
         if (req.body.isActive != null) updates.isActive = !!req.body.isActive;
-        const merged = { ...existing.toObject(), ...updates };
-        ensureNodeIds(merged);
+
+        const merged = {
+            startNodeId: updates.startNodeId || existing.startNodeId,
+            nodes: updates.draftNodes || existing.draftNodes || existing.nodes
+        };
+        if (merged.nodes && merged.nodes.length > 0) ensureNodeIds(merged);
+
         updates.version = (existing.version || 1) + 1;
         if (updates.isActive) {
-            await ChatFlow.updateMany({ userId: req.userId, botId: existing.botId, isActive: true, _id: { $ne: existing._id } }, { $set: { isActive: false } });
+            await ChatFlow.updateMany(
+                { userId: req.userId, botId: existing.botId, isActive: true, _id: { $ne: existing._id } },
+                { $set: { isActive: false } }
+            );
         }
         const saved = await ChatFlow.findByIdAndUpdate(existing._id, { $set: updates }, { new: true }).lean();
         return res.status(200).json(saved);
@@ -89,38 +197,282 @@ const updateFlow = async (req, res) => {
 
 const deleteFlow = async (req, res) => {
     try {
-        const flow = await ChatFlow.findOne({ _id: req.params.id, userId: req.userId }).select('_id').lean();
+        const flow = await ChatFlow.findOne({ _id: req.params.id, userId: req.userId }).select('_id botId').lean();
         if (!flow) return res.status(404).json({ message: 'Flow not found' });
         await ChatFlow.deleteOne({ _id: flow._id });
+        // Clear any bot still pointing at this flow.
+        await Bot.updateMany(
+            { userId: req.userId, activeFlowId: flow._id },
+            { $set: { activeFlowId: null, behaviorMode: 'default' } }
+        );
         return res.status(200).json({ message: 'Deleted' });
     } catch (error) {
         return res.status(500).json({ message: 'Server error', error: error.message });
     }
 };
 
-const listTemplates = async (req, res) => {
-    const templates = [
-        {
-            id: 'support-routing',
-            name: 'Support routing',
-            flow: {
-                name: 'Support routing',
-                startNodeId: 'start',
-                nodes: [
-                    { id: 'start', type: 'message', title: 'Start', text: 'What can I help you with?', options: [
-                        { id: 'o1', label: 'Order status', nextNodeId: 'order' },
-                        { id: 'o2', label: 'Refund / return', nextNodeId: 'refund' },
-                        { id: 'o3', label: 'Talk to sales', nextNodeId: 'sales' }
-                    ]},
-                    { id: 'order', type: 'question', title: 'Order', text: 'Share your order ID.', conditions: [], fallbackNextNodeId: 'order-ai' },
-                    { id: 'order-ai', type: 'ai', title: 'Order AI', text: '', aiInstructions: 'You are an order support assistant. Ask 1 follow-up if needed, otherwise answer succinctly.', options: [{ id: 'b1', label: 'Back', nextNodeId: 'start' }] },
-                    { id: 'refund', type: 'ai', title: 'Refund AI', text: '', aiInstructions: 'You are a returns/refunds assistant. Explain policy and next steps based on context.', options: [{ id: 'b1', label: 'Back', nextNodeId: 'start' }] },
-                    { id: 'sales', type: 'ai', title: 'Sales AI', text: '', aiInstructions: 'You are a sales assistant. Qualify intent and propose next steps.', options: [{ id: 'b1', label: 'Back', nextNodeId: 'start' }] }
-                ]
+// ---------------------------------------------------------------------------
+// Templates
+// ---------------------------------------------------------------------------
+
+/**
+ * Catalogue of templates (summaries only). The UI uses this to render the
+ * "Start from a template" picker without paying the cost of the full bodies.
+ */
+const listTemplates = (_req, res) => {
+    return res.status(200).json({ templates: flowTemplates.listTemplateSummaries() });
+};
+
+/**
+ * Clone a template into a new ChatFlow document. The cloned flow lives as a
+ * draft and never overrides anything in the user's bot.
+ *
+ * Body: { name?, botId? }
+ */
+const cloneTemplate = async (req, res) => {
+    try {
+        const tpl = flowTemplates.getTemplate(req.params.id);
+        if (!tpl) return res.status(404).json({ message: 'Template not found' });
+
+        let botId = req.body?.botId || null;
+        if (!botId) {
+            const defaultBot = await botService.ensureDefaultBot(req.userId);
+            botId = defaultBot._id;
+        }
+        const created = await ChatFlow.create({
+            userId: req.userId,
+            botId,
+            name: String(req.body?.name || tpl.flow.name || tpl.name),
+            description: tpl.flow.description || tpl.description || '',
+            startNodeId: tpl.flow.startNodeId,
+            nodes: [],
+            draftNodes: tpl.flow.nodes || [],
+            variables: tpl.flow.variables || [],
+            status: 'draft',
+            isActive: false
+        });
+        return res.status(201).json(created);
+    } catch (error) {
+        return res.status(400).json({ message: error.message || 'Could not clone template' });
+    }
+};
+
+// ---------------------------------------------------------------------------
+// Validate
+// ---------------------------------------------------------------------------
+
+/**
+ * Run the validator against a flow. By default validates the draft; pass
+ * `?stage=published` to lint the live snapshot.
+ *
+ * Response shape mirrors the validator service so the UI can drop it
+ * straight into the ValidationPanel.
+ */
+const validateFlowEndpoint = async (req, res) => {
+    try {
+        const flow = await loadFlowOr404(req, res);
+        if (!flow) return;
+        const stage = req.query.stage === 'published' ? 'published' : 'draft';
+        const target = {
+            startNodeId: flow.startNodeId,
+            nodes: pickStageNodes(flow, stage),
+            variables: flow.variables || []
+        };
+        const knownSecretNames = await loadKnownSecretNames(req.userId);
+        const report = validateFlow(target, { knownSecretNames });
+        return res.status(200).json({
+            stage,
+            startNodeId: target.startNodeId,
+            nodeCount: target.nodes.length,
+            ...report
+        });
+    } catch (error) {
+        return res.status(500).json({ message: 'Server error', error: error.message });
+    }
+};
+
+// ---------------------------------------------------------------------------
+// Test sandbox
+// ---------------------------------------------------------------------------
+
+/**
+ * Dry-run the flow against a scripted list of visitor messages.
+ *
+ * Body:
+ *   {
+ *     messages:    string[]                       required
+ *     mode:        'mock' | 'live'                default 'mock'
+ *     stage:       'draft' | 'published'          default 'draft'
+ *     initialVariables: object                    default {}
+ *     leadInfo:    { email?, name?, phone? }      default {}
+ *     mockApiResponses: { [nodeId]: { ok, statusCode, data, error } }
+ *     mockSecrets: { [name]: string }
+ *   }
+ *
+ * In `live` mode the tester decrypts the user's real secrets and hits real
+ * APIs (subject to the SSRF guard). `mock` is the default for builder
+ * preview \u2014 fast, no side-effects.
+ */
+const testFlowEndpoint = async (req, res) => {
+    try {
+        const flow = await loadFlowOr404(req, res);
+        if (!flow) return;
+
+        const {
+            messages = [],
+            mode = 'mock',
+            stage = 'draft',
+            initialVariables = {},
+            leadInfo = {},
+            mockApiResponses = {},
+            mockSecrets = {}
+        } = req.body || {};
+
+        if (!Array.isArray(messages)) {
+            return res.status(400).json({ message: 'messages must be an array of strings' });
+        }
+        if (messages.length > 50) {
+            return res.status(400).json({ message: 'Too many messages \u2014 max 50 per dry-run.' });
+        }
+
+        const target = {
+            startNodeId: flow.startNodeId,
+            nodes: pickStageNodes(flow, stage === 'published' ? 'published' : 'draft'),
+            variables: flow.variables || []
+        };
+        if (!target.nodes.length || !target.startNodeId) {
+            return res.status(400).json({ message: 'This flow has no nodes to test on the requested stage.' });
+        }
+
+        const result = await runTest(target, {
+            messages,
+            mode: mode === 'live' ? 'live' : 'mock',
+            initialVariables,
+            leadInfo,
+            mockApiResponses,
+            mockSecrets,
+            userId: req.userId
+        });
+        return res.status(200).json({
+            stage,
+            mode,
+            ...result
+        });
+    } catch (error) {
+        return res.status(500).json({ message: 'Server error', error: error.message });
+    }
+};
+
+// ---------------------------------------------------------------------------
+// Publish / Unpublish
+// ---------------------------------------------------------------------------
+
+/**
+ * Publish a flow:
+ *   1. Validate the draft. Errors > 0 \u2192 422 with the report.
+ *   2. Copy `draftNodes` \u2192 `nodes`.
+ *   3. Set status='published', bump publishedVersion, stamp publishedAt.
+ *   4. Optionally activate it on a bot if `?activateOn=:botId` is provided.
+ */
+const publishFlow = async (req, res) => {
+    try {
+        const flow = await loadFlowOr404(req, res);
+        if (!flow) return;
+
+        const draftNodes = Array.isArray(flow.draftNodes) && flow.draftNodes.length > 0
+            ? flow.draftNodes
+            : flow.nodes || [];
+        if (draftNodes.length === 0) {
+            return res.status(400).json({ message: 'Flow has no nodes to publish.' });
+        }
+        const target = { startNodeId: flow.startNodeId, nodes: draftNodes, variables: flow.variables || [] };
+        const knownSecretNames = await loadKnownSecretNames(req.userId);
+        const report = validateFlow(target, { knownSecretNames });
+        if (!report.ok) {
+            return res.status(422).json({
+                message: 'Flow has validation errors. Fix them before publishing.',
+                report
+            });
+        }
+
+        flow.nodes = draftNodes;
+        flow.status = 'published';
+        flow.publishedAt = new Date();
+        flow.publishedVersion = (flow.publishedVersion || 0) + 1;
+        flow.version = (flow.version || 1) + 1;
+        await flow.save();
+
+        const activateOn = req.body?.activateOn || req.query?.activateOn || null;
+        if (activateOn) {
+            try {
+                await botService.setBotBehavior(req.userId, activateOn, {
+                    mode: 'flow',
+                    activeFlowId: flow._id
+                });
+            } catch (e) {
+                // Non-fatal \u2014 publish succeeded but activation didn't.
+                return res.status(200).json({
+                    flow,
+                    activation: { ok: false, error: e.message }
+                });
             }
         }
-    ];
-    return res.status(200).json({ templates });
+        return res.status(200).json({ flow, activation: activateOn ? { ok: true, botId: activateOn } : null });
+    } catch (error) {
+        return res.status(500).json({ message: 'Server error', error: error.message });
+    }
+};
+
+/**
+ * Unpublish a flow: marks it as draft and clears any Bot still pointing at it.
+ */
+const unpublishFlow = async (req, res) => {
+    try {
+        const flow = await loadFlowOr404(req, res);
+        if (!flow) return;
+        flow.status = 'draft';
+        flow.isActive = false;
+        flow.draftNodes = flow.draftNodes && flow.draftNodes.length > 0 ? flow.draftNodes : flow.nodes;
+        flow.nodes = [];
+        await flow.save();
+        await Bot.updateMany(
+            { userId: req.userId, activeFlowId: flow._id },
+            { $set: { activeFlowId: null, behaviorMode: 'default' } }
+        );
+        return res.status(200).json({ flow });
+    } catch (error) {
+        return res.status(500).json({ message: 'Server error', error: error.message });
+    }
+};
+
+/**
+ * GET /users/flows/:id/analytics?period=7d|30d|90d&botId=...
+ *
+ * Returns per-node visit counts, drop-off, and overall completion rate over
+ * the requested period. Tenancy is enforced through the user scope on the
+ * underlying flow document and conversations collection.
+ */
+const getFlowAnalyticsEndpoint = async (req, res) => {
+    try {
+        const userId = req.user?._id;
+        if (!userId) return res.status(401).json({ message: 'Not authenticated' });
+
+        const { id } = req.params;
+        const period = String(req.query.period || '30d');
+        const botId = req.query.botId ? String(req.query.botId) : null;
+
+        const result = await getFlowAnalytics({
+            flowId: id,
+            userId,
+            period,
+            botId
+        });
+        return res.status(200).json(result);
+    } catch (error) {
+        return res
+            .status(500)
+            .json({ message: 'Server error', error: error.message });
+    }
 };
 
 module.exports = {
@@ -129,6 +481,11 @@ module.exports = {
     createFlow,
     updateFlow,
     deleteFlow,
-    listTemplates
+    listTemplates,
+    cloneTemplate,
+    validateFlow: validateFlowEndpoint,
+    testFlow: testFlowEndpoint,
+    publishFlow,
+    unpublishFlow,
+    getFlowAnalytics: getFlowAnalyticsEndpoint
 };
-

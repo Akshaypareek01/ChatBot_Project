@@ -3,6 +3,7 @@ const multer = require('multer');
 const router = express.Router();
 const userController = require('../controllers/userController');
 const flowController = require('../controllers/flowController');
+const secretsController = require('../controllers/secretsController');
 const qaController = require('../controllers/qaController');
 const paymentController = require('../controllers/paymentController');
 const authMiddleware = require('../middleware/authMiddleware');
@@ -51,6 +52,8 @@ router.get('/users/sources/health', userController.getSourcesHealth);
 router.get('/users/bots', userController.listBots);
 router.post('/users/bots', userController.createBot);
 router.patch('/users/bots/:id', validateObjectId('id'), userController.updateBot);
+// Enterprise Flow Builder: switch bot between Default AI and Active Flow
+router.patch('/users/bots/:id/behavior', validateObjectId('id'), userController.setBotBehavior);
 
 // Widget customization (supports ?botId= for multi-bot)
 router.get('/users/chatbot/config', userController.getWidgetConfig);
@@ -75,13 +78,26 @@ router.get('/users/feedback-stats', userController.getFeedbackStats);
 router.get('/users/conversations/:id', validateObjectId('id'), userController.getConversationById);
 router.patch('/users/conversations/:id', validateObjectId('id'), userController.updateConversation);
 
-// Phase 5.6: Chat flows / decision trees
+// Phase 5.6 / Enterprise Flow Builder: chat flows / decision trees
+// Order matters: more specific paths first so /:id doesn't swallow them.
 router.get('/users/flows/templates', flowController.listTemplates);
+router.post('/users/flows/templates/:id', flowController.cloneTemplate);
 router.get('/users/flows', flowController.listFlows);
 router.post('/users/flows', flowController.createFlow);
 router.get('/users/flows/:id', validateObjectId('id'), flowController.getFlow);
 router.put('/users/flows/:id', validateObjectId('id'), flowController.updateFlow);
 router.delete('/users/flows/:id', validateObjectId('id'), flowController.deleteFlow);
+router.post('/users/flows/:id/validate', validateObjectId('id'), flowController.validateFlow);
+router.post('/users/flows/:id/test',     validateObjectId('id'), flowController.testFlow);
+router.post('/users/flows/:id/publish',  validateObjectId('id'), flowController.publishFlow);
+router.post('/users/flows/:id/unpublish', validateObjectId('id'), flowController.unpublishFlow);
+router.get('/users/flows/:id/analytics', validateObjectId('id'), flowController.getFlowAnalytics);
+
+// Enterprise Flow Builder: per-client encrypted Secrets Vault (account-wide)
+router.get('/users/secrets', secretsController.listSecrets);
+router.post('/users/secrets', secretsController.createSecret);
+router.patch('/users/secrets/:id', validateObjectId('id'), secretsController.updateSecret);
+router.delete('/users/secrets/:id', validateObjectId('id'), secretsController.deleteSecret);
 
 // Phase 5.5: Reseller — list my clients (reseller role only)
 router.get('/users/clients', userController.getResellerClients);

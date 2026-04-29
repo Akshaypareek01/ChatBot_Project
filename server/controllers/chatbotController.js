@@ -12,12 +12,12 @@ const widgetTokenService = require('../services/widgetToken.service');
 const Source = require('../models/Source');
 const WidgetConfig = require('../models/WidgetConfig');
 const Conversation = require('../models/Conversation');
-const ChatFlow = require('../models/ChatFlow');
 const mongoose = require('mongoose');
 const emailService = require('../services/email.service');
 const notificationService = require('../services/notification.service');
 const webhookService = require('../services/webhook.service');
 const flowRuntime = require('../services/chatFlowRuntime.service');
+const botService = require('../services/bot.service');
 const axios = require('axios');
 
 const CHAT_MESSAGE_MAX_LENGTH = 1000;
@@ -373,16 +373,29 @@ const chatWithBot = async (req, res) => {
         if (conversationId && mongoose.Types.ObjectId.isValid(conversationId)) {
             conv = await Conversation.findOne({ _id: conversationId, userId });
         }
-        const activeFlow = await ChatFlow.findOne({ userId, botId: bodyBotId || null, isActive: true }).lean();
-        if (activeFlow) {
-            const currentNodeId = conv?.flowState?.flowId ? conv.flowState.nodeId : null;
+        // Resolver picks Bot.behaviorMode='flow' + activeFlowId first, then falls back
+        // to legacy ChatFlow.isActive, then to default AI/RAG.
+        const responder = await botService.resolveBotResponder(userId, bodyBotId || null);
+        if (responder.kind === 'flow') {
+            const activeFlow = responder.flow;
+            // Only resume off a stored nodeId if it belongs to the same flow.
+            // Otherwise we'd hand a node from flow A to flow B's runtime.
+            const currentNodeId =
+                conv?.flowState?.flowId &&
+                String(conv.flowState.flowId) === String(activeFlow._id)
+                    ? conv.flowState.nodeId
+                    : null;
             const out = flowRuntime.handleFlowMessage({ flow: activeFlow, currentNodeId, visitorText: sanitized });
 
             if (out?.node?.type === 'ai') {
                 const prompt = `${out.node.aiInstructions || ''}\n\nVisitor: ${sanitized}`.trim();
                 const ai = await chatService.handleChat(userId, prompt);
                 if (conv) {
-                    conv.flowState = out.endFlow ? { flowId: null, nodeId: null } : { flowId: activeFlow._id, nodeId: out.nextNodeId };
+                    // Preserve flowId on end so analytics can attribute the run.
+                    // Runtime resumes off nodeId, so leaving flowId set is safe.
+                    conv.flowState = out.endFlow
+                        ? { flowId: activeFlow._id, nodeId: null }
+                        : { flowId: activeFlow._id, nodeId: out.nextNodeId };
                     conv.messages.push({ role: 'user', content: sanitized }, { role: 'assistant', content: ai });
                     await conv.save();
                 }
@@ -391,7 +404,9 @@ const chatWithBot = async (req, res) => {
 
             const reply = out.replyText || '';
             if (conv) {
-                conv.flowState = out.endFlow ? { flowId: null, nodeId: null } : { flowId: activeFlow._id, nodeId: out.nextNodeId };
+                conv.flowState = out.endFlow
+                    ? { flowId: activeFlow._id, nodeId: null }
+                    : { flowId: activeFlow._id, nodeId: out.nextNodeId };
                 conv.messages.push({ role: 'user', content: sanitized }, { role: 'assistant', content: reply });
                 await conv.save();
             }
@@ -573,6 +588,330 @@ const escalateToHuman = async (req, res) => {
     }
 };
 
+// ---------------------------------------------------------------------------
+// Enterprise Flow Builder — streaming helper.
+//
+// Drives the runtime state machine (`step()`) for one visitor turn, forwards
+// EVERY chunk to the widget over the existing NDJSON channel, and handles
+// the side effects we care about at the controller layer:
+//
+//   - text / ai            → `{ type: 'token', content }`
+//   - buttons              → `{ type: 'buttons', buttons }`
+//   - cards                → `{ type: 'cards', cards }`
+//   - link                 → `{ type: 'link', url, label }`
+//   - typing               → `{ type: 'typing', ms }`
+//   - handoff              → escalates the conversation + forwards as
+//                            `{ type: 'handoff', team, message }` so the
+//                            widget can take over and join the agent room.
+//   - error                → `{ type: 'error', text }`
+//
+// Variables, retries, history, and pendingCaptureVar are all persisted on
+// the Conversation so the next visitor turn picks up exactly where the last
+// one left off.
+// ---------------------------------------------------------------------------
+const secretsVault = require('../services/secretsVault.service');
+
+async function runFlowTurnStream({
+    req,
+    res,
+    sendLine,
+    userId,
+    visitorId,
+    resolvedBotId,
+    conversationId,
+    convDoc,
+    activeFlow,
+    sanitized,
+    previousMessages,
+    preferredModel
+}) {
+    const flowState = convDoc?.flowState || null;
+    // Only resume from a stored nodeId if it belongs to the same flow we're
+    // about to run. Stale nodeIds from a previous flow (or after end) start
+    // fresh from the flow's start node.
+    const sameFlow =
+        !!flowState?.flowId &&
+        String(flowState.flowId) === String(activeFlow._id);
+    const startState = {
+        nodeId: sameFlow ? flowState.nodeId : null,
+        variables: sameFlow ? flowState?.variables || {} : {},
+        retries: sameFlow ? flowState?.retries || {} : {},
+        history: sameFlow && Array.isArray(flowState?.history) ? flowState.history : [],
+        pendingCaptureVar: sameFlow ? flowState?.pendingCaptureVar || null : null,
+        apiResult: null
+    };
+
+    const runtime = {
+        visitorId,
+        botId: resolvedBotId ? String(resolvedBotId) : null,
+        conversationId,
+        leadInfo: convDoc?.leadInfo || {},
+        services: {
+            getSecret: async (name) => {
+                try {
+                    return await secretsVault.getSecretValue(userId, name);
+                } catch {
+                    return '';
+                }
+            },
+            // AI inside flow nodes is handled out-of-band so we can keep using
+            // the streaming chat service (token-tracking, model preference,
+            // etc.). The executor returns a marker text we replace below.
+            runAI: async () => '__FLOW_AI_DEFERRED__'
+        }
+    };
+
+    let stepResult;
+    try {
+        stepResult = await flowRuntime.step({
+            flow: activeFlow,
+            state: startState,
+            visitorText: sanitized,
+            runtime
+        });
+    } catch (e) {
+        console.error('Flow step error:', e);
+        sendLine({ type: 'token', content: 'Sorry, something went wrong with this flow.' });
+        sendLine({ type: 'done', error: e.message || 'Flow runtime error' });
+        res.end();
+        return;
+    }
+
+    let aggregatedText = '';
+    let didHandoff = false;
+    let aiDeferred = null;
+
+    // Pre-escalate: if any handoff chunk is in this turn's output AND we
+    // already have a Conversation row (inbound conversationId), flip its
+    // status to 'escalated' BEFORE the widget receives the handoff chunk.
+    // Otherwise the visitor's joinHandoffSocket() will hit the socket auth
+    // middleware while conv.status is still 'active' and be rejected.
+    const handoffPending = (stepResult.chunks || []).some((c) => c?.type === 'handoff');
+    if (handoffPending && conversationId && mongoose.Types.ObjectId.isValid(conversationId)) {
+        await escalateConversation({ req, userId, conversationId }).catch((e) =>
+            console.error('Flow handoff pre-escalation failed:', e.message)
+        );
+        didHandoff = true;
+    }
+
+    for (const chunk of stepResult.chunks || []) {
+        if (chunk.type === 'text') {
+            sendLine({ type: 'token', content: chunk.text || '' });
+            aggregatedText += (aggregatedText ? '\n' : '') + (chunk.text || '');
+        } else if (chunk.type === 'ai') {
+            // Marker = the AI executor needs the streaming chat service.
+            // We capture the most recent AI node so we can stream it after
+            // flushing all the deterministic chunks.
+            if (chunk.text === '__FLOW_AI_DEFERRED__') {
+                aiDeferred = stepResult.lastNode;
+            } else if (chunk.text) {
+                sendLine({ type: 'token', content: chunk.text });
+                aggregatedText += (aggregatedText ? '\n' : '') + chunk.text;
+            }
+        } else if (chunk.type === 'buttons' && Array.isArray(chunk.buttons)) {
+            sendLine({ type: 'buttons', buttons: chunk.buttons });
+        } else if (chunk.type === 'cards' && Array.isArray(chunk.cards)) {
+            sendLine({ type: 'cards', cards: chunk.cards });
+        } else if (chunk.type === 'link' && chunk.url) {
+            sendLine({ type: 'link', url: chunk.url, label: chunk.label || chunk.url });
+        } else if (chunk.type === 'typing') {
+            sendLine({ type: 'typing', ms: Math.max(0, Number(chunk.ms) || 0) });
+        } else if (chunk.type === 'handoff') {
+            didHandoff = true;
+            sendLine({
+                type: 'handoff',
+                team: chunk.team || 'support',
+                message: chunk.message || 'Connecting you with a human agent…',
+                conversationId: conversationId || null
+            });
+            aggregatedText += (aggregatedText ? '\n' : '') + (chunk.message || '');
+        } else if (chunk.type === 'error') {
+            sendLine({ type: 'error', text: chunk.text || 'Something went wrong.' });
+            aggregatedText += (aggregatedText ? '\n' : '') + (chunk.text || '');
+        }
+    }
+
+    // Stream the deferred AI node. Falls back to a static reply on failure.
+    if (aiDeferred) {
+        const prompt = `${aiDeferred.aiInstructions || ''}\n\nVisitor: ${sanitized}`.trim();
+        try {
+            await new Promise((resolve) => {
+                chatService.handleChatStream(
+                    userId,
+                    prompt,
+                    (chunk) => {
+                        if (chunk?.type === 'token' && chunk.content) {
+                            aggregatedText += chunk.content;
+                            sendLine(chunk);
+                        }
+                    },
+                    (err, fullContent) => {
+                        if (err) {
+                            sendLine({ type: 'token', content: 'Sorry, AI is unavailable right now.' });
+                        } else if (!aggregatedText && fullContent) {
+                            aggregatedText = fullContent;
+                        }
+                        resolve();
+                    },
+                    { previousMessages, model: preferredModel, conversationId }
+                );
+            });
+        } catch (e) {
+            sendLine({ type: 'token', content: 'Sorry, AI is unavailable right now.' });
+        }
+    }
+
+    // Persist conversation + new flow state.
+    const persisted = await persistFlowTurn({
+        req,
+        userId,
+        visitorId,
+        resolvedBotId,
+        conversationId,
+        sanitized,
+        assistantText: aggregatedText || stepResult.lastNode?.text || '',
+        nextState: stepResult.nextState,
+        endFlow: stepResult.endFlow,
+        flowId: activeFlow._id
+    });
+    if (persisted?.messageIndex != null) {
+        sendLine({ type: 'messageIndex', messageIndex: persisted.messageIndex });
+    } else if (persisted?.conversationId) {
+        sendLine({ type: 'conversationId', conversationId: persisted.conversationId });
+    }
+
+    // Edge case: handoff on the very first turn (no inbound conversationId).
+    // Pre-escalation didn't run because the Conversation row didn't exist yet.
+    // Now that persistFlowTurn created it, escalate using the new id. This is
+    // a no-op when status is already 'escalated' (i.e. pre-escalation hit).
+    if (didHandoff && persisted?.dbConversationId) {
+        await escalateConversation({
+            req,
+            userId,
+            conversationId: persisted.dbConversationId
+        }).catch((e) => console.error('Flow handoff escalation failed:', e.message));
+    }
+
+    sendLine({ type: 'done' });
+    res.end();
+}
+
+/**
+ * Persist messages + new flow state. Returns { dbConversationId, messageIndex,
+ * conversationId } for the SSE channel.
+ */
+async function persistFlowTurn({
+    req,
+    userId,
+    visitorId,
+    resolvedBotId,
+    conversationId,
+    sanitized,
+    assistantText,
+    nextState,
+    endFlow,
+    flowId
+}) {
+    if (!visitorId) return null;
+    const userMsg = { role: 'user', content: sanitized };
+    const assistantMsg = { role: 'assistant', content: assistantText || '' };
+    // Preserve flowId on end so per-flow analytics can attribute the run.
+    // The runtime resumes off nodeId only, so flowId being set with a null
+    // nodeId still triggers a fresh start on the next visitor message.
+    const persistedFlowState = endFlow
+        ? {
+              flowId,
+              nodeId: null,
+              variables: nextState?.variables || {},
+              retries: nextState?.retries || {},
+              history: nextState?.history || [],
+              pendingCaptureVar: null
+          }
+        : {
+              flowId,
+              nodeId: nextState?.nodeId || null,
+              variables: nextState?.variables || {},
+              retries: nextState?.retries || {},
+              history: nextState?.history || [],
+              pendingCaptureVar: nextState?.pendingCaptureVar || null
+          };
+
+    try {
+        if (conversationId && mongoose.Types.ObjectId.isValid(conversationId)) {
+            const conv = await Conversation.findOneAndUpdate(
+                { _id: conversationId, userId },
+                {
+                    $set: { flowState: persistedFlowState },
+                    $push: { messages: { $each: [userMsg, assistantMsg] } },
+                    updatedAt: new Date()
+                },
+                { new: true }
+            );
+            if (conv) {
+                return {
+                    dbConversationId: conv._id,
+                    messageIndex: conv.messages.length - 1
+                };
+            }
+        }
+        const newConv = await Conversation.create({
+            visitorId,
+            userId,
+            botId: resolvedBotId || undefined,
+            flowState: persistedFlowState,
+            messages: [userMsg, assistantMsg],
+            metadata: {
+                pageUrl: req.headers.referer || '',
+                userAgent: req.headers['user-agent'] || ''
+            }
+        });
+        return {
+            dbConversationId: newConv._id,
+            conversationId: newConv._id.toString()
+        };
+    } catch (e) {
+        console.error('Flow conversation save error:', e);
+        return null;
+    }
+}
+
+/**
+ * Mark a conversation as escalated (mirrors POST /escalate side-effects):
+ *   - status -> 'escalated'
+ *   - escalatedAt timestamp
+ *   - emit io 'escalation' event so the agent dashboard pops it open
+ *   - fire chat_escalated webhook
+ */
+async function escalateConversation({ req, userId, conversationId }) {
+    const conv = await Conversation.findOne({ _id: conversationId, userId });
+    if (!conv) return;
+    if (conv.status === 'escalated') return;
+
+    conv.status = 'escalated';
+    conv.escalatedAt = new Date();
+    conv.handoffMessages = conv.handoffMessages || [];
+    await conv.save();
+
+    const io = req.app.get('io');
+    if (io) {
+        io.to(`user:${userId}`).emit('escalation', {
+            conversationId: conv._id.toString(),
+            visitorId: conv.visitorId,
+            leadInfo: conv.leadInfo,
+            messages: conv.messages,
+            handoffMessages: conv.handoffMessages,
+            escalatedAt: conv.escalatedAt
+        });
+    }
+
+    webhookService
+        .triggerWebhooks(userId, 'chat_escalated', {
+            conversationId: conv._id.toString(),
+            visitorId: conv.visitorId
+        })
+        .catch((e) => console.error('Webhook chat_escalated:', e.message));
+}
+
 /**
  * Stream chat response over SSE (NDJSON). Optionally persist to Conversation when visitorId is present.
  */
@@ -637,70 +976,25 @@ const chatWithBotStream = async (req, res) => {
     ).select('preferredAiModel botName welcomeMessage').lean();
     if (widgetConfig?.preferredAiModel) preferredModel = widgetConfig.preferredAiModel;
 
-    // Phase 5.6: Flow runtime (stream). If active flow exists, bypass RAG.
-    const activeFlow = await ChatFlow.findOne({ userId, botId: resolvedBotId || null, isActive: true }).lean();
-    if (activeFlow) {
-        const currentNodeId = convDoc?.flowState?.flowId ? convDoc.flowState.nodeId : null;
-        const out = flowRuntime.handleFlowMessage({ flow: activeFlow, currentNodeId, visitorText: sanitized });
-
-        const saveFlowState = async (assistantText) => {
-            if (!visitorId) return;
-            const userMsg = { role: 'user', content: sanitized };
-            const assistantMsg = { role: 'assistant', content: assistantText };
-            const nextState = out.endFlow ? { flowId: null, nodeId: null } : { flowId: activeFlow._id, nodeId: out.nextNodeId };
-            try {
-                if (conversationId && mongoose.Types.ObjectId.isValid(conversationId)) {
-                    const conv = await Conversation.findOneAndUpdate(
-                        { _id: conversationId, userId },
-                        { $set: { flowState: nextState }, $push: { messages: { $each: [userMsg, assistantMsg] } }, updatedAt: new Date() },
-                        { new: true }
-                    );
-                    if (conv) {
-                        sendLine({ type: 'messageIndex', messageIndex: conv.messages.length - 1 });
-                        return;
-                    }
-                }
-                const newConv = await Conversation.create({
-                    visitorId,
-                    userId,
-                    botId: resolvedBotId || undefined,
-                    flowState: nextState,
-                    messages: [userMsg, assistantMsg],
-                    metadata: { pageUrl: req.headers.referer || '', userAgent: req.headers['user-agent'] || '' }
-                });
-                sendLine({ type: 'conversationId', conversationId: newConv._id.toString() });
-            } catch (e) {
-                console.error('Flow conversation save error:', e);
-            }
-        };
-
-        if (out?.node?.type === 'ai') {
-            const prompt = `${out.node.aiInstructions || ''}\n\nVisitor: ${sanitized}`.trim();
-            try {
-                await chatService.handleChatStream(
-                    userId,
-                    prompt,
-                    (chunk) => sendLine(chunk),
-                    async (err, fullContent) => {
-                        if (out.buttons?.length) sendLine({ type: 'buttons', buttons: out.buttons });
-                        sendLine({ type: 'done' });
-                        await saveFlowState(err ? '(Error)' : fullContent);
-                    },
-                    { previousMessages, model: preferredModel, conversationId }
-                );
-            } catch (e) {
-                sendLine({ type: 'done', error: e.message || 'Flow AI stream failed' });
-            }
-            res.end();
-            return;
-        }
-
-        const reply = out.replyText || '';
-        if (reply) sendLine({ type: 'token', content: reply });
-        if (out.buttons?.length) sendLine({ type: 'buttons', buttons: out.buttons });
-        sendLine({ type: 'done' });
-        await saveFlowState(reply);
-        res.end();
+    // Phase 5.6 + Enterprise Flow Builder: Flow runtime (stream).
+    // Resolver checks Bot.behaviorMode -> active flow, with legacy isActive fallback.
+    const responder = await botService.resolveBotResponder(userId, resolvedBotId || null);
+    if (responder.kind === 'flow') {
+        const activeFlow = responder.flow;
+        await runFlowTurnStream({
+            req,
+            res,
+            sendLine,
+            userId,
+            visitorId,
+            resolvedBotId,
+            conversationId,
+            convDoc,
+            activeFlow,
+            sanitized,
+            previousMessages,
+            preferredModel
+        });
         return;
     }
 

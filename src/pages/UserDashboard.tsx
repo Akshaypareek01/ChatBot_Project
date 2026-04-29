@@ -15,11 +15,11 @@ import WidgetCustomization from '@/components/user/WidgetCustomization';
 import ConversationsList from '@/components/user/ConversationsList';
 import ConversationDetail from '@/components/user/ConversationDetail';
 import UserAnalytics from '@/components/user/UserAnalytics';
-import UserPlan from '@/components/user/UserPlan';
 import UserWebhooks from '@/components/user/UserWebhooks';
 import UserLiveChat from '@/components/user/UserLiveChat';
 import ResellerClients from '@/components/user/ResellerClients';
 import ChatFlows from '@/components/user/ChatFlows';
+import SecretsManager from '@/components/user/SecretsManager';
 import OnboardingWizard from '@/components/user/OnboardingWizard';
 
 const UserDashboard = () => {
@@ -104,17 +104,19 @@ const UserDashboard = () => {
           <Route path="/" element={<UserDashboardHome />} />
           <Route path="/qa" element={<UserKnowledgeBase />} />
           <Route path="/profile" element={<UserProfile />} />
-          <Route path="/transactions" element={<UserTransactions />} />
+          <Route path="/billing" element={<UserTransactions />} />
+          <Route path="/transactions" element={<Navigate to="/user/billing" replace />} />
+          <Route path="/plan" element={<Navigate to="/user/billing" replace />} />
           <Route path="/security" element={<DomainSecurityPage />} />
           <Route path="/widget" element={<WidgetCustomization />} />
           <Route path="/analytics" element={<UserAnalytics />} />
           <Route path="/conversations" element={<ConversationsList />} />
           <Route path="/conversations/:id" element={<ConversationDetail />} />
           <Route path="/support" element={<SupportSystem />} />
-          <Route path="/plan" element={<UserPlan />} />
           <Route path="/webhooks" element={<UserWebhooks />} />
           <Route path="/live-chat" element={<UserLiveChat />} />
           <Route path="/flows" element={<ChatFlows />} />
+          <Route path="/secrets" element={<SecretsManager />} />
           <Route path="/clients" element={<ResellerClients />} />
           <Route path="*" element={<Navigate to="/user" replace />} />
         </Routes>

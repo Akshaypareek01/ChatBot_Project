@@ -31,10 +31,20 @@ const conversationSchema = new mongoose.Schema({
         phone: String,
         name: String
     },
-    // Phase 5.6: Chat flows / decision trees
+    // Phase 5.6 + Enterprise Flow Builder: Chat flows / decision trees
     flowState: {
         flowId: { type: mongoose.Schema.Types.ObjectId, ref: 'ChatFlow', default: null },
-        nodeId: { type: String, default: null } // node.id within flow definition
+        nodeId: { type: String, default: null }, // node.id within flow definition
+        // Variables captured during the flow (e.g. order_id, email, api response slices).
+        // Stored as a Map<String, Mixed> so arbitrary JSON values (numbers, strings, objects) work.
+        variables: { type: Map, of: mongoose.Schema.Types.Mixed, default: () => new Map() },
+        // Per-capture-node retry counters. Keyed by node.id, value is the remaining attempts.
+        retries: { type: Map, of: Number, default: () => new Map() },
+        // Visited node ids for analytics + cycle detection.
+        history: { type: [String], default: [] },
+        // When the runtime is waiting on visitor text input for a Capture node, this holds
+        // the variable name to write into. null when the next user message is just a turn.
+        pendingCaptureVar: { type: String, default: null }
     },
     startedAt: { type: Date, default: Date.now },
     endedAt: Date

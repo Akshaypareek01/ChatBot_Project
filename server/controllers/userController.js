@@ -471,6 +471,32 @@ const updateBot = async (req, res) => {
     }
 };
 
+/**
+ * Enterprise Flow Builder: switch this bot between Default AI and an Active Flow.
+ *
+ * @route PATCH /api/users/bots/:id/behavior
+ * @body  { mode: 'default' | 'flow', activeFlowId?: string|null }
+ */
+const setBotBehavior = async (req, res) => {
+    try {
+        const { mode, activeFlowId } = req.body || {};
+        if (mode !== 'default' && mode !== 'flow') {
+            return res.status(400).json({ message: "mode must be 'default' or 'flow'" });
+        }
+        const bot = await botService.setBotBehavior(req.userId, req.params.id, {
+            mode,
+            activeFlowId: activeFlowId || null
+        });
+        return res.json(bot);
+    } catch (error) {
+        const isClientError =
+            /not found|required|not published|owned by/i.test(error.message || '');
+        return res
+            .status(isClientError ? 400 : 500)
+            .json({ message: error.message || 'Server error' });
+    }
+};
+
 /** Phase 3.4: Update notification preferences. */
 const updateNotificationPrefs = async (req, res) => {
     try {
@@ -711,6 +737,7 @@ module.exports = {
     listBots,
     createBot,
     updateBot,
+    setBotBehavior,
     getSuggestedQAs,
     addSuggestedQAToQA,
     dismissSuggestedQA,

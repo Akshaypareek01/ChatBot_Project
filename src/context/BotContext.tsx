@@ -3,7 +3,13 @@ import { getBots, createBot as createBotApi } from '@/services/api';
 
 const BOT_STORAGE_KEY = 'indicbot_current_bot_id';
 
-type Bot = { _id: string; name: string; slug: string };
+type Bot = {
+  _id: string;
+  name: string;
+  slug: string;
+  behaviorMode?: 'default' | 'flow';
+  activeFlowId?: string | null;
+};
 
 type BotContextType = {
   bots: Bot[];

@@ -428,6 +428,112 @@ export const deleteFlow = async (id: string) => {
   return response.data;
 };
 
+/**
+ * Phase 4: enterprise flow lifecycle / authoring endpoints. These hit the
+ * controller routes added in Phase 3 (validate / test / publish / unpublish /
+ * cloneTemplate) and the per-bot behavior switch from Phase 1.
+ */
+
+export const cloneFlowTemplate = async (
+  templateId: string,
+  payload: { botId?: string | null; name?: string } = {}
+) => {
+  const response = await api.post(`/users/flows/templates/${templateId}`, payload);
+  return response.data;
+};
+
+export const validateFlow = async (
+  id: string,
+  opts: { stage?: 'draft' | 'published' } = {}
+) => {
+  const response = await api.post(`/users/flows/${id}/validate`, opts);
+  return response.data;
+};
+
+export const testFlow = async (
+  id: string,
+  payload: {
+    messages?: Array<string | null>;
+    stage?: 'draft' | 'published';
+    mode?: 'mock' | 'live';
+    initialState?: any;
+    mockApiResponses?: Record<string, any>;
+    mockSecrets?: Record<string, string>;
+  } = {}
+) => {
+  const response = await api.post(`/users/flows/${id}/test`, payload);
+  return response.data;
+};
+
+export const publishFlow = async (
+  id: string,
+  payload: { activateOn?: string | null } = {}
+) => {
+  const response = await api.post(`/users/flows/${id}/publish`, payload);
+  return response.data;
+};
+
+export const unpublishFlow = async (id: string) => {
+  const response = await api.post(`/users/flows/${id}/unpublish`);
+  return response.data;
+};
+
+export const setBotBehavior = async (
+  botId: string,
+  payload: { mode: 'default' | 'flow'; activeFlowId?: string | null }
+) => {
+  const response = await api.patch(`/users/bots/${botId}/behavior`, payload);
+  return response.data;
+};
+
+/**
+ * Per-flow runtime analytics (visit + drop-off counts and overall completion
+ * rate) for the requested period. Only flows owned by the current user are
+ * accessible; the backend enforces tenancy.
+ */
+export const getFlowAnalytics = async (
+  id: string,
+  query: { period?: '7d' | '30d' | '90d'; botId?: string | null } = {}
+) => {
+  const params = new URLSearchParams();
+  if (query.period) params.set('period', query.period);
+  if (query.botId) params.set('botId', String(query.botId));
+  const qs = params.toString();
+  const response = await api.get(
+    `/users/flows/${id}/analytics${qs ? `?${qs}` : ''}`
+  );
+  return response.data;
+};
+
+// --- Secrets vault ---
+
+export const listSecrets = async () => {
+  const response = await api.get('/users/secrets');
+  return response.data;
+};
+
+export const createSecret = async (payload: {
+  name: string;
+  value: string;
+  description?: string;
+}) => {
+  const response = await api.post('/users/secrets', payload);
+  return response.data;
+};
+
+export const updateSecret = async (
+  id: string,
+  payload: { value?: string; description?: string }
+) => {
+  const response = await api.patch(`/users/secrets/${id}`, payload);
+  return response.data;
+};
+
+export const deleteSecret = async (id: string) => {
+  const response = await api.delete(`/users/secrets/${id}`);
+  return response.data;
+};
+
 // --- Wallet & Payment Services ---
 
 export const validateCoupon = async (code: string, amount: number) => {

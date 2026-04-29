@@ -11,11 +11,11 @@ import {
     Palette,
     MessagesSquare,
     BarChart3,
-    Zap,
     Webhook,
     MessageCircle,
     Users,
     Workflow,
+    KeyRound,
     Menu,
     X,
     ChevronRight,
@@ -99,14 +99,14 @@ const UserLayout: React.FC<UserLayoutProps> = ({ children, onLogout, user }) => 
                 { icon: Palette, label: 'Widget', path: '/user/widget' },
                 { icon: Shield, label: 'Domain security', path: '/user/security' },
                 { icon: Webhook, label: 'Webhooks', path: '/user/webhooks' },
+                { icon: KeyRound, label: 'Secrets', path: '/user/secrets' },
             ],
         },
         {
             title: 'Account',
             items: [
                 { icon: User, label: 'Profile', path: '/user/profile' },
-                { icon: CreditCard, label: 'Transactions', path: '/user/transactions' },
-                { icon: Zap, label: 'Plan', path: '/user/plan' },
+                { icon: CreditCard, label: 'Billing & plan', path: '/user/billing' },
                 { icon: LifeBuoy, label: 'Support', path: '/user/support' },
                 ...(user?.role === 'reseller'
                     ? [{ icon: Users, label: 'Clients', path: '/user/clients' }]

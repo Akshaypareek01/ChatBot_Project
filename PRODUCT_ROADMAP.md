@@ -334,13 +334,41 @@ Complete Phase 1 before moving to Phase 2. Track progress by marking items `[x]`
 - [x] Custom email sender (user's domain)
 - [x] Reseller admin panel — agencies can manage multiple client chatbots
 
-### 5.6 Chat Flows / Decision Trees
+### 5.6 Chat Flows / Decision Trees — Enterprise Flow Builder ✅
 
-- [ ] Visual flow builder (drag-and-drop)
+> **Shipped:** drag-and-drop visual builder with 13 node types (message,
+> capture, branch, set_variable, action_api, action_handoff, ai, cards, delay,
+> jump, trigger, end, question), per-client encrypted Secrets vault, draft +
+> publish lifecycle, per-bot Behavior Mode toggle, validate / test endpoints,
+> per-node analytics (visits + drop-off), and SSE chunk streaming for cards /
+> links / typing / handoff.
+>
+> **Authoring guide:** see [docs/FLOWS_AUTHORING_GUIDE.md](docs/FLOWS_AUTHORING_GUIDE.md).
+
+- [x] Visual flow builder (drag-and-drop) — `NodePalette` + React Flow canvas
 - [x] Support button-based responses alongside AI
-- [x] Pre-built templates (appointment booking, pricing inquiry, support routing)
-- [x] Conditional logic (if user says X, go to step Y)
-- [x] Mix AI responses with structured flows
+- [x] Pre-built templates (8 enterprise templates: order-status, refund, lead
+      qualification, appointment, product recommendation, handoff, FAQ-to-AI, NPS)
+- [x] Conditional logic (`branch` node with eq/neq/gt/lt/contains/exists/regex ops)
+- [x] Mix AI responses with structured flows (`ai` node with KB grounding)
+- [x] HTTP API node with Bearer/Basic/API-key auth, JSONPath response mapping,
+      8s timeout, SSRF guard, configurable per-workspace allow-list
+- [x] Capture node with email/phone/number/date/url/regex validation + retries
+- [x] `cards` node — image, title, subtitle, postback / url / call_api buttons
+- [x] `action_handoff` node — flips Conversation.status to escalated, emits
+      socket events, widget joins agent room
+- [x] Per-client Secrets vault (AES-256-GCM at rest with `SECRETS_ENC_KEY`,
+      account-wide so the same `shopify_token` works across every bot)
+- [x] Variable system — `{{vars.x}}` `{{secret.x}}` `{{user.x}}` `{{system.x}}`
+      `{{api.x}}` interpolated through every user-provided string
+- [x] Draft vs Published versioning + version history + Publish button +
+      restore-from-published
+- [x] Per-bot Behavior Mode toggle (Default AI vs run-this-flow) with
+      explicit Activate / Deactivate flow on the Flows page
+- [x] Author productivity panels — Variables, Validation, Test sandbox,
+      per-flow Analytics (visits + drop-off + completion rate)
+- [x] Widget rendering — cards, link buttons, typing indicator, handoff
+      header takeover all stream over the existing SSE channel
 
 ### 5.7 Native Indian Language Support
 
